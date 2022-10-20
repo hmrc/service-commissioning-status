@@ -16,11 +16,12 @@
 
 package uk.gov.hmrc.servicecommissioningstatus.config
 
-import javax.inject.{Inject, Singleton}
 import play.api.Configuration
+import javax.inject.{Inject, Singleton}
 
 @Singleton
-class AppConfig @Inject()(config: Configuration) {
-
-  val appName: String = config.get[String]("appName")
+class GitHubConfig @Inject() (configuration: Configuration) {
+  val url:    String  = configuration.get[String]("github.open.url")
+  val rawUrl: String  = configuration.get[String]("github.open.api.rawurl")
+  val token:  String  = configuration.get[String]("github.open.api.token")
 }
