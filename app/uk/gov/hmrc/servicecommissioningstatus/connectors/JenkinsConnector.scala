@@ -14,14 +14,13 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.servicecommissioningstatus.config
+package uk.gov.hmrc.servicecommissioningstatus.connectors
 
-import play.api.Configuration
-import javax.inject.{Inject, Singleton}
+class JenkinsConnector {
 
-@Singleton
-class GitHubConfig @Inject() (configuration: Configuration) {
-  val githubApiUrl: String  = configuration.get[String]("github.open.api.url")
-  val githubRawUrl: String  = configuration.get[String]("github.open.api.rawurl")
-  val githubToken:  String  = configuration.get[String]("github.open.api.token")
+  //TODO remember how to connect to Jenkins API using token
+
+  // Connect to Jenkins Orchestrator API to check for BuildJobs
+  def jenkinsOrchestrator = ???
+
 }

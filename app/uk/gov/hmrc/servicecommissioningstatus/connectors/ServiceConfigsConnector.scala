@@ -14,14 +14,16 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.servicecommissioningstatus.config
+package uk.gov.hmrc.servicecommissioningstatus.connectors
 
-import play.api.Configuration
-import javax.inject.{Inject, Singleton}
+class ServiceConfigsConnector {
 
-@Singleton
-class GitHubConfig @Inject() (configuration: Configuration) {
-  val githubApiUrl: String  = configuration.get[String]("github.open.api.url")
-  val githubRawUrl: String  = configuration.get[String]("github.open.api.rawurl")
-  val githubToken:  String  = configuration.get[String]("github.open.api.token")
+  //TODO add service-configs port to app.conf
+
+  // Check service has mdtp frontend routes
+  def mdtpFrontendRoutes = ???
+
+  // Check if Alert Config exists
+  def alertConfigs = ???
+
 }

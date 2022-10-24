@@ -14,14 +14,13 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.servicecommissioningstatus.config
+package uk.gov.hmrc.servicecommissioningstatus.connectors
 
-import play.api.Configuration
-import javax.inject.{Inject, Singleton}
+class WhatsRunningWhereConnector {
 
-@Singleton
-class GitHubConfig @Inject() (configuration: Configuration) {
-  val githubApiUrl: String  = configuration.get[String]("github.open.api.url")
-  val githubRawUrl: String  = configuration.get[String]("github.open.api.rawurl")
-  val githubToken:  String  = configuration.get[String]("github.open.api.token")
+  //TODO add wrw port to app.conf
+
+  // Check if service is deployed for environments
+  def deployedServiceForEnv = ???
+
 }

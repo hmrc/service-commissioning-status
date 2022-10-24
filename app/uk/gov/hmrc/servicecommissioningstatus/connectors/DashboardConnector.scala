@@ -14,14 +14,17 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.servicecommissioningstatus.config
+package uk.gov.hmrc.servicecommissioningstatus.connectors
 
-import play.api.Configuration
-import javax.inject.{Inject, Singleton}
+class DashboardConnector {
 
-@Singleton
-class GitHubConfig @Inject() (configuration: Configuration) {
-  val githubApiUrl: String  = configuration.get[String]("github.open.api.url")
-  val githubRawUrl: String  = configuration.get[String]("github.open.api.rawurl")
-  val githubToken:  String  = configuration.get[String]("github.open.api.token")
+  //TODO figure out what token is needed to access dashboards
+
+  // Check dashboard is setup
+  def kibana = ???
+
+
+  // Check dashboard is setup
+  def grafana = ???
+
 }

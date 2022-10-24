@@ -16,23 +16,28 @@
 
 package uk.gov.hmrc.servicecommissioningstatus.controllers
 
+import play.api.libs.json.{Format, Json}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 import play.api.mvc.{Action, AnyContent, ControllerComponents}
-import uk.gov.hmrc.servicecommissioningstatus.connectors.GitHubConnector
+import uk.gov.hmrc.servicecommissioningstatus.model.ServiceCommissioningStatus
+import uk.gov.hmrc.servicecommissioningstatus.service.StatusCheckService
 
 import javax.inject.{Inject, Singleton}
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ExecutionContext}
 
 //TODO update to new version of play
 
 @Singleton()
-class ServiceStatusController @Inject()(cc: ControllerComponents,
-                                        gitHubConnector: GitHubConnector)(implicit ec: ExecutionContext)
+class ServiceStatusController @Inject()(
+ cc: ControllerComponents,
+ statusCheckService: StatusCheckService
+)(implicit ec: ExecutionContext)
     extends BackendController(cc) {
 
   def statusChecks(serviceName: String): Action[AnyContent] = Action.async { implicit request =>
-    //gitHubConnector.getRepoResponse("catalogue-frontend")
-    //gitHubConnector.serviceApplicationConfigFile("catalogue-frontend")
-    Future.successful(Ok(serviceName))
+    implicit val apf: Format[ServiceCommissioningStatus] = ServiceCommissioningStatus.apiFormat
+    for {
+      y <- statusCheckService.commissioningChecks(serviceName)
+    } yield Ok(Json.toJson(y))
   }
 }
