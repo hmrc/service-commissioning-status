@@ -16,14 +16,39 @@
 
 package uk.gov.hmrc.servicecommissioningstatus.connectors
 
-class ServiceConfigsConnector {
+import play.api.libs.json.{Json, Reads}
+import uk.gov.hmrc.http.{HeaderCarrier, HttpResponse, StringContextOps}
+import uk.gov.hmrc.http.client.HttpClientV2
+import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
 
-  //TODO add service-configs port to app.conf
+import javax.inject.Inject
+import scala.concurrent.{ExecutionContext, Future}
+
+class ServiceConfigsConnector @Inject()(
+                                         servicesConfig: ServicesConfig,
+                                         httpClientV2: HttpClientV2
+                                       ){
+
+  import uk.gov.hmrc.http.HttpReads.Implicits._
+
+  private val url: String = servicesConfig.baseUrl("service-configs")
+
+  private implicit val hc: HeaderCarrier = HeaderCarrier()
 
   // Check service has mdtp frontend routes
-  def mdtpFrontendRoutes = ???
+  def getMDTPFrontendRoutes(serviceName: String)(implicit ec: ExecutionContext): Future[Seq[FrontendRoute]] = {
+    httpClientV2
+      .get(url"$url/frontend-route/$serviceName")
+      .execute[Seq[FrontendRoute]]
+  }
 
   // Check if Alert Config exists
   def alertConfigs = ???
 
+}
+
+case class FrontendRoute(environment: String)
+
+object FrontendRoute {
+  implicit val reads: Reads[FrontendRoute] = Json.reads[FrontendRoute]
 }

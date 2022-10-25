@@ -16,9 +16,8 @@
 
 package uk.gov.hmrc.servicecommissioningstatus.service
 
-import play.api.libs.json.Reads
 import uk.gov.hmrc.http.HeaderCarrier
-import uk.gov.hmrc.servicecommissioningstatus.connectors.GitHubConnector
+import uk.gov.hmrc.servicecommissioningstatus.connectors.{FrontendRoute, GitHubConnector, ServiceConfigsConnector}
 import uk.gov.hmrc.servicecommissioningstatus.model.ServiceCommissioningStatus
 
 import javax.inject.{Inject, Singleton}
@@ -26,23 +25,33 @@ import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class StatusCheckService @Inject()(
-                                  gitHubConnector: GitHubConnector
+                                  gitHubConnector: GitHubConnector,
+                                  serviceConfigsConnector: ServiceConfigsConnector
                                   )(implicit ec: ExecutionContext){
 
   // commissioningStatusChecks
-  def commissioningChecks(serviceName: String)(implicit hc: HeaderCarrier): Future[ServiceCommissioningStatus] = {
+  def commissioningStatusChecks(serviceName: String)(implicit hc: HeaderCarrier): Future[ServiceCommissioningStatus] = {
     for {
-      repoExists <- hasRepo(serviceName)
-      inSMConfig <- hasServiceManagerConfig(serviceName)
-    } yield ServiceCommissioningStatus(repoExists, inSMConfig)
+      repo <- repoStatus(serviceName)
+      smConfig <- serviceManagerConfigStatus(serviceName)
+
+      frontend  <- isFrontend(serviceName)
+      routes    <- lookUpRoutes(serviceName)
+      intRoute  = hasFrontendRoute(frontend, routes, "integration")
+      devRoute  = hasFrontendRoute(frontend, routes, "development")
+      qaRoute   = hasFrontendRoute(frontend, routes, "qa")
+      stagRoute = hasFrontendRoute(frontend, routes, "staging")
+      etRoute   = hasFrontendRoute(frontend, routes, "externaltest")
+      prodRoute = hasFrontendRoute(frontend, routes, "production")
+    } yield ServiceCommissioningStatus(repo, smConfig, intRoute, devRoute, qaRoute, stagRoute, etRoute, prodRoute)
   }
 
-
-  private def hasRepo(serviceName: String)(implicit hc: HeaderCarrier): Future[Boolean] = {
+// Repo check or Repo Status
+  private def repoStatus(serviceName: String)(implicit hc: HeaderCarrier): Future[Boolean] = {
     gitHubConnector.getRepository(serviceName).map(_.nonEmpty)
   }
 
-  private def hasServiceManagerConfig(serviceName: String)(implicit hc: HeaderCarrier): Future[Boolean] = {
+  private def serviceManagerConfigStatus(serviceName: String)(implicit hc: HeaderCarrier): Future[Boolean] = {
     val serviceManagerKey = serviceName.toUpperCase.replaceAll("[-]", "_")
     // Adds quotes for regex exact match
     gitHubConnector.getServiceManagerConfigFile.map(_.exists(_.contains(s"\"$serviceManagerKey\"")))
@@ -51,9 +60,17 @@ class StatusCheckService @Inject()(
 
   private def hasAppConfig(serviceName: String, env: String): Future[Boolean] = ???
 
-  private def isFrontend(serviceName: String): Boolean = ???
+  private def isFrontend(serviceName: String)(implicit hc: HeaderCarrier): Future[Boolean] = {
+    gitHubConnector.getApplicationConfigFile(serviceName).map(_.exists(_.contains("\"frontend.conf\"")))
+  }
 
-  private def hasFrontendRoutes(serviceName: String): Boolean = ???
+  private def lookUpRoutes(serviceName: String)(implicit hc: HeaderCarrier): Future[Seq[FrontendRoute]] = {
+    serviceConfigsConnector.getMDTPFrontendRoutes(serviceName)
+  }
+
+  private def hasFrontendRoute(isFrontend: Boolean, routes: Seq[FrontendRoute], env: String)(implicit hc: HeaderCarrier) = {
+    if (isFrontend) routes.map(_.environment).contains(env) else isFrontend
+  }
 
   private def hasBuildJobs(serviceName: String): Boolean = ???
 

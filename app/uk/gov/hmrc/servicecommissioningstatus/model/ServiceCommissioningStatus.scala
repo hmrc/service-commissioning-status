@@ -17,21 +17,33 @@
 package uk.gov.hmrc.servicecommissioningstatus.model
 
 import play.api.libs.functional.syntax.{toFunctionalBuilderOps, unlift}
-import play.api.libs.json.{Format, __}
+import play.api.libs.json.{Format, Json, __}
 
 case class ServiceCommissioningStatus(
-                                     hasRepo: Boolean,
-                                     inSMConfig: Boolean
-                                     )
+   hasRepo              : Boolean,
+   hasSMConfig          : Boolean,
+   hasIntegrationRoutes : Boolean,
+   hasDevelopmentRoutes : Boolean,
+   hasQARoutes          : Boolean,
+   hasStagingRoutes     : Boolean,
+   hasExternalTestRoutes: Boolean,
+   hasProductionRoutes  : Boolean
+
+
+)
 
 
 
 
 object ServiceCommissioningStatus {
 
-  val apiFormat: Format[ServiceCommissioningStatus] =
-    ( (__ \ "hasRepo"     ).format[Boolean]
-      ~ (__ \ "inSMConfig").format[Boolean]
-      )(ServiceCommissioningStatus.apply, unlift(ServiceCommissioningStatus.unapply))
+  implicit val apiFormat: Format[ServiceCommissioningStatus] =
+    Json.format[ServiceCommissioningStatus]
+
+//  val apiFormat: Format[ServiceCommissioningStatus] =
+//    ( (__ \ "hasRepo"     ).format[Boolean]
+//      ~ (__ \ "inSMConfig").format[Boolean]
+//      ~ (__ \ "hasMDTPFrontendRoutes").formatNullable[Option[Boolean]]
+//      )(ServiceCommissioningStatus.apply, unlift(ServiceCommissioningStatus.unapply))
 
 }

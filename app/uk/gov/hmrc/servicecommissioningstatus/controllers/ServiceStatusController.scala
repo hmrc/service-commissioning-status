@@ -37,7 +37,7 @@ class ServiceStatusController @Inject()(
   def statusChecks(serviceName: String): Action[AnyContent] = Action.async { implicit request =>
     implicit val apf: Format[ServiceCommissioningStatus] = ServiceCommissioningStatus.apiFormat
     for {
-      y <- statusCheckService.commissioningChecks(serviceName)
+      y <- statusCheckService.commissioningStatusChecks(serviceName)
     } yield Ok(Json.toJson(y))
   }
 }
