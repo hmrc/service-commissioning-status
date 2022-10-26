@@ -16,19 +16,23 @@
 
 package uk.gov.hmrc.servicecommissioningstatus.model
 
-import play.api.libs.functional.syntax.{toFunctionalBuilderOps, unlift}
 import play.api.libs.json.{Format, Json, __}
 
 case class ServiceCommissioningStatus(
-   hasRepo              : Boolean,
-   hasSMConfig          : Boolean,
-   hasIntegrationRoutes : Boolean,
-   hasDevelopmentRoutes : Boolean,
-   hasQARoutes          : Boolean,
-   hasStagingRoutes     : Boolean,
-   hasExternalTestRoutes: Boolean,
-   hasProductionRoutes  : Boolean
-
+   hasRepo                  : Boolean,
+   hasSMConfig              : Boolean,
+   hasIntegrationRoutes     : Boolean,
+   hasDevelopmentRoutes     : Boolean,
+   hasQARoutes              : Boolean,
+   hasStagingRoutes         : Boolean,
+   hasExternalTestRoutes    : Boolean,
+   hasProductionRoutes      : Boolean,
+   hasAppConfigIntegration  : Boolean,
+   hasAppConfigDevelopment  : Boolean,
+   hasAppConfigQA           : Boolean,
+   hasAppConfigStaging      : Boolean,
+   hasAppConfigExternalTest : Boolean,
+   hasAppConfigProduction   : Boolean
 
 )
 

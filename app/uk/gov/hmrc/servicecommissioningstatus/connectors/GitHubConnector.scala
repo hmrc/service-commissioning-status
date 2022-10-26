@@ -30,7 +30,6 @@ class GitHubConnector @Inject() (
 )(implicit ec: ExecutionContext) {
   import HttpReads.Implicits._
 
-  //TODO App config??
   //TODO get head of file instead
 
   // Used to check Repo for service Exists
@@ -52,6 +51,15 @@ class GitHubConnector @Inject() (
   def getApplicationConfigFile(serviceName: String)(implicit hc: HeaderCarrier): Future[Option[String]] = {
     val newHc = hc.withExtraHeaders(("Authorization", s"token ${gitHubConfig.githubToken}"))
     val requestUrl = url"${gitHubConfig.githubRawUrl}/hmrc/$serviceName/main/conf/application.conf"
+    doCall(requestUrl, newHc)
+  }
+
+  //!TODO Change to get 200 Response instead of response.body
+  //!TODO Create a trait for environments, see service-configs
+  def getAppConfigForEnvironment(serviceName: String, environment: String)(implicit hc: HeaderCarrier): Future[Option[String]] = {
+    val newHc = hc.withExtraHeaders(("Authorization", s"token ${gitHubConfig.githubToken}"))
+    val requestUrl = url"${gitHubConfig.githubRawUrl}/hmrc/app-config-$environment/main/$serviceName.yaml"
+    //println(">>>> " + requestUrl.toString + " <<<<")
     doCall(requestUrl, newHc)
   }
 

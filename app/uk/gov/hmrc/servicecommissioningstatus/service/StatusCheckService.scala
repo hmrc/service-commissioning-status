@@ -33,6 +33,7 @@ class StatusCheckService @Inject()(
   def commissioningStatusChecks(serviceName: String)(implicit hc: HeaderCarrier): Future[ServiceCommissioningStatus] = {
     for {
       repo <- repoStatus(serviceName)
+
       smConfig <- serviceManagerConfigStatus(serviceName)
 
       frontend  <- isFrontend(serviceName)
@@ -43,7 +44,17 @@ class StatusCheckService @Inject()(
       stagRoute = hasFrontendRoute(frontend, routes, "staging")
       etRoute   = hasFrontendRoute(frontend, routes, "externaltest")
       prodRoute = hasFrontendRoute(frontend, routes, "production")
-    } yield ServiceCommissioningStatus(repo, smConfig, intRoute, devRoute, qaRoute, stagRoute, etRoute, prodRoute)
+
+      appConfigInt  <- hasAppConfig(serviceName, "integration")
+      appConfigDev  <- hasAppConfig(serviceName, "development")
+      appConfigQA   <- hasAppConfig(serviceName, "qa")
+      appConfigStag <- hasAppConfig(serviceName, "staging")
+      appConfigET   <- hasAppConfig(serviceName, "externaltest")
+      appConfigProd <- hasAppConfig(serviceName, "production")
+
+
+    } yield ServiceCommissioningStatus(repo, smConfig, intRoute, devRoute, qaRoute, stagRoute, etRoute, prodRoute,
+      appConfigInt, appConfigDev, appConfigQA, appConfigStag, appConfigET, appConfigProd)
   }
 
 // Repo check or Repo Status
@@ -57,9 +68,6 @@ class StatusCheckService @Inject()(
     gitHubConnector.getServiceManagerConfigFile.map(_.exists(_.contains(s"\"$serviceManagerKey\"")))
   }
 
-
-  private def hasAppConfig(serviceName: String, env: String): Future[Boolean] = ???
-
   private def isFrontend(serviceName: String)(implicit hc: HeaderCarrier): Future[Boolean] = {
     gitHubConnector.getApplicationConfigFile(serviceName).map(_.exists(_.contains("\"frontend.conf\"")))
   }
@@ -68,8 +76,12 @@ class StatusCheckService @Inject()(
     serviceConfigsConnector.getMDTPFrontendRoutes(serviceName)
   }
 
-  private def hasFrontendRoute(isFrontend: Boolean, routes: Seq[FrontendRoute], env: String)(implicit hc: HeaderCarrier) = {
+  private def hasFrontendRoute(isFrontend: Boolean, routes: Seq[FrontendRoute], env: String)(implicit hc: HeaderCarrier): Boolean = {
     if (isFrontend) routes.map(_.environment).contains(env) else isFrontend
+  }
+
+  private def hasAppConfig(serviceName: String, environment: String)(implicit hc: HeaderCarrier): Future[Boolean] = {
+    gitHubConnector.getAppConfigForEnvironment(serviceName, environment).map(_.nonEmpty)
   }
 
   private def hasBuildJobs(serviceName: String): Boolean = ???
