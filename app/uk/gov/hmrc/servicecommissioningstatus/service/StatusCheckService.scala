@@ -17,16 +17,20 @@
 package uk.gov.hmrc.servicecommissioningstatus.service
 
 import uk.gov.hmrc.http.HeaderCarrier
-import uk.gov.hmrc.servicecommissioningstatus.connectors.{FrontendRoute, GitHubConnector, ServiceConfigsConnector}
+import uk.gov.hmrc.servicecommissioningstatus.connectors.{ArtifactoryConnector, FrontendRoute, GitHubConnector, ServiceConfigsConnector}
 import uk.gov.hmrc.servicecommissioningstatus.model.ServiceCommissioningStatus
 
+import java.io.InputStream
+import java.util.zip.ZipInputStream
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
+
 
 @Singleton
 class StatusCheckService @Inject()(
                                   gitHubConnector: GitHubConnector,
-                                  serviceConfigsConnector: ServiceConfigsConnector
+                                  serviceConfigsConnector: ServiceConfigsConnector,
+                                  artifactoryConnector: ArtifactoryConnector
                                   )(implicit ec: ExecutionContext){
 
   // commissioningStatusChecks
@@ -52,9 +56,12 @@ class StatusCheckService @Inject()(
       appConfigET   <- hasAppConfig(serviceName, "externaltest")
       appConfigProd <- hasAppConfig(serviceName, "production")
 
+      sensuZip    <- artifactoryConnector.getSensuZip
+      alertConfig = hasAlertConfig(serviceName, sensuZip)
+
 
     } yield ServiceCommissioningStatus(repo, smConfig, intRoute, devRoute, qaRoute, stagRoute, etRoute, prodRoute,
-      appConfigInt, appConfigDev, appConfigQA, appConfigStag, appConfigET, appConfigProd)
+      appConfigInt, appConfigDev, appConfigQA, appConfigStag, appConfigET, appConfigProd, alertConfig)
   }
 
 // Repo check or Repo Status
@@ -84,11 +91,24 @@ class StatusCheckService @Inject()(
     gitHubConnector.getAppConfigForEnvironment(serviceName, environment).map(_.nonEmpty)
   }
 
+  private def hasAlertConfig(serviceName: String, inputStream: InputStream)(implicit hc: HeaderCarrier): Boolean = {
+
+    val zip = new ZipInputStream(inputStream)
+
+    Iterator.continually(zip.getNextEntry)
+      .takeWhile(z => z != null)
+      .foldLeft(false)((found, entry) => {
+        entry.getName match {
+          case n if n.equals(s"target/output/configs/$serviceName.json") => true
+          case _                                                         => found
+        }
+      })
+  }
+
+
   private def hasBuildJobs(serviceName: String): Boolean = ???
 
   private def isDeployed(serviceName: String, env: String): Future[Boolean] = ???
-
-  private def hasAlertConfig(serviceName: String): Boolean = ???
 
   private def hasKibanaDashboard(serviceName: String): Boolean = ???
 

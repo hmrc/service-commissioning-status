@@ -25,9 +25,9 @@ import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
 
 class ServiceConfigsConnector @Inject()(
-                                         servicesConfig: ServicesConfig,
-                                         httpClientV2: HttpClientV2
-                                       ){
+   servicesConfig: ServicesConfig,
+   httpClientV2: HttpClientV2
+){
 
   import uk.gov.hmrc.http.HttpReads.Implicits._
 
