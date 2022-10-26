@@ -17,34 +17,43 @@
 package uk.gov.hmrc.servicecommissioningstatus.connectors
 
 import play.api.libs.json.{Json, Reads}
-import uk.gov.hmrc.http.{HeaderCarrier, HttpResponse, StringContextOps}
+import uk.gov.hmrc.http.{HeaderCarrier, StringContextOps}
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
 
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
 
-class ServiceConfigsConnector @Inject()(
-   servicesConfig: ServicesConfig,
-   httpClientV2: HttpClientV2
+class ReleasesConnector @Inject()(
+  servicesConfig: ServicesConfig,
+  httpClientV2: HttpClientV2
 ){
 
   import uk.gov.hmrc.http.HttpReads.Implicits._
 
-  private val url: String = servicesConfig.baseUrl("service-configs")
-
   private implicit val hc: HeaderCarrier = HeaderCarrier()
 
-  // Check service has mdtp frontend routes
-  def getMDTPFrontendRoutes(serviceName: String)(implicit ec: ExecutionContext): Future[Seq[FrontendRoute]] = {
+  private val url: String = servicesConfig.baseUrl("releases-api")
+
+  def getReleases(serviceName: String)(implicit ec: ExecutionContext): Future[WhatsRunningWhereReleases] = {
     httpClientV2
-      .get(url"$url/frontend-route/$serviceName")
-      .execute[Seq[FrontendRoute]]
+      .get(url"$url/releases-api/whats-running-where/$serviceName")
+      .execute[WhatsRunningWhereReleases]
   }
 }
 
-case class FrontendRoute(environment: String)
+case class Release(environment: String)
 
-object FrontendRoute {
-  implicit val reads: Reads[FrontendRoute] = Json.reads[FrontendRoute]
+object Release {
+  implicit val reads: Reads[Release] = Json.reads[Release]
 }
+
+case class WhatsRunningWhereReleases(versions: Seq[Release])
+
+object WhatsRunningWhereReleases {
+  implicit val reads: Reads[WhatsRunningWhereReleases] = Json.reads[WhatsRunningWhereReleases]
+}
+
+
+
+

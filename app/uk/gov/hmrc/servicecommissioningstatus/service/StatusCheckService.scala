@@ -17,7 +17,7 @@
 package uk.gov.hmrc.servicecommissioningstatus.service
 
 import uk.gov.hmrc.http.HeaderCarrier
-import uk.gov.hmrc.servicecommissioningstatus.connectors.{ArtifactoryConnector, FrontendRoute, GitHubConnector, ServiceConfigsConnector}
+import uk.gov.hmrc.servicecommissioningstatus.connectors.{ArtifactoryConnector, FrontendRoute, GitHubConnector, Release, ReleasesConnector, ServiceConfigsConnector, WhatsRunningWhereReleases}
 import uk.gov.hmrc.servicecommissioningstatus.model.ServiceCommissioningStatus
 
 import java.io.InputStream
@@ -28,10 +28,11 @@ import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class StatusCheckService @Inject()(
-                                  gitHubConnector: GitHubConnector,
-                                  serviceConfigsConnector: ServiceConfigsConnector,
-                                  artifactoryConnector: ArtifactoryConnector
-                                  )(implicit ec: ExecutionContext){
+  gitHubConnector         : GitHubConnector,
+  serviceConfigsConnector : ServiceConfigsConnector,
+  artifactoryConnector    : ArtifactoryConnector,
+  releasesConnector       : ReleasesConnector
+)(implicit ec: ExecutionContext){
 
   // commissioningStatusChecks
   def commissioningStatusChecks(serviceName: String)(implicit hc: HeaderCarrier): Future[ServiceCommissioningStatus] = {
@@ -59,9 +60,19 @@ class StatusCheckService @Inject()(
       sensuZip    <- artifactoryConnector.getSensuZip
       alertConfig = hasAlertConfig(serviceName, sensuZip)
 
+      releases      <- releasesConnector.getReleases(serviceName).map(_.versions)
+      intDeployed   = isDeployed(releases, "integration")
+      devDeployed   = isDeployed(releases, "development")
+      qaDeployed    = isDeployed(releases, "qa")
+      stagDeployed  = isDeployed(releases, "staging")
+      etDeployed    = isDeployed(releases, "externaltest")
+      prodDeployed  = isDeployed(releases, "production")
+
+
 
     } yield ServiceCommissioningStatus(repo, smConfig, intRoute, devRoute, qaRoute, stagRoute, etRoute, prodRoute,
-      appConfigInt, appConfigDev, appConfigQA, appConfigStag, appConfigET, appConfigProd, alertConfig)
+      appConfigInt, appConfigDev, appConfigQA, appConfigStag, appConfigET, appConfigProd, alertConfig, intDeployed,
+      devDeployed, qaDeployed, stagDeployed, etDeployed, prodDeployed)
   }
 
 // Repo check or Repo Status
@@ -105,10 +116,12 @@ class StatusCheckService @Inject()(
       })
   }
 
+  private def isDeployed(releases: Seq[Release], env: String): Boolean = {
+    releases.map(_.environment).contains(env)
+  }
+
 
   private def hasBuildJobs(serviceName: String): Boolean = ???
-
-  private def isDeployed(serviceName: String, env: String): Future[Boolean] = ???
 
   private def hasKibanaDashboard(serviceName: String): Boolean = ???
 

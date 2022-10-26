@@ -33,8 +33,13 @@ case class ServiceCommissioningStatus(
    hasAppConfigStaging      : Boolean,
    hasAppConfigExternalTest : Boolean,
    hasAppConfigProduction   : Boolean,
-   hasAlertConfig           : Boolean
-
+   hasAlertConfig           : Boolean,
+   deployedInIntegration    : Boolean,
+   deployedInDevelopment    : Boolean,
+   deployedInQA             : Boolean,
+   deployedInInStaging      : Boolean,
+   deployedInExternalTest   : Boolean,
+   deployedInProduction     : Boolean
 )
 
 
