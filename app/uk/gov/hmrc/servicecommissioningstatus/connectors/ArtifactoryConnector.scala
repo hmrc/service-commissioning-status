@@ -41,8 +41,6 @@ class ArtifactoryConnector @Inject()(
 
   private implicit val hc: HeaderCarrier = HeaderCarrier()
 
-  //!TODO add proxy
-
   def getSensuZip: Future[InputStream] =
     ws
       .url(s"${config.artifactoryUrl}/artifactory/webstore/sensu-config/output.zip")

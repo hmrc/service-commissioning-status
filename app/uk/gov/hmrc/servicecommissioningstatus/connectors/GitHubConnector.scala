@@ -16,13 +16,16 @@
 
 package uk.gov.hmrc.servicecommissioningstatus.connectors
 
-import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, HttpResponse, StringContextOps}
+import akka.stream.scaladsl.Source
+import akka.util.ByteString
+import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, HttpResponse, StringContextOps, UpstreamErrorResponse}
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.servicecommissioningstatus.config.GitHubConfig
 
 import java.net.URL
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
+
 
 class GitHubConnector @Inject() (
   httpClientV2: HttpClientV2,
@@ -61,6 +64,14 @@ class GitHubConnector @Inject() (
     val requestUrl = url"${gitHubConfig.githubRawUrl}/hmrc/app-config-$environment/main/$serviceName.yaml"
     //println(">>>> " + requestUrl.toString + " <<<<")
     doCall(requestUrl, newHc)
+  }
+
+  def getArchive(repoName: String)(implicit hc: HeaderCarrier) = {
+    httpClientV2
+      .get(url"${gitHubConfig.githubApiUrl}/repos/hmrc/$repoName/tarball")
+      .setHeader("Authorization" -> s"token ${gitHubConfig.githubToken}")
+      .withProxy
+      .stream[Either[UpstreamErrorResponse, Source[ByteString, _]]]
   }
 
   private def doCall(url: URL, newHc: HeaderCarrier): Future[Option[String]] = {
