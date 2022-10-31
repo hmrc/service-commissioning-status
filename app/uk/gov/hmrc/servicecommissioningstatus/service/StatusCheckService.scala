@@ -17,13 +17,14 @@
 package uk.gov.hmrc.servicecommissioningstatus.service
 
 import uk.gov.hmrc.http.HeaderCarrier
-import uk.gov.hmrc.servicecommissioningstatus.connectors.{ArtifactoryConnector, FrontendRoute, GitHubConnector, Release, ReleasesConnector, ServiceConfigsConnector, WhatsRunningWhereReleases}
+import uk.gov.hmrc.servicecommissioningstatus.connectors.{ArtifactoryConnector, FrontendRoute, GitHubConnector, Release, ReleasesConnector, ServiceConfigsConnector}
 import uk.gov.hmrc.servicecommissioningstatus.model.ServiceCommissioningStatus
 
 import java.io.InputStream
 import java.util.zip.ZipInputStream
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
+import scala.io.Source
 
 
 @Singleton
@@ -35,7 +36,7 @@ class StatusCheckService @Inject()(
 )(implicit ec: ExecutionContext){
 
   // commissioningStatusChecks
-  def commissioningStatusChecks(serviceName: String)(implicit hc: HeaderCarrier): Future[ServiceCommissioningStatus] = {
+  def commissioningStatusChecks(serviceName: String)(implicit hc: HeaderCarrier): Future[Seq[ServiceCommissioningStatus]] = {
     for {
       repo <- repoStatus(serviceName)
 
@@ -68,11 +69,39 @@ class StatusCheckService @Inject()(
       etDeployed    = isDeployed(releases, "externaltest")
       prodDeployed  = isDeployed(releases, "production")
 
+      kibanaArchive <- gitHubConnector.getArchive("kibana-dashboards")
+      kibana = hasDashboard(serviceName, kibanaArchive)
+
+      grafanaArchive <- gitHubConnector.getArchive("grafana-dashboards")
+      grafana = hasDashboard(serviceName, grafanaArchive)
 
 
-    } yield ServiceCommissioningStatus(repo, smConfig, intRoute, devRoute, qaRoute, stagRoute, etRoute, prodRoute,
-      appConfigInt, appConfigDev, appConfigQA, appConfigStag, appConfigET, appConfigProd, alertConfig, intDeployed,
-      devDeployed, qaDeployed, stagDeployed, etDeployed, prodDeployed)
+    } yield Seq(
+        ServiceCommissioningStatus("hasRepo", repo)
+      , ServiceCommissioningStatus("hasSMConfig", smConfig)
+      , ServiceCommissioningStatus("hasIntegrationRoutes", intRoute)
+      , ServiceCommissioningStatus("hasDevelopmentRoutes", devRoute)
+      , ServiceCommissioningStatus("hasQARoutes", qaRoute)
+      , ServiceCommissioningStatus("hasStagingRoutes", stagRoute)
+      , ServiceCommissioningStatus("hasExternalTestRoutes", etRoute)
+      , ServiceCommissioningStatus("hasProductionRoutes", prodRoute)
+      , ServiceCommissioningStatus("hasIntegrationRoutes", intRoute)
+      , ServiceCommissioningStatus("hasAppConfigIntegration", appConfigInt)
+      , ServiceCommissioningStatus("hasAppConfigDevelopment", appConfigDev)
+      , ServiceCommissioningStatus("hasAppConfigQA", appConfigQA)
+      , ServiceCommissioningStatus("hasAppConfigStaging", appConfigStag)
+      , ServiceCommissioningStatus("hasAppConfigExternalTest", appConfigET)
+      , ServiceCommissioningStatus("hasAppConfigProduction", appConfigProd)
+      , ServiceCommissioningStatus("hasAlertConfig", alertConfig)
+      , ServiceCommissioningStatus("deployedInIntegration", intDeployed)
+      , ServiceCommissioningStatus("deployedInDevelopment", devDeployed)
+      , ServiceCommissioningStatus("deployedInQA", qaDeployed)
+      , ServiceCommissioningStatus("deployedInStaging", stagDeployed)
+      , ServiceCommissioningStatus("deployedInExternalTest", etDeployed)
+      , ServiceCommissioningStatus("deployedInProduction", prodDeployed)
+      , ServiceCommissioningStatus("hasKibanaDashboard", kibana)
+      , ServiceCommissioningStatus("hasGrafanaDashboard", grafana)
+    )
   }
 
 // Repo check or Repo Status
@@ -90,11 +119,11 @@ class StatusCheckService @Inject()(
     gitHubConnector.getApplicationConfigFile(serviceName).map(_.exists(_.contains("\"frontend.conf\"")))
   }
 
-  private def lookUpRoutes(serviceName: String)(implicit hc: HeaderCarrier): Future[Seq[FrontendRoute]] = {
+  private def lookUpRoutes(serviceName: String): Future[Seq[FrontendRoute]] = {
     serviceConfigsConnector.getMDTPFrontendRoutes(serviceName)
   }
 
-  private def hasFrontendRoute(isFrontend: Boolean, routes: Seq[FrontendRoute], env: String)(implicit hc: HeaderCarrier): Boolean = {
+  private def hasFrontendRoute(isFrontend: Boolean, routes: Seq[FrontendRoute], env: String): Boolean = {
     if (isFrontend) routes.map(_.environment).contains(env) else isFrontend
   }
 
@@ -102,7 +131,7 @@ class StatusCheckService @Inject()(
     gitHubConnector.getAppConfigForEnvironment(serviceName, environment).map(_.nonEmpty)
   }
 
-  private def hasAlertConfig(serviceName: String, inputStream: InputStream)(implicit hc: HeaderCarrier): Boolean = {
+  private def hasAlertConfig(serviceName: String, inputStream: InputStream): Boolean = {
 
     val zip = new ZipInputStream(inputStream)
 
@@ -120,12 +149,31 @@ class StatusCheckService @Inject()(
     releases.map(_.environment).contains(env)
   }
 
-
   private def hasBuildJobs(serviceName: String): Boolean = ???
 
-  private def hasKibanaDashboard(serviceName: String): Boolean = ???
+  private def hasDashboard(serviceName: String, inputStream: Option[InputStream]) = {
 
-  private def hasGrafanaDashboard(serviceName: String): Boolean = ???
+    val zip = new ZipInputStream(inputStream.get)
+
+    Iterator.continually(zip.getNextEntry)
+      .takeWhile(z => z != null)
+      .filter(f =>
+        f.getName.contains("src/main/scala/uk/gov/hmrc/kibanadashboards/digitalservices") ||
+        f.getName.contains("src/main/scala/uk/gov/hmrc/grafanadashboards"))
+      .map { e =>
+        e.getName -> Source.fromInputStream(zip).getLines.mkString("\n")
+      }.foldLeft(false)((found, entry) => {
+      entry match {
+        //case (_, code)  if fileContent(code)  => {println("Found code for: " + serviceName); true}
+        case (_, kibanaCode)  if kibanaCode.contains(s"Microservice(\"$serviceName\"")  => {println("Found code for: " + serviceName); true}
+        case (_, grafanaCode) if grafanaCode.contains(s"= \"$serviceName\"")            => {println("Found code for: " + serviceName); true}
+        case _                                                                          => found
+      }
+    })
+  }
+
+
+
 
 
 

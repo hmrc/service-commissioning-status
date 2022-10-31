@@ -39,6 +39,9 @@ class ReleasesConnector @Inject()(
     httpClientV2
       .get(url"$url/releases-api/whats-running-where/$serviceName")
       .execute[WhatsRunningWhereReleases]
+      .recover{
+        case ex: Exception => WhatsRunningWhereReleases(Seq.empty)
+      }
   }
 }
 

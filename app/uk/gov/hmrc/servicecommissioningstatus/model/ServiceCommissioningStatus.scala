@@ -18,32 +18,36 @@ package uk.gov.hmrc.servicecommissioningstatus.model
 
 import play.api.libs.json.{Format, Json, __}
 
+//case class ServiceCommissioningStatus(
+//   hasRepo                  : Boolean,
+//   hasSMConfig              : Boolean,
+//   hasIntegrationRoutes     : Boolean,
+//   hasDevelopmentRoutes     : Boolean,
+//   hasQARoutes              : Boolean,
+//   hasStagingRoutes         : Boolean,
+//   hasExternalTestRoutes    : Boolean,
+//   hasProductionRoutes      : Boolean,
+//   hasAppConfigIntegration  : Boolean,
+//   hasAppConfigDevelopment  : Boolean,
+//   hasAppConfigQA           : Boolean,
+//   hasAppConfigStaging      : Boolean,
+//   hasAppConfigExternalTest : Boolean,
+//   hasAppConfigProduction   : Boolean,
+//   hasAlertConfig           : Boolean,
+//   deployedInIntegration    : Boolean,
+//   deployedInDevelopment    : Boolean,
+//   deployedInQA             : Boolean,
+//   deployedInInStaging      : Boolean,
+//   deployedInExternalTest   : Boolean,
+//   deployedInProduction     : Boolean,
+//   hasKibanaDashboard       : Boolean,
+//   hasGrafanaDashboard      : Boolean
+//)
+
 case class ServiceCommissioningStatus(
-   hasRepo                  : Boolean,
-   hasSMConfig              : Boolean,
-   hasIntegrationRoutes     : Boolean,
-   hasDevelopmentRoutes     : Boolean,
-   hasQARoutes              : Boolean,
-   hasStagingRoutes         : Boolean,
-   hasExternalTestRoutes    : Boolean,
-   hasProductionRoutes      : Boolean,
-   hasAppConfigIntegration  : Boolean,
-   hasAppConfigDevelopment  : Boolean,
-   hasAppConfigQA           : Boolean,
-   hasAppConfigStaging      : Boolean,
-   hasAppConfigExternalTest : Boolean,
-   hasAppConfigProduction   : Boolean,
-   hasAlertConfig           : Boolean,
-   deployedInIntegration    : Boolean,
-   deployedInDevelopment    : Boolean,
-   deployedInQA             : Boolean,
-   deployedInInStaging      : Boolean,
-   deployedInExternalTest   : Boolean,
-   deployedInProduction     : Boolean
+   statusCheck: String,
+   result: Boolean
 )
-
-
-
 
 object ServiceCommissioningStatus {
 

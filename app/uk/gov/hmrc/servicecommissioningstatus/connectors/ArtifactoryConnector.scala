@@ -18,7 +18,6 @@ package uk.gov.hmrc.servicecommissioningstatus.connectors
 
 
 import play.api.libs.ws.WSClient
-import uk.gov.hmrc.http.{HeaderCarrier, StringContextOps}
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.servicecommissioningstatus.config.ArtifactoryConfig
 import akka.stream.Materializer
@@ -38,8 +37,6 @@ class ArtifactoryConnector @Inject()(
 )(implicit ec: ExecutionContext,
   materializer: Materializer
 ){
-
-  private implicit val hc: HeaderCarrier = HeaderCarrier()
 
   def getSensuZip: Future[InputStream] =
     ws

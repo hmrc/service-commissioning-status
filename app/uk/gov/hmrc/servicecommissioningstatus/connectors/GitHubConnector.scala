@@ -16,21 +16,25 @@
 
 package uk.gov.hmrc.servicecommissioningstatus.connectors
 
-import akka.stream.scaladsl.Source
+import akka.stream.Materializer
 import akka.util.ByteString
+import akka.stream.scaladsl.{Source, StreamConverters}
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, HttpResponse, StringContextOps, UpstreamErrorResponse}
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.servicecommissioningstatus.config.GitHubConfig
 
+import java.io.InputStream
 import java.net.URL
 import javax.inject.Inject
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.duration.DurationInt
+import scala.concurrent.{Await, ExecutionContext, Future}
 
 
 class GitHubConnector @Inject() (
   httpClientV2: HttpClientV2,
   gitHubConfig: GitHubConfig
-)(implicit ec: ExecutionContext) {
+)(implicit ec: ExecutionContext,
+  materializer: Materializer) {
   import HttpReads.Implicits._
 
   //TODO get head of file instead
@@ -66,12 +70,18 @@ class GitHubConnector @Inject() (
     doCall(requestUrl, newHc)
   }
 
-  def getArchive(repoName: String)(implicit hc: HeaderCarrier) = {
+  def getArchive(repoName: String)(implicit hc: HeaderCarrier): Future[Option[InputStream]] = {
     httpClientV2
-      .get(url"${gitHubConfig.githubApiUrl}/repos/hmrc/$repoName/tarball")
+      .get(url"${gitHubConfig.githubApiUrl}/repos/hmrc/$repoName/zipball")
       .setHeader("Authorization" -> s"token ${gitHubConfig.githubToken}")
       .withProxy
       .stream[Either[UpstreamErrorResponse, Source[ByteString, _]]]
+      .flatMap {
+        case Right(source)                                   => Future.successful(Some(source.runWith(StreamConverters.asInputStream(readTimeout = 100000.seconds))))
+        case Left(UpstreamErrorResponse.WithStatusCode(404)) => Future.successful(None)
+        case Left(error)                                     => throw error
+          //logger.error(s"Could not call ${gitHubConfig.githubApiUrl}/repos/hmrc/$repoName/tarball - ${error.getMessage}", error
+      }
   }
 
   private def doCall(url: URL, newHc: HeaderCarrier): Future[Option[String]] = {
