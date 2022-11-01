@@ -27,7 +27,7 @@ import java.io.InputStream
 import java.net.URL
 import javax.inject.Inject
 import scala.concurrent.duration.DurationInt
-import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.{ExecutionContext, Future}
 
 
 class GitHubConnector @Inject() (
@@ -41,33 +41,64 @@ class GitHubConnector @Inject() (
 
   // Used to check Repo for service Exists
   // Refactor to only look for response
-  def getRepository(serviceName: String)(implicit hc: HeaderCarrier): Future[Option[String]] = {
+  def getRepository(serviceName: String)(implicit hc: HeaderCarrier): Future[Option[HttpResponse]] = {
     val newHc = hc.withExtraHeaders(("Authorization", s"token ${gitHubConfig.githubToken}"))
     val requestUrl = url"${gitHubConfig.githubApiUrl}/repos/hmrc/$serviceName"
     doCall(requestUrl, newHc)
   }
 
+//  def getRepository2(serviceName: String)(implicit hc: HeaderCarrier): Future[Option[HttpResponse]] = {
+//    httpClientV2
+//      .get(url"${gitHubConfig.githubApiUrl}/repos/hmrc/$serviceName")
+//      .setHeader("Authorization" -> s"token ${gitHubConfig.githubToken}")
+//      .withProxy
+//      .execute[HttpResponse]
+//      .map {
+//        case response if response.status == 200 =>
+//          Some(response)
+//        case response if response.status == 404 =>
+//          None
+//        case response =>
+//          sys.error(s"Failed with status code '${response.status}'")
+//      }
+//  }
+
   // Used to check service is in service manager config json file
-  def getServiceManagerConfigFile(implicit hc: HeaderCarrier): Future[Option[String]] = {
+  def getServiceManagerConfigFile(implicit hc: HeaderCarrier): Future[Option[HttpResponse]] = {
     val newHc = hc.withExtraHeaders(("Authorization", s"token ${gitHubConfig.githubToken}"))
     val requestUrl = url"${gitHubConfig.githubRawUrl}/hmrc/service-manager-config/main/services.json"
     doCall(requestUrl, newHc)
   }
 
   // Used to check if service is a frontend-service
-  def getApplicationConfigFile(serviceName: String)(implicit hc: HeaderCarrier): Future[Option[String]] = {
+  def getApplicationConfigFile(serviceName: String)(implicit hc: HeaderCarrier): Future[Option[HttpResponse]] = {
     val newHc = hc.withExtraHeaders(("Authorization", s"token ${gitHubConfig.githubToken}"))
     val requestUrl = url"${gitHubConfig.githubRawUrl}/hmrc/$serviceName/main/conf/application.conf"
     doCall(requestUrl, newHc)
   }
 
-  //!TODO Change to get 200 Response instead of response.body
   //!TODO Create a trait for environments, see service-configs
-  def getAppConfigForEnvironment(serviceName: String, environment: String)(implicit hc: HeaderCarrier): Future[Option[String]] = {
+  def getAppConfigForEnvironment(serviceName: String, environment: String)(implicit hc: HeaderCarrier): Future[Option[HttpResponse]] = {
     val newHc = hc.withExtraHeaders(("Authorization", s"token ${gitHubConfig.githubToken}"))
     val requestUrl = url"${gitHubConfig.githubRawUrl}/hmrc/app-config-$environment/main/$serviceName.yaml"
     //println(">>>> " + requestUrl.toString + " <<<<")
     doCall(requestUrl, newHc)
+  }
+
+  private def doCall(url: URL, newHc: HeaderCarrier): Future[Option[HttpResponse]] = {
+    implicit val hc: HeaderCarrier = newHc
+    httpClientV2
+      .get(url)
+      .withProxy
+      .execute[HttpResponse]
+      .map {
+        case response if response.status == 200 =>
+          Some(response)
+        case response if response.status == 404 =>
+          None
+        case response =>
+          sys.error(s"Failed with status code '${response.status}' to download GitHub file from $url")
+      }
   }
 
   def getArchive(repoName: String)(implicit hc: HeaderCarrier): Future[Option[InputStream]] = {
@@ -80,25 +111,6 @@ class GitHubConnector @Inject() (
         case Right(source)                                   => Future.successful(Some(source.runWith(StreamConverters.asInputStream(readTimeout = 100000.seconds))))
         case Left(UpstreamErrorResponse.WithStatusCode(404)) => Future.successful(None)
         case Left(error)                                     => throw error
-          //logger.error(s"Could not call ${gitHubConfig.githubApiUrl}/repos/hmrc/$repoName/tarball - ${error.getMessage}", error
-      }
-  }
-
-  private def doCall(url: URL, newHc: HeaderCarrier): Future[Option[String]] = {
-    implicit val hc: HeaderCarrier = newHc
-    httpClientV2
-      .get(url)
-      .withProxy
-      .execute[HttpResponse]
-      .map {
-        case response if response.status == 200 =>
-          //println(response.status.toString + " >>>> " + url + " <<<<")
-          Some(response.body)
-        case response if response.status == 404 =>
-          //println(response.status.toString + " >>>> " + url + " <<<<")
-          None
-        case response =>
-          sys.error(s"Failed with status code '${response.status}' to download GitHub file from $url")
       }
   }
 }

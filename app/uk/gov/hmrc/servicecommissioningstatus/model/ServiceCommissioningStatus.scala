@@ -18,35 +18,67 @@ package uk.gov.hmrc.servicecommissioningstatus.model
 
 import play.api.libs.json.{Format, Json, __}
 
-//case class ServiceCommissioningStatus(
-//   hasRepo                  : Boolean,
-//   hasSMConfig              : Boolean,
-//   hasIntegrationRoutes     : Boolean,
-//   hasDevelopmentRoutes     : Boolean,
-//   hasQARoutes              : Boolean,
-//   hasStagingRoutes         : Boolean,
-//   hasExternalTestRoutes    : Boolean,
-//   hasProductionRoutes      : Boolean,
-//   hasAppConfigIntegration  : Boolean,
-//   hasAppConfigDevelopment  : Boolean,
-//   hasAppConfigQA           : Boolean,
-//   hasAppConfigStaging      : Boolean,
-//   hasAppConfigExternalTest : Boolean,
-//   hasAppConfigProduction   : Boolean,
-//   hasAlertConfig           : Boolean,
-//   deployedInIntegration    : Boolean,
-//   deployedInDevelopment    : Boolean,
-//   deployedInQA             : Boolean,
-//   deployedInInStaging      : Boolean,
-//   deployedInExternalTest   : Boolean,
-//   deployedInProduction     : Boolean,
-//   hasKibanaDashboard       : Boolean,
-//   hasGrafanaDashboard      : Boolean
-//)
+case class FrontendRoutes(
+  integration : Boolean,
+  development : Boolean,
+  qa          : Boolean,
+  staging     : Boolean,
+  externalTest: Boolean,
+  production  : Boolean
+)
+
+object FrontendRoutes {
+  implicit val frFormat: Format[FrontendRoutes] =
+    Json.format[FrontendRoutes]
+}
+
+case class AppConfig(
+  integration : Boolean,
+  development : Boolean,
+  qa          : Boolean,
+  staging     : Boolean,
+  externalTest: Boolean,
+  production  : Boolean
+)
+
+object AppConfig {
+  implicit val acFormat: Format[AppConfig] =
+    Json.format[AppConfig]
+}
+
+case class DeploymentEnvironment(
+  integration : Boolean,
+  development : Boolean,
+  qa          : Boolean,
+  staging     : Boolean,
+  externalTest: Boolean,
+  production  : Boolean
+)
+
+object DeploymentEnvironment {
+  implicit val deFormat: Format[DeploymentEnvironment] =
+    Json.format[DeploymentEnvironment]
+}
+
+case class Dashboards(
+  kibana       : Boolean,
+  grafana      : Boolean
+)
+
+object Dashboards {
+  implicit val dFormat: Format[Dashboards] =
+    Json.format[Dashboards]
+}
 
 case class ServiceCommissioningStatus(
-   statusCheck: String,
-   result: Boolean
+  hasRepo           : Boolean,
+  hasSMConfig       : Boolean,
+  hasFrontendRoutes : FrontendRoutes,
+  hasAppConfig      : AppConfig,
+  deployedIn        : DeploymentEnvironment,
+  hasDashboards     : Dashboards,
+  hasBuildJobs      : Boolean,
+  hasAlerts         : Boolean
 )
 
 object ServiceCommissioningStatus {

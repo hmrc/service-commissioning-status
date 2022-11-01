@@ -16,38 +16,35 @@
 
 package uk.gov.hmrc.servicecommissioningstatus.connectors
 
-
-import play.api.libs.ws.WSClient
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.servicecommissioningstatus.config.ArtifactoryConfig
 import akka.stream.Materializer
-import akka.stream.scaladsl.StreamConverters
-
+import akka.stream.scaladsl.{Source, StreamConverters}
+import akka.util.ByteString
+import uk.gov.hmrc.http.{HeaderCarrier, StringContextOps, UpstreamErrorResponse}
 
 import java.io.InputStream
 import javax.inject.{Inject, Singleton}
-import scala.concurrent.duration.{Duration, DurationInt}
+import scala.concurrent.duration.DurationInt
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class ArtifactoryConnector @Inject()(
   config: ArtifactoryConfig,
-  httpClientV2: HttpClientV2,
-  ws    : WSClient
+  httpClientV2: HttpClientV2
 )(implicit ec: ExecutionContext,
   materializer: Materializer
 ){
 
-  def getSensuZip: Future[InputStream] =
-    ws
-      .url(s"${config.artifactoryUrl}/artifactory/webstore/sensu-config/output.zip")
-      .withMethod("GET")
-      .withRequestTimeout(Duration.Inf)
-      .stream()
-      .map(_.bodyAsSource.async.runWith(StreamConverters.asInputStream(readTimeout = 20.seconds)))
-
-//  def getSensuZip =
-//    httpClientV2
-//      .get(url"${config.artifactoryUrl}/artifactory/webstore/sensu-config/output.zip")
-//      .stream
+  def getSensuZip(implicit hc: HeaderCarrier): Future[Option[InputStream]] = {
+    httpClientV2
+      .get(url"${config.artifactoryUrl}/artifactory/webstore/sensu-config/output.zip")
+      .withProxy
+      .stream[Either[UpstreamErrorResponse, Source[ByteString, _]]]
+      .flatMap{
+        case Right(source)                                   => Future.successful(Some(source.runWith(StreamConverters.asInputStream(readTimeout = 100000.seconds))))
+        case Left(UpstreamErrorResponse.WithStatusCode(404)) => Future.successful(None)
+        case Left(error)                                     => throw error
+      }
+  }
 }

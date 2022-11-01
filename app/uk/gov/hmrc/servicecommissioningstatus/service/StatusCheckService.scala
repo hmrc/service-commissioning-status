@@ -18,7 +18,7 @@ package uk.gov.hmrc.servicecommissioningstatus.service
 
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.servicecommissioningstatus.connectors.{ArtifactoryConnector, FrontendRoute, GitHubConnector, Release, ReleasesConnector, ServiceConfigsConnector}
-import uk.gov.hmrc.servicecommissioningstatus.model.ServiceCommissioningStatus
+import uk.gov.hmrc.servicecommissioningstatus.model.{AppConfig, Dashboards, DeploymentEnvironment, FrontendRoutes, ServiceCommissioningStatus}
 
 import java.io.InputStream
 import java.util.zip.ZipInputStream
@@ -36,87 +36,72 @@ class StatusCheckService @Inject()(
 )(implicit ec: ExecutionContext){
 
   // commissioningStatusChecks
-  def commissioningStatusChecks(serviceName: String)(implicit hc: HeaderCarrier): Future[Seq[ServiceCommissioningStatus]] = {
+  def commissioningStatusChecks(serviceName: String)(implicit hc: HeaderCarrier): Future[ServiceCommissioningStatus] = {
     for {
       repo <- repoStatus(serviceName)
 
       smConfig <- serviceManagerConfigStatus(serviceName)
 
-      frontend  <- isFrontend(serviceName)
-      routes    <- lookUpRoutes(serviceName)
-      intRoute  = hasFrontendRoute(frontend, routes, "integration")
-      devRoute  = hasFrontendRoute(frontend, routes, "development")
-      qaRoute   = hasFrontendRoute(frontend, routes, "qa")
+      frontend <- isFrontend(serviceName)
+      routes <- lookUpRoutes(serviceName)
+      intRoute = hasFrontendRoute(frontend, routes, "integration")
+      devRoute = hasFrontendRoute(frontend, routes, "development")
+      qaRoute = hasFrontendRoute(frontend, routes, "qa")
       stagRoute = hasFrontendRoute(frontend, routes, "staging")
-      etRoute   = hasFrontendRoute(frontend, routes, "externaltest")
+      etRoute = hasFrontendRoute(frontend, routes, "externaltest")
       prodRoute = hasFrontendRoute(frontend, routes, "production")
 
-      appConfigInt  <- hasAppConfig(serviceName, "integration")
-      appConfigDev  <- hasAppConfig(serviceName, "development")
-      appConfigQA   <- hasAppConfig(serviceName, "qa")
+      appConfigInt <- hasAppConfig(serviceName, "integration")
+      appConfigDev <- hasAppConfig(serviceName, "development")
+      appConfigQA <- hasAppConfig(serviceName, "qa")
       appConfigStag <- hasAppConfig(serviceName, "staging")
-      appConfigET   <- hasAppConfig(serviceName, "externaltest")
+      appConfigET <- hasAppConfig(serviceName, "externaltest")
       appConfigProd <- hasAppConfig(serviceName, "production")
 
-      sensuZip    <- artifactoryConnector.getSensuZip
-      alertConfig = hasAlertConfig(serviceName, sensuZip)
-
-      releases      <- releasesConnector.getReleases(serviceName).map(_.versions)
-      intDeployed   = isDeployed(releases, "integration")
-      devDeployed   = isDeployed(releases, "development")
-      qaDeployed    = isDeployed(releases, "qa")
-      stagDeployed  = isDeployed(releases, "staging")
-      etDeployed    = isDeployed(releases, "externaltest")
-      prodDeployed  = isDeployed(releases, "production")
+      releases <- releasesConnector.getReleases(serviceName).map(_.versions)
+      intDeployed = isDeployed(releases, "integration")
+      devDeployed = isDeployed(releases, "development")
+      qaDeployed = isDeployed(releases, "qa")
+      stagDeployed = isDeployed(releases, "staging")
+      etDeployed = isDeployed(releases, "externaltest")
+      prodDeployed = isDeployed(releases, "production")
 
       kibanaArchive <- gitHubConnector.getArchive("kibana-dashboards")
-      kibana = hasDashboard(serviceName, kibanaArchive)
+      kibana = processArchive(serviceName, kibanaArchive)
 
       grafanaArchive <- gitHubConnector.getArchive("grafana-dashboards")
-      grafana = hasDashboard(serviceName, grafanaArchive)
+      grafana = processArchive(serviceName, grafanaArchive)
 
+      buildJobsArchive <- gitHubConnector.getArchive("build-jobs")
+      buildJobs = processArchive(serviceName, buildJobsArchive)
 
-    } yield Seq(
-        ServiceCommissioningStatus("hasRepo", repo)
-      , ServiceCommissioningStatus("hasSMConfig", smConfig)
-      , ServiceCommissioningStatus("hasIntegrationRoutes", intRoute)
-      , ServiceCommissioningStatus("hasDevelopmentRoutes", devRoute)
-      , ServiceCommissioningStatus("hasQARoutes", qaRoute)
-      , ServiceCommissioningStatus("hasStagingRoutes", stagRoute)
-      , ServiceCommissioningStatus("hasExternalTestRoutes", etRoute)
-      , ServiceCommissioningStatus("hasProductionRoutes", prodRoute)
-      , ServiceCommissioningStatus("hasIntegrationRoutes", intRoute)
-      , ServiceCommissioningStatus("hasAppConfigIntegration", appConfigInt)
-      , ServiceCommissioningStatus("hasAppConfigDevelopment", appConfigDev)
-      , ServiceCommissioningStatus("hasAppConfigQA", appConfigQA)
-      , ServiceCommissioningStatus("hasAppConfigStaging", appConfigStag)
-      , ServiceCommissioningStatus("hasAppConfigExternalTest", appConfigET)
-      , ServiceCommissioningStatus("hasAppConfigProduction", appConfigProd)
-      , ServiceCommissioningStatus("hasAlertConfig", alertConfig)
-      , ServiceCommissioningStatus("deployedInIntegration", intDeployed)
-      , ServiceCommissioningStatus("deployedInDevelopment", devDeployed)
-      , ServiceCommissioningStatus("deployedInQA", qaDeployed)
-      , ServiceCommissioningStatus("deployedInStaging", stagDeployed)
-      , ServiceCommissioningStatus("deployedInExternalTest", etDeployed)
-      , ServiceCommissioningStatus("deployedInProduction", prodDeployed)
-      , ServiceCommissioningStatus("hasKibanaDashboard", kibana)
-      , ServiceCommissioningStatus("hasGrafanaDashboard", grafana)
+      sensuZip <- artifactoryConnector.getSensuZip
+      alertConfig = hasAlertConfig(serviceName, sensuZip.get)
+
+    } yield ServiceCommissioningStatus(
+        repo
+      , smConfig
+      , FrontendRoutes(intRoute, devRoute, qaRoute, stagRoute, etRoute, prodRoute)
+      , AppConfig(appConfigInt, appConfigDev, appConfigQA, appConfigStag, appConfigET, appConfigProd)
+      , DeploymentEnvironment(intDeployed, devDeployed, qaDeployed, stagDeployed, etDeployed, prodDeployed)
+      , Dashboards(kibana, grafana)
+      , buildJobs
+      , alertConfig
     )
   }
 
-// Repo check or Repo Status
   private def repoStatus(serviceName: String)(implicit hc: HeaderCarrier): Future[Boolean] = {
-    gitHubConnector.getRepository(serviceName).map(_.nonEmpty)
+    gitHubConnector.getRepository(serviceName).map(_.exists(_.status == 200))
   }
 
   private def serviceManagerConfigStatus(serviceName: String)(implicit hc: HeaderCarrier): Future[Boolean] = {
     val serviceManagerKey = serviceName.toUpperCase.replaceAll("[-]", "_")
     // Adds quotes for regex exact match
-    gitHubConnector.getServiceManagerConfigFile.map(_.exists(_.contains(s"\"$serviceManagerKey\"")))
+    gitHubConnector.getServiceManagerConfigFile.map(_.exists(_.body.contains(s"\"$serviceManagerKey\"")))
   }
 
   private def isFrontend(serviceName: String)(implicit hc: HeaderCarrier): Future[Boolean] = {
-    gitHubConnector.getApplicationConfigFile(serviceName).map(_.exists(_.contains("\"frontend.conf\"")))
+    gitHubConnector.getApplicationConfigFile(serviceName).map(_.exists(_.body.contains("\"frontend.conf\"")))
   }
 
   private def lookUpRoutes(serviceName: String): Future[Seq[FrontendRoute]] = {
@@ -149,9 +134,7 @@ class StatusCheckService @Inject()(
     releases.map(_.environment).contains(env)
   }
 
-  private def hasBuildJobs(serviceName: String): Boolean = ???
-
-  private def hasDashboard(serviceName: String, inputStream: Option[InputStream]) = {
+  private def processArchive(serviceName: String, inputStream: Option[InputStream]): Boolean = {
 
     val zip = new ZipInputStream(inputStream.get)
 
@@ -159,15 +142,19 @@ class StatusCheckService @Inject()(
       .takeWhile(z => z != null)
       .filter(f =>
         f.getName.contains("src/main/scala/uk/gov/hmrc/kibanadashboards/digitalservices") ||
-        f.getName.contains("src/main/scala/uk/gov/hmrc/grafanadashboards"))
+        f.getName.contains("src/main/scala/uk/gov/hmrc/grafanadashboards") ||
+        f.getName.contains("jobs/live"))
       .map { e =>
         e.getName -> Source.fromInputStream(zip).getLines.mkString("\n")
       }.foldLeft(false)((found, entry) => {
       entry match {
-        //case (_, code)  if fileContent(code)  => {println("Found code for: " + serviceName); true}
-        case (_, kibanaCode)  if kibanaCode.contains(s"Microservice(\"$serviceName\"")  => {println("Found code for: " + serviceName); true}
-        case (_, grafanaCode) if grafanaCode.contains(s"= \"$serviceName\"")            => {println("Found code for: " + serviceName); true}
-        case _                                                                          => found
+        case (_, kibanaCode)    if kibanaCode.contains(s"Microservice(\"$serviceName\"") => {
+          println("Found code for: " + serviceName); true}
+        case (_, grafanaCode)   if grafanaCode.contains(s"= \"$serviceName\"")  => {
+          println("Found code for: " + serviceName); true}
+        case (_, buildJobCode)  if buildJobCode.contains(s"SbtMicroserviceJobBuilder(SERVICES") & buildJobCode.contains(s"\'$serviceName\'") => {
+          println("Found code for: " + serviceName); true}
+        case _ => found
       }
     })
   }
