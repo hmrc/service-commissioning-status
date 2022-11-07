@@ -37,31 +37,44 @@ class GitHubConnector @Inject() (
   materializer: Materializer) {
   import HttpReads.Implicits._
 
-  //TODO get head of file instead
 
-  // Used to check Repo for service Exists
-  // Refactor to only look for response
-  def getRepository(serviceName: String)(implicit hc: HeaderCarrier): Future[Option[HttpResponse]] = {
+  def getGithubApi(path: String)(implicit hc: HeaderCarrier) = {
     val newHc = hc.withExtraHeaders(("Authorization", s"token ${gitHubConfig.githubToken}"))
-    val requestUrl = url"${gitHubConfig.githubApiUrl}/repos/hmrc/$serviceName"
+    val requestUrl = new URL(s"${gitHubConfig.githubApiUrl}$path")
     doCall(requestUrl, newHc)
   }
 
-//  def getRepository2(serviceName: String)(implicit hc: HeaderCarrier): Future[Option[HttpResponse]] = {
-//    httpClientV2
-//      .get(url"${gitHubConfig.githubApiUrl}/repos/hmrc/$serviceName")
-//      .setHeader("Authorization" -> s"token ${gitHubConfig.githubToken}")
-//      .withProxy
-//      .execute[HttpResponse]
-//      .map {
-//        case response if response.status == 200 =>
-//          Some(response)
-//        case response if response.status == 404 =>
-//          None
-//        case response =>
-//          sys.error(s"Failed with status code '${response.status}'")
-//      }
-//  }
+  def getGithubRaw(path: String)(implicit hc: HeaderCarrier) = {
+    val newHc = hc.withExtraHeaders(("Authorization", s"token ${gitHubConfig.githubToken}"))
+    val requestUrl = new URL(s"${gitHubConfig.githubRawUrl}$path")
+    doCall(requestUrl, newHc)
+  }
+
+  def streamGitHubAPI(path: String)(implicit hc: HeaderCarrier): Future[Option[InputStream]] = {
+    httpClientV2
+      .get(new URL(s"${gitHubConfig.githubApiUrl}$path"))
+      .setHeader("Authorization" -> s"token ${gitHubConfig.githubToken}")
+      .withProxy
+      .stream[Either[UpstreamErrorResponse, Source[ByteString, _]]]
+      .flatMap {
+        case Right(source)                                   => Future.successful(Some(source.runWith(StreamConverters.asInputStream(readTimeout = 100000.seconds))))
+        case Left(UpstreamErrorResponse.WithStatusCode(404)) => Future.successful(None)
+        case Left(error)                                     => throw error
+      }
+  }
+
+  // Used to check Repo for service Exists
+  // Refactor to only look for response
+  def doesRepositoryExist(serviceName: String)(implicit hc: HeaderCarrier) = {
+    val newHc = hc.withExtraHeaders(("Authorization", s"token ${gitHubConfig.githubToken}"))
+    val requestUrl = url"${gitHubConfig.githubApiUrl}/repos/hmrc/$serviceName"
+    doCall(requestUrl, newHc).map(_.exists(_.status == 200))
+  }
+
+  def doesURLExist(url: URL)(implicit hc: HeaderCarrier): Future[Boolean] = {
+    val newHc = hc.withExtraHeaders(("Authorization", s"token ${gitHubConfig.githubToken}"))
+    doCall(url, newHc).map(_.exists(_.status == 200))
+  }
 
   // Used to check service is in service manager config json file
   def getServiceManagerConfigFile(implicit hc: HeaderCarrier): Future[Option[HttpResponse]] = {
@@ -81,7 +94,6 @@ class GitHubConnector @Inject() (
   def getAppConfigForEnvironment(serviceName: String, environment: String)(implicit hc: HeaderCarrier): Future[Option[HttpResponse]] = {
     val newHc = hc.withExtraHeaders(("Authorization", s"token ${gitHubConfig.githubToken}"))
     val requestUrl = url"${gitHubConfig.githubRawUrl}/hmrc/app-config-$environment/main/$serviceName.yaml"
-    //println(">>>> " + requestUrl.toString + " <<<<")
     doCall(requestUrl, newHc)
   }
 
@@ -98,19 +110,6 @@ class GitHubConnector @Inject() (
           None
         case response =>
           sys.error(s"Failed with status code '${response.status}' to download GitHub file from $url")
-      }
-  }
-
-  def getArchive(repoName: String)(implicit hc: HeaderCarrier): Future[Option[InputStream]] = {
-    httpClientV2
-      .get(url"${gitHubConfig.githubApiUrl}/repos/hmrc/$repoName/zipball")
-      .setHeader("Authorization" -> s"token ${gitHubConfig.githubToken}")
-      .withProxy
-      .stream[Either[UpstreamErrorResponse, Source[ByteString, _]]]
-      .flatMap {
-        case Right(source)                                   => Future.successful(Some(source.runWith(StreamConverters.asInputStream(readTimeout = 100000.seconds))))
-        case Left(UpstreamErrorResponse.WithStatusCode(404)) => Future.successful(None)
-        case Left(error)                                     => throw error
       }
   }
 }

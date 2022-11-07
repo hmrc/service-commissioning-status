@@ -18,13 +18,20 @@ package uk.gov.hmrc.servicecommissioningstatus.model
 
 import play.api.libs.json.{Format, Json, __}
 
+case class StatusCheck(status: Boolean, evidence: Option[String])
+
+object StatusCheck {
+  implicit val scFormat: Format[StatusCheck] =
+    Json.format[StatusCheck]
+}
+
 case class FrontendRoutes(
-  integration : Boolean,
-  development : Boolean,
-  qa          : Boolean,
-  staging     : Boolean,
-  externalTest: Boolean,
-  production  : Boolean
+  integration : StatusCheck,
+  development : StatusCheck,
+  qa          : StatusCheck,
+  staging     : StatusCheck,
+  externalTest: StatusCheck,
+  production  : StatusCheck
 )
 
 object FrontendRoutes {
@@ -33,12 +40,12 @@ object FrontendRoutes {
 }
 
 case class AppConfig(
-  integration : Boolean,
-  development : Boolean,
-  qa          : Boolean,
-  staging     : Boolean,
-  externalTest: Boolean,
-  production  : Boolean
+  integration : StatusCheck,
+  development : StatusCheck,
+  qa          : StatusCheck,
+  staging     : StatusCheck,
+  externalTest: StatusCheck,
+  production  : StatusCheck
 )
 
 object AppConfig {
@@ -47,12 +54,12 @@ object AppConfig {
 }
 
 case class DeploymentEnvironment(
-  integration : Boolean,
-  development : Boolean,
-  qa          : Boolean,
-  staging     : Boolean,
-  externalTest: Boolean,
-  production  : Boolean
+  integration : StatusCheck,
+  development : StatusCheck,
+  qa          : StatusCheck,
+  staging     : StatusCheck,
+  externalTest: StatusCheck,
+  production  : StatusCheck
 )
 
 object DeploymentEnvironment {
@@ -61,8 +68,8 @@ object DeploymentEnvironment {
 }
 
 case class Dashboards(
-  kibana       : Boolean,
-  grafana      : Boolean
+  kibana  : StatusCheck,
+  grafana : StatusCheck
 )
 
 object Dashboards {
@@ -71,25 +78,18 @@ object Dashboards {
 }
 
 case class ServiceCommissioningStatus(
-  hasRepo           : Boolean,
-  hasSMConfig       : Boolean,
+  hasRepo           : StatusCheck,
+  hasSMConfig       : StatusCheck,
   hasFrontendRoutes : FrontendRoutes,
   hasAppConfig      : AppConfig,
-  deployedIn        : DeploymentEnvironment,
-  hasDashboards     : Dashboards,
-  hasBuildJobs      : Boolean,
-  hasAlerts         : Boolean
+//  deployed          : DeploymentEnvironment,
+//  hasDashboards     : Dashboards,
+//  hasBuildJobs      : StatusCheck,
+//  hasAlerts         : StatusCheck
 )
 
 object ServiceCommissioningStatus {
 
   implicit val apiFormat: Format[ServiceCommissioningStatus] =
     Json.format[ServiceCommissioningStatus]
-
-//  val apiFormat: Format[ServiceCommissioningStatus] =
-//    ( (__ \ "hasRepo"     ).format[Boolean]
-//      ~ (__ \ "inSMConfig").format[Boolean]
-//      ~ (__ \ "hasMDTPFrontendRoutes").formatNullable[Option[Boolean]]
-//      )(ServiceCommissioningStatus.apply, unlift(ServiceCommissioningStatus.unapply))
-
 }

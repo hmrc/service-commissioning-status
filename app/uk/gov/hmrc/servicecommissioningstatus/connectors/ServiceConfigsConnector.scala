@@ -43,7 +43,13 @@ class ServiceConfigsConnector @Inject()(
   }
 }
 
-case class FrontendRoute(environment: String)
+case class Routes(ruleConfigurationUrl: String)
+
+object Routes {
+  implicit val reads: Reads[Routes] = Json.reads[Routes]
+}
+
+case class FrontendRoute(environment: String, routes: Seq[Routes])
 
 object FrontendRoute {
   implicit val reads: Reads[FrontendRoute] = Json.reads[FrontendRoute]
