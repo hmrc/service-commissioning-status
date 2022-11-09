@@ -23,7 +23,7 @@ import uk.gov.hmrc.servicecommissioningstatus.model.ServiceCommissioningStatus
 import uk.gov.hmrc.servicecommissioningstatus.service.StatusCheckService
 
 import javax.inject.{Inject, Singleton}
-import scala.concurrent.{ExecutionContext}
+import scala.concurrent.ExecutionContext
 
 //TODO update to new version of play
 
@@ -37,7 +37,7 @@ class ServiceStatusController @Inject()(
   def statusChecks(serviceName: String): Action[AnyContent] = Action.async { implicit request =>
     implicit val apf: Format[ServiceCommissioningStatus] = ServiceCommissioningStatus.apiFormat
     for {
-      y <- statusCheckService.commissioningStatusChecks(serviceName)
-    } yield Ok(Json.toJson(y))
+      status <- statusCheckService.commissioningStatusChecks(serviceName)
+    } yield Ok(Json.toJson(status))
   }
 }

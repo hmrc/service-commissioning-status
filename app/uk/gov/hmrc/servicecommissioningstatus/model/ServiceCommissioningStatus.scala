@@ -78,14 +78,15 @@ object Dashboards {
 }
 
 case class ServiceCommissioningStatus(
+  serviceName       : String,
   hasRepo           : StatusCheck,
   hasSMConfig       : StatusCheck,
   hasFrontendRoutes : FrontendRoutes,
   hasAppConfig      : AppConfig,
-//  deployed          : DeploymentEnvironment,
-//  hasDashboards     : Dashboards,
-//  hasBuildJobs      : StatusCheck,
-//  hasAlerts         : StatusCheck
+  deployed          : DeploymentEnvironment,
+  hasDashboards     : Dashboards,
+  hasBuildJobs      : StatusCheck,
+  hasAlerts         : StatusCheck
 )
 
 object ServiceCommissioningStatus {

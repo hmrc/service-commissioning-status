@@ -42,7 +42,7 @@ class ArtifactoryConnector @Inject()(
       .withProxy
       .stream[Either[UpstreamErrorResponse, Source[ByteString, _]]]
       .flatMap{
-        case Right(source)                                   => Future.successful(Some(source.runWith(StreamConverters.asInputStream(readTimeout = 100000.seconds))))
+        case Right(source)                                   => Future.successful(Some(source.runWith(StreamConverters.asInputStream())))
         case Left(UpstreamErrorResponse.WithStatusCode(404)) => Future.successful(None)
         case Left(error)                                     => throw error
       }
