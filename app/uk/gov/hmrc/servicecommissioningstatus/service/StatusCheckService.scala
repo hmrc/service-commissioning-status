@@ -18,13 +18,15 @@ package uk.gov.hmrc.servicecommissioningstatus.service
 
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.servicecommissioningstatus.connectors.{ArtifactoryConnector, FrontendRoute, GitHubConnector, Release, ReleasesConnector, ServiceConfigsConnector}
-import uk.gov.hmrc.servicecommissioningstatus.model.{AppConfigEnvironment, Dashboards, DeploymentEnvironment, FrontendRoutes, ServiceCommissioningStatus, StatusCheck}
+import uk.gov.hmrc.servicecommissioningstatus.model.{AppConfigEnvironment, Dashboards, DeploymentEnvironment, Environment, FrontendRoutes, ServiceCommissioningStatus, StatusCheck}
+import uk.gov.hmrc.servicecommissioningstatus.model.Environment._
 
 import java.io.InputStream
 import java.util.zip.ZipInputStream
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 import scala.io.Source
+
 
 
 @Singleton
@@ -43,29 +45,29 @@ class StatusCheckService @Inject()(
 
       frontend <- isFrontend(serviceName)
       routes   <- lookUpRoutes(serviceName)
-      intRoute  = checkFrontendRoute(frontend, routes, "integration")
-      devRoute  = checkFrontendRoute(frontend, routes, "development")
-      qaRoute   = checkFrontendRoute(frontend, routes, "qa")
-      stagRoute = checkFrontendRoute(frontend, routes, "staging")
-      etRoute   = checkFrontendRoute(frontend, routes, "externaltest")
-      prodRoute = checkFrontendRoute(frontend, routes, "production")
+      intRoute  = checkFrontendRoute(frontend, routes, Integration)
+      devRoute  = checkFrontendRoute(frontend, routes, Development)
+      qaRoute   = checkFrontendRoute(frontend, routes, QA)
+      stagRoute = checkFrontendRoute(frontend, routes, Staging)
+      etRoute   = checkFrontendRoute(frontend, routes, ExternalTest)
+      prodRoute = checkFrontendRoute(frontend, routes, Production)
 
       appConfigBase <- checkAppConfigBaseExists(serviceName)
 
-      appConfigInt  <- checkAppConfigExistsForEnv(serviceName, "integration")
-      appConfigDev  <- checkAppConfigExistsForEnv(serviceName, "development")
-      appConfigQA   <- checkAppConfigExistsForEnv(serviceName, "qa")
-      appConfigStag <- checkAppConfigExistsForEnv(serviceName, "staging")
-      appConfigET   <- checkAppConfigExistsForEnv(serviceName, "externaltest")
-      appConfigProd <- checkAppConfigExistsForEnv(serviceName, "production")
+      appConfigInt  <- checkAppConfigExistsForEnv(serviceName, Integration)
+      appConfigDev  <- checkAppConfigExistsForEnv(serviceName, Development)
+      appConfigQA   <- checkAppConfigExistsForEnv(serviceName, QA)
+      appConfigStag <- checkAppConfigExistsForEnv(serviceName, Staging)
+      appConfigET   <- checkAppConfigExistsForEnv(serviceName, ExternalTest)
+      appConfigProd <- checkAppConfigExistsForEnv(serviceName, Production)
 
       releases    <- releasesConnector.getReleases(serviceName).map(_.versions)
-      intDeployed  = checkIsDeployedForEnv(serviceName, releases, "integration")
-      devDeployed  = checkIsDeployedForEnv(serviceName, releases, "development")
-      qaDeployed   = checkIsDeployedForEnv(serviceName, releases, "qa")
-      stagDeployed = checkIsDeployedForEnv(serviceName, releases, "staging")
-      etDeployed   = checkIsDeployedForEnv(serviceName, releases, "externaltest")
-      prodDeployed = checkIsDeployedForEnv(serviceName, releases, "production")
+      intDeployed  = checkIsDeployedForEnv(serviceName, releases, Integration)
+      devDeployed  = checkIsDeployedForEnv(serviceName, releases, Development)
+      qaDeployed   = checkIsDeployedForEnv(serviceName, releases, QA)
+      stagDeployed = checkIsDeployedForEnv(serviceName, releases, Staging)
+      etDeployed   = checkIsDeployedForEnv(serviceName, releases, ExternalTest)
+      prodDeployed = checkIsDeployedForEnv(serviceName, releases, Production)
 
       kibana  <- checkKibanaDashboardExists(serviceName)
       grafana <- checkGrafanaArchiveExists(serviceName)
@@ -122,9 +124,9 @@ class StatusCheckService @Inject()(
     serviceConfigsConnector.getMDTPFrontendRoutes(serviceName)
   }
 
-  private def checkFrontendRoute(isFrontend: Boolean, frontendRoutes: Seq[FrontendRoute], env: String): StatusCheck = {
+  private def checkFrontendRoute(isFrontend: Boolean, frontendRoutes: Seq[FrontendRoute], env: Environment): StatusCheck = {
     lazy val statusCheck = frontendRoutes
-      .find(_.environment == env)
+      .find(_.environment == env.asString)
       .map(maybeEnv => StatusCheck(status = true, Some(maybeEnv.routes.map(_.ruleConfigurationUrl).mkString)))
       .getOrElse(StatusCheck(status = false, Some(s"frontend with no routes in $env")))
 
@@ -143,9 +145,9 @@ class StatusCheckService @Inject()(
     } yield StatusCheck(status.nonEmpty, evidence)
   }
 
-  private def checkAppConfigExistsForEnv(serviceName: String, environment: String)(implicit hc: HeaderCarrier): Future[StatusCheck] = {
+  private def checkAppConfigExistsForEnv(serviceName: String, environment: Environment)(implicit hc: HeaderCarrier): Future[StatusCheck] = {
     for {
-      resp     <- gitHubConnector.getGithubRaw(s"/hmrc/app-config-$environment/main/$serviceName.yaml")
+      resp     <- gitHubConnector.getGithubRaw(s"/hmrc/app-config-${environment.asString}/main/$serviceName.yaml")
       status    = resp.filter(_.status == 200)
       evidence  = status.map(_ => s"https://github.com/hmrc/app-config-$environment/blob/main/$serviceName.yaml")
     } yield StatusCheck(status.nonEmpty, evidence)
@@ -166,8 +168,8 @@ class StatusCheckService @Inject()(
       })
   }
 
-  private def checkIsDeployedForEnv(serviceName: String, releases: Seq[Release], env: String): StatusCheck = {
-    if (releases.map(_.environment).contains(env)) {
+  private def checkIsDeployedForEnv(serviceName: String, releases: Seq[Release], env: Environment): StatusCheck = {
+    if (releases.map(_.environment).contains(env.asString)) {
       StatusCheck(status = true, Some(s"https://catalogue.tax.service.gov.uk/deployment-timeline?service=$serviceName"))
     } else {
       StatusCheck(status = false, None)
