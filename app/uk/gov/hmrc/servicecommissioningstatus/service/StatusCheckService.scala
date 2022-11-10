@@ -18,7 +18,7 @@ package uk.gov.hmrc.servicecommissioningstatus.service
 
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.servicecommissioningstatus.connectors.{ArtifactoryConnector, FrontendRoute, GitHubConnector, Release, ReleasesConnector, ServiceConfigsConnector}
-import uk.gov.hmrc.servicecommissioningstatus.model.{AppConfig, Dashboards, DeploymentEnvironment, FrontendRoutes, ServiceCommissioningStatus, StatusCheck}
+import uk.gov.hmrc.servicecommissioningstatus.model.{AppConfigEnvironment, Dashboards, DeploymentEnvironment, FrontendRoutes, ServiceCommissioningStatus, StatusCheck}
 
 import java.io.InputStream
 import java.util.zip.ZipInputStream
@@ -43,38 +43,40 @@ class StatusCheckService @Inject()(
 
       frontend <- isFrontend(serviceName)
       routes   <- lookUpRoutes(serviceName)
-      intRoute = hasFrontendRoute(frontend, routes, "integration")
-      devRoute = hasFrontendRoute(frontend, routes, "development")
-      qaRoute = hasFrontendRoute(frontend, routes, "qa")
+      intRoute  = hasFrontendRoute(frontend, routes, "integration")
+      devRoute  = hasFrontendRoute(frontend, routes, "development")
+      qaRoute   = hasFrontendRoute(frontend, routes, "qa")
       stagRoute = hasFrontendRoute(frontend, routes, "staging")
-      etRoute = hasFrontendRoute(frontend, routes, "externaltest")
+      etRoute   = hasFrontendRoute(frontend, routes, "externaltest")
       prodRoute = hasFrontendRoute(frontend, routes, "production")
 
-      appConfigInt <- hasAppConfig(serviceName, "integration")
-      appConfigDev <- hasAppConfig(serviceName, "development")
-      appConfigQA <- hasAppConfig(serviceName, "qa")
-      appConfigStag <- hasAppConfig(serviceName, "staging")
-      appConfigET <- hasAppConfig(serviceName, "externaltest")
-      appConfigProd <- hasAppConfig(serviceName, "production")
+      appConfigBase <- hasAppConfigBase(serviceName)
 
-      releases <- releasesConnector.getReleases(serviceName).map(_.versions)
-      intDeployed = isDeployed(serviceName, releases, "integration")
-      devDeployed = isDeployed(serviceName, releases, "development")
-      qaDeployed = isDeployed(serviceName, releases, "qa")
+      appConfigInt  <- hasAppConfigEnv(serviceName, "integration")
+      appConfigDev  <- hasAppConfigEnv(serviceName, "development")
+      appConfigQA   <- hasAppConfigEnv(serviceName, "qa")
+      appConfigStag <- hasAppConfigEnv(serviceName, "staging")
+      appConfigET   <- hasAppConfigEnv(serviceName, "externaltest")
+      appConfigProd <- hasAppConfigEnv(serviceName, "production")
+
+      releases    <- releasesConnector.getReleases(serviceName).map(_.versions)
+      intDeployed  = isDeployed(serviceName, releases, "integration")
+      devDeployed  = isDeployed(serviceName, releases, "development")
+      qaDeployed   = isDeployed(serviceName, releases, "qa")
       stagDeployed = isDeployed(serviceName, releases, "staging")
-      etDeployed = isDeployed(serviceName, releases, "externaltest")
+      etDeployed   = isDeployed(serviceName, releases, "externaltest")
       prodDeployed = isDeployed(serviceName, releases, "production")
 
       kibanaArchive <- gitHubConnector.streamGithubCodeLoad("/hmrc/kibana-dashboards/zip/refs/heads/main")
-      kibana = processArchive(serviceName, kibanaArchive)
+      kibana         = processArchive(serviceName, kibanaArchive)
 
       grafanaArchive <- gitHubConnector.streamGithubCodeLoad("/hmrc/grafana-dashboards/zip/refs/heads/main")
-      grafana = processArchive(serviceName, grafanaArchive)
+      grafana         = processArchive(serviceName, grafanaArchive)
 
       buildJobsArchive <- gitHubConnector.streamGithubCodeLoad("/hmrc/build-jobs/zip/refs/heads/main")
-      buildJobs = processArchive(serviceName, buildJobsArchive)
+      buildJobs         = processArchive(serviceName, buildJobsArchive)
 
-      sensuZip <- artifactoryConnector.getSensuZip
+      sensuZip   <- artifactoryConnector.getSensuZip
       alertConfig = hasAlertConfig(serviceName, sensuZip.get)
 
     } yield ServiceCommissioningStatus(
@@ -82,7 +84,8 @@ class StatusCheckService @Inject()(
       , repo
       , smConfig
       , FrontendRoutes(intRoute, devRoute, qaRoute, stagRoute, etRoute, prodRoute)
-      , AppConfig(appConfigInt, appConfigDev, appConfigQA, appConfigStag, appConfigET, appConfigProd)
+      , appConfigBase
+      , AppConfigEnvironment(appConfigInt, appConfigDev, appConfigQA, appConfigStag, appConfigET, appConfigProd)
       , DeploymentEnvironment(intDeployed, devDeployed, qaDeployed, stagDeployed, etDeployed, prodDeployed)
       , Dashboards(kibana, grafana)
       , buildJobs
@@ -135,7 +138,15 @@ class StatusCheckService @Inject()(
     }
   }
 
-  private def hasAppConfig(serviceName: String, environment: String)(implicit hc: HeaderCarrier): Future[StatusCheck] = {
+  private def hasAppConfigBase(serviceName: String)(implicit hc: HeaderCarrier): Future[StatusCheck] = {
+    for {
+      resp    <- gitHubConnector.getGithubRaw(s"/hmrc/app-config-base/main/$serviceName.conf")
+      status   = resp.filter(_.status == 200)
+      evidence = status.map(_ => s"https://github.com/hmrc/app-config-base/blob/main/$serviceName.conf")
+    } yield StatusCheck(status.nonEmpty, evidence)
+  }
+
+  private def hasAppConfigEnv(serviceName: String, environment: String)(implicit hc: HeaderCarrier): Future[StatusCheck] = {
     for {
       resp     <- gitHubConnector.getGithubRaw(s"/hmrc/app-config-$environment/main/$serviceName.yaml")
       status    = resp.filter(_.status == 200)

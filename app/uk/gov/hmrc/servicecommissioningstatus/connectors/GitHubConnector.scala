@@ -44,37 +44,13 @@ class GitHubConnector @Inject() (
     doCall(requestUrl, newHc)
   }
 
+
   def getGithubRaw(path: String)(implicit hc: HeaderCarrier): Future[Option[HttpResponse]] = {
     val newHc = hc.withExtraHeaders(("Authorization", s"token ${gitHubConfig.githubToken}"))
     val requestUrl = new URL(s"${gitHubConfig.githubRawUrl}$path")
     doCall(requestUrl, newHc)
   }
 
-  def streamGithubCodeLoad(path: String)(implicit hc: HeaderCarrier): Future[Option[InputStream]] = {
-    httpClientV2
-      .get(new URL(s"https://codeload.github.com$path"))
-      .setHeader("Authorization" -> s"token ${gitHubConfig.githubToken}")
-      .withProxy
-      .stream[Either[UpstreamErrorResponse, Source[ByteString, _]]]
-      .flatMap {
-        case Right(source)                                   => Future.successful(Some(source.runWith(StreamConverters.asInputStream(readTimeout = 100000.seconds))))
-        case Left(UpstreamErrorResponse.WithStatusCode(404)) => Future.successful(None)
-        case Left(error)                                     => throw error
-      }
-  }
-
-  def streamGitHubAPI(path: String)(implicit hc: HeaderCarrier): Future[Option[InputStream]] = {
-    httpClientV2
-      .get(new URL(s"${gitHubConfig.githubApiUrl}$path"))
-      .setHeader("Authorization" -> s"token ${gitHubConfig.githubToken}")
-      .withProxy
-      .stream[Either[UpstreamErrorResponse, Source[ByteString, _]]]
-      .flatMap {
-        case Right(source)                                   => Future.successful(Some(source.runWith(StreamConverters.asInputStream(readTimeout = 100000.seconds))))
-        case Left(UpstreamErrorResponse.WithStatusCode(404)) => Future.successful(None)
-        case Left(error)                                     => throw error
-      }
-  }
 
   private def doCall(url: URL, newHc: HeaderCarrier): Future[Option[HttpResponse]] = {
     implicit val hc: HeaderCarrier = newHc
@@ -88,7 +64,33 @@ class GitHubConnector @Inject() (
         case response if response.status == 404 =>
           None
         case response =>
-          sys.error(s"Failed with status code '${response.status}' to download GitHub file from $url")
+          sys.error(s"Failed with status code '${response.status}' to get file from $url")
+      }
+  }
+
+  def streamGithubCodeLoad(path: String)(implicit hc: HeaderCarrier): Future[Option[InputStream]] = {
+    httpClientV2
+      .get(new URL(s"https://codeload.github.com$path"))
+      .setHeader("Authorization" -> s"token ${gitHubConfig.githubToken}")
+      .withProxy
+      .stream[Either[UpstreamErrorResponse, Source[ByteString, _]]]
+      .flatMap {
+        case Right(source)                                   => Future.successful(Some(source.runWith(StreamConverters.asInputStream())))
+        case Left(UpstreamErrorResponse.WithStatusCode(404)) => Future.successful(None)
+        case Left(error)                                     => throw error
+      }
+  }
+
+  def streamGitHubAPI(path: String)(implicit hc: HeaderCarrier): Future[Option[InputStream]] = {
+    httpClientV2
+      .get(new URL(s"${gitHubConfig.githubApiUrl}$path"))
+      .setHeader("Authorization" -> s"token ${gitHubConfig.githubToken}")
+      .withProxy
+      .stream[Either[UpstreamErrorResponse, Source[ByteString, _]]]
+      .flatMap {
+        case Right(source)                                   => Future.successful(Some(source.runWith(StreamConverters.asInputStream())))
+        case Left(UpstreamErrorResponse.WithStatusCode(404)) => Future.successful(None)
+        case Left(error)                                     => throw error
       }
   }
 }

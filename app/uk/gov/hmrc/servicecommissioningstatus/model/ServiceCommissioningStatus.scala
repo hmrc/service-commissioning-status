@@ -18,7 +18,10 @@ package uk.gov.hmrc.servicecommissioningstatus.model
 
 import play.api.libs.json.{Format, Json, __}
 
-case class StatusCheck(status: Boolean, evidence: Option[String])
+case class StatusCheck(
+  status  : Boolean
+, evidence: Option[String]
+)
 
 object StatusCheck {
   implicit val scFormat: Format[StatusCheck] =
@@ -26,12 +29,12 @@ object StatusCheck {
 }
 
 case class FrontendRoutes(
-  integration : StatusCheck,
-  development : StatusCheck,
-  qa          : StatusCheck,
-  staging     : StatusCheck,
-  externalTest: StatusCheck,
-  production  : StatusCheck
+  integration : StatusCheck
+, development : StatusCheck
+, qa          : StatusCheck
+, staging     : StatusCheck
+, externalTest: StatusCheck
+, production  : StatusCheck
 )
 
 object FrontendRoutes {
@@ -39,27 +42,27 @@ object FrontendRoutes {
     Json.format[FrontendRoutes]
 }
 
-case class AppConfig(
-  integration : StatusCheck,
-  development : StatusCheck,
-  qa          : StatusCheck,
-  staging     : StatusCheck,
-  externalTest: StatusCheck,
-  production  : StatusCheck
+case class AppConfigEnvironment(
+  integration : StatusCheck
+, development : StatusCheck
+, qa          : StatusCheck
+, staging     : StatusCheck
+, externalTest: StatusCheck
+, production  : StatusCheck
 )
 
-object AppConfig {
-  implicit val acFormat: Format[AppConfig] =
-    Json.format[AppConfig]
+object AppConfigEnvironment {
+  implicit val acFormat: Format[AppConfigEnvironment] =
+    Json.format[AppConfigEnvironment]
 }
 
 case class DeploymentEnvironment(
-  integration : StatusCheck,
-  development : StatusCheck,
-  qa          : StatusCheck,
-  staging     : StatusCheck,
-  externalTest: StatusCheck,
-  production  : StatusCheck
+  integration : StatusCheck
+, development : StatusCheck
+, qa          : StatusCheck
+, staging     : StatusCheck
+, externalTest: StatusCheck
+, production  : StatusCheck
 )
 
 object DeploymentEnvironment {
@@ -68,8 +71,8 @@ object DeploymentEnvironment {
 }
 
 case class Dashboards(
-  kibana  : StatusCheck,
-  grafana : StatusCheck
+  kibana  : StatusCheck
+, grafana : StatusCheck
 )
 
 object Dashboards {
@@ -78,15 +81,16 @@ object Dashboards {
 }
 
 case class ServiceCommissioningStatus(
-  serviceName       : String,
-  hasRepo           : StatusCheck,
-  hasSMConfig       : StatusCheck,
-  hasFrontendRoutes : FrontendRoutes,
-  hasAppConfig      : AppConfig,
-  deployed          : DeploymentEnvironment,
-  hasDashboards     : Dashboards,
-  hasBuildJobs      : StatusCheck,
-  hasAlerts         : StatusCheck
+  serviceName      : String
+, hasRepo          : StatusCheck
+, hasSMConfig      : StatusCheck
+, hasFrontendRoutes: FrontendRoutes
+, hasAppConfigBase : StatusCheck
+, hasAppConfigEnv  : AppConfigEnvironment
+, deployed         : DeploymentEnvironment
+, hasDashboards    : Dashboards
+, hasBuildJobs     : StatusCheck
+, hasAlerts        : StatusCheck
 )
 
 object ServiceCommissioningStatus {

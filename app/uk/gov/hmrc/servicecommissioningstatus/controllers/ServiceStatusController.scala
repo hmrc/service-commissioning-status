@@ -25,8 +25,6 @@ import uk.gov.hmrc.servicecommissioningstatus.service.StatusCheckService
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.ExecutionContext
 
-//TODO update to new version of play
-
 @Singleton()
 class ServiceStatusController @Inject()(
  cc: ControllerComponents,
