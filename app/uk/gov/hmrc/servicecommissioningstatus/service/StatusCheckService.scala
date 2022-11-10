@@ -37,75 +37,72 @@ class StatusCheckService @Inject()(
 
   def commissioningStatusChecks(serviceName: String)(implicit hc: HeaderCarrier): Future[ServiceCommissioningStatus] = {
     for {
-      repo <- repoStatus(serviceName)
+      repo <- checkRepoExists(serviceName)
 
-      smConfig <- serviceManagerConfigStatus(serviceName)
+      smConfig <- checkServiceManagerConfigExists(serviceName)
 
       frontend <- isFrontend(serviceName)
       routes   <- lookUpRoutes(serviceName)
-      intRoute  = hasFrontendRoute(frontend, routes, "integration")
-      devRoute  = hasFrontendRoute(frontend, routes, "development")
-      qaRoute   = hasFrontendRoute(frontend, routes, "qa")
-      stagRoute = hasFrontendRoute(frontend, routes, "staging")
-      etRoute   = hasFrontendRoute(frontend, routes, "externaltest")
-      prodRoute = hasFrontendRoute(frontend, routes, "production")
+      intRoute  = checkFrontendRoute(frontend, routes, "integration")
+      devRoute  = checkFrontendRoute(frontend, routes, "development")
+      qaRoute   = checkFrontendRoute(frontend, routes, "qa")
+      stagRoute = checkFrontendRoute(frontend, routes, "staging")
+      etRoute   = checkFrontendRoute(frontend, routes, "externaltest")
+      prodRoute = checkFrontendRoute(frontend, routes, "production")
 
-      appConfigBase <- hasAppConfigBase(serviceName)
+      appConfigBase <- checkAppConfigBaseExists(serviceName)
 
-      appConfigInt  <- hasAppConfigEnv(serviceName, "integration")
-      appConfigDev  <- hasAppConfigEnv(serviceName, "development")
-      appConfigQA   <- hasAppConfigEnv(serviceName, "qa")
-      appConfigStag <- hasAppConfigEnv(serviceName, "staging")
-      appConfigET   <- hasAppConfigEnv(serviceName, "externaltest")
-      appConfigProd <- hasAppConfigEnv(serviceName, "production")
+      appConfigInt  <- checkAppConfigExistsForEnv(serviceName, "integration")
+      appConfigDev  <- checkAppConfigExistsForEnv(serviceName, "development")
+      appConfigQA   <- checkAppConfigExistsForEnv(serviceName, "qa")
+      appConfigStag <- checkAppConfigExistsForEnv(serviceName, "staging")
+      appConfigET   <- checkAppConfigExistsForEnv(serviceName, "externaltest")
+      appConfigProd <- checkAppConfigExistsForEnv(serviceName, "production")
 
       releases    <- releasesConnector.getReleases(serviceName).map(_.versions)
-      intDeployed  = isDeployed(serviceName, releases, "integration")
-      devDeployed  = isDeployed(serviceName, releases, "development")
-      qaDeployed   = isDeployed(serviceName, releases, "qa")
-      stagDeployed = isDeployed(serviceName, releases, "staging")
-      etDeployed   = isDeployed(serviceName, releases, "externaltest")
-      prodDeployed = isDeployed(serviceName, releases, "production")
+      intDeployed  = checkIsDeployedForEnv(serviceName, releases, "integration")
+      devDeployed  = checkIsDeployedForEnv(serviceName, releases, "development")
+      qaDeployed   = checkIsDeployedForEnv(serviceName, releases, "qa")
+      stagDeployed = checkIsDeployedForEnv(serviceName, releases, "staging")
+      etDeployed   = checkIsDeployedForEnv(serviceName, releases, "externaltest")
+      prodDeployed = checkIsDeployedForEnv(serviceName, releases, "production")
 
-      kibanaArchive <- gitHubConnector.streamGithubCodeLoad("/hmrc/kibana-dashboards/zip/refs/heads/main")
-      kibana         = processArchive(serviceName, kibanaArchive)
+      kibana  <- checkKibanaDashboardExists(serviceName)
+      grafana <- checkGrafanaArchiveExists(serviceName)
 
-      grafanaArchive <- gitHubConnector.streamGithubCodeLoad("/hmrc/grafana-dashboards/zip/refs/heads/main")
-      grafana         = processArchive(serviceName, grafanaArchive)
-
-      buildJobsArchive <- gitHubConnector.streamGithubCodeLoad("/hmrc/build-jobs/zip/refs/heads/main")
-      buildJobs         = processArchive(serviceName, buildJobsArchive)
+      buildJobs <- checkBuildJobsArchiveExists(serviceName)
 
       sensuZip   <- artifactoryConnector.getSensuZip
-      alertConfig = hasAlertConfig(serviceName, sensuZip.get)
+      alertConfig = checkAlertConfigExists(serviceName, sensuZip.get)
 
     } yield ServiceCommissioningStatus(
-      serviceName
-      , repo
-      , smConfig
-      , FrontendRoutes(intRoute, devRoute, qaRoute, stagRoute, etRoute, prodRoute)
-      , appConfigBase
-      , AppConfigEnvironment(appConfigInt, appConfigDev, appConfigQA, appConfigStag, appConfigET, appConfigProd)
-      , DeploymentEnvironment(intDeployed, devDeployed, qaDeployed, stagDeployed, etDeployed, prodDeployed)
-      , Dashboards(kibana, grafana)
-      , buildJobs
-      , alertConfig
+      serviceName = serviceName
+      , hasRepo = repo
+      , hasSMConfig = smConfig
+      , hasFrontendRoutes = FrontendRoutes(intRoute, devRoute, qaRoute, stagRoute, etRoute, prodRoute)
+      , hasAppConfigBase = appConfigBase
+      , hasAppConfigEnv = AppConfigEnvironment(appConfigInt, appConfigDev, appConfigQA, appConfigStag, appConfigET, appConfigProd)
+      , deployed = DeploymentEnvironment(intDeployed, devDeployed, qaDeployed, stagDeployed, etDeployed, prodDeployed)
+      , hasDashboards = Dashboards(kibana, grafana)
+      , hasBuildJobs = buildJobs
+      , hasAlerts = alertConfig
     )
   }
 
-  private def repoStatus(serviceName: String)(implicit hc: HeaderCarrier): Future[StatusCheck] = {
-
+  private def checkRepoExists(serviceName: String)(implicit hc: HeaderCarrier): Future[StatusCheck] = {
     for {
       resp    <- gitHubConnector.getGithubRaw(s"/hmrc/$serviceName/main/repository.yaml")
-      status  <- if (resp.exists(_.status != 404)) { Future.successful(true)
-      } else {
-        gitHubConnector.getGithubApi(s"/repos/hmrc/$serviceName").map(_.exists(_.status == 200))
-      }
+      status  <- if (resp.exists(_.status == 200)) {
+                    Future.successful(true)
+                  } else {
+                    gitHubConnector.getGithubApi(s"/repos/hmrc/$serviceName").map(_.exists(_.status == 200))
+                  }
       evidence = if (status) Some(s"https://github.com/hmrc/$serviceName") else None
     } yield StatusCheck(status, evidence)
   }
 
-  private def serviceManagerConfigStatus(serviceName: String)(implicit hc: HeaderCarrier): Future[StatusCheck] = {
+
+  private def checkServiceManagerConfigExists(serviceName: String)(implicit hc: HeaderCarrier): Future[StatusCheck] = {
     val serviceManagerKey = serviceName.toUpperCase.replaceAll("[-]", "_")
     for {
       resp     <- gitHubConnector.getGithubRaw("/hmrc/service-manager-config/main/services.json")
@@ -125,7 +122,7 @@ class StatusCheckService @Inject()(
     serviceConfigsConnector.getMDTPFrontendRoutes(serviceName)
   }
 
-  private def hasFrontendRoute(isFrontend: Boolean, frontendRoutes: Seq[FrontendRoute], env: String): StatusCheck= {
+  private def checkFrontendRoute(isFrontend: Boolean, frontendRoutes: Seq[FrontendRoute], env: String): StatusCheck = {
     lazy val statusCheck = frontendRoutes
       .find(_.environment == env)
       .map(maybeEnv => StatusCheck(status = true, Some(maybeEnv.routes.map(_.ruleConfigurationUrl).mkString)))
@@ -138,7 +135,7 @@ class StatusCheckService @Inject()(
     }
   }
 
-  private def hasAppConfigBase(serviceName: String)(implicit hc: HeaderCarrier): Future[StatusCheck] = {
+  private def checkAppConfigBaseExists(serviceName: String)(implicit hc: HeaderCarrier): Future[StatusCheck] = {
     for {
       resp    <- gitHubConnector.getGithubRaw(s"/hmrc/app-config-base/main/$serviceName.conf")
       status   = resp.filter(_.status == 200)
@@ -146,7 +143,7 @@ class StatusCheckService @Inject()(
     } yield StatusCheck(status.nonEmpty, evidence)
   }
 
-  private def hasAppConfigEnv(serviceName: String, environment: String)(implicit hc: HeaderCarrier): Future[StatusCheck] = {
+  private def checkAppConfigExistsForEnv(serviceName: String, environment: String)(implicit hc: HeaderCarrier): Future[StatusCheck] = {
     for {
       resp     <- gitHubConnector.getGithubRaw(s"/hmrc/app-config-$environment/main/$serviceName.yaml")
       status    = resp.filter(_.status == 200)
@@ -154,7 +151,7 @@ class StatusCheckService @Inject()(
     } yield StatusCheck(status.nonEmpty, evidence)
   }
 
-  private def hasAlertConfig(serviceName: String, inputStream: InputStream): StatusCheck = {
+  private def checkAlertConfigExists(serviceName: String, inputStream: InputStream): StatusCheck = {
 
     val githubLink = "https://github.com/hmrc/alert-config/tree/main/src/main/scala/uk/gov/hmrc/alertconfig/configs"
     val zip = new ZipInputStream(inputStream)
@@ -169,7 +166,7 @@ class StatusCheckService @Inject()(
       })
   }
 
-  private def isDeployed(serviceName: String, releases: Seq[Release], env: String): StatusCheck = {
+  private def checkIsDeployedForEnv(serviceName: String, releases: Seq[Release], env: String): StatusCheck = {
     if (releases.map(_.environment).contains(env)) {
       StatusCheck(status = true, Some(s"https://catalogue.tax.service.gov.uk/deployment-timeline?service=$serviceName"))
     } else {
@@ -177,29 +174,65 @@ class StatusCheckService @Inject()(
     }
   }
 
-  private def processArchive(serviceName: String, inputStream: Option[InputStream]): StatusCheck = {
-
-    val zip = new ZipInputStream(inputStream.get)
-
-    Iterator.continually(zip.getNextEntry)
-      .takeWhile(z => z != null)
-      .filter(f =>
-        f.getName.contains("src/main/scala/uk/gov/hmrc/kibanadashboards/digitalservices") ||
-        f.getName.contains("src/main/scala/uk/gov/hmrc/grafanadashboards")                ||
-        f.getName.contains("jobs/live"))
-      .map { e =>
-        e.getName -> Source.fromInputStream(zip).getLines().mkString("\n")
-      }.foldLeft(StatusCheck(status = false, None))((found, entry) => {
-      entry match {
-        case (_, kibanaCode)    if kibanaCode.contains(s"Microservice(\"$serviceName\"") =>
-          StatusCheck(status = true, Some("https://github.com/hmrc/kibana-dashboards/tree/main/src/main/scala/uk/gov/hmrc/kibanadashboards/digitalservices"))
-        case (_, grafanaCode)   if grafanaCode.contains(s"= \"$serviceName\"")           =>
-          StatusCheck(status = true, Some("https://github.com/hmrc/grafana-dashboards/tree/main/src/main/scala/uk/gov/hmrc/grafanadashboards/dashboards"))
-        case (_, buildJobCode)  if buildJobCode.contains(s"SbtMicroserviceJobBuilder(SERVICES")
-          & buildJobCode.contains(s"\'$serviceName\'")                                   =>
-          StatusCheck(status = true, Some("https://github.com/hmrc/build-jobs/tree/main/jobs/live"))
-        case _                                                                           => found
-      }
-    })
+  private def checkKibanaDashboardExists(serviceName: String)(implicit hc: HeaderCarrier): Future[StatusCheck] = {
+    for {
+      inputStream <- gitHubConnector.streamGithubCodeLoad("/hmrc/kibana-dashboards/zip/refs/heads/main")
+      zip = new ZipInputStream(inputStream.get)
+      statusCheck =  Iterator.continually(zip.getNextEntry)
+        .takeWhile(z => z != null)
+        .filter(_.getName.contains("src/main/scala/uk/gov/hmrc/kibanadashboards/digitalservices"))
+        .map {_.getName -> Source.fromInputStream(zip).getLines().mkString("\n")}
+        .foldLeft(StatusCheck(status = false, None))((found, entry) => {
+        entry match {
+          case (_, kibanaCode) if kibanaCode.contains(s"Microservice(\"$serviceName\"") =>
+            StatusCheck(status = true, Some("https://github.com/hmrc/kibana-dashboards/tree/main/src/main/scala/uk/gov/hmrc/kibanadashboards/digitalservices"))
+          case _  =>
+            found
+        }
+      })
+    } yield statusCheck
   }
+
+  private def checkGrafanaArchiveExists(serviceName: String)(implicit hc: HeaderCarrier): Future[StatusCheck] = {
+    for {
+      inputStream <- gitHubConnector.streamGithubCodeLoad("/hmrc/grafana-dashboards/zip/refs/heads/main")
+      zip = new ZipInputStream(inputStream.get)
+      statusCheck =  Iterator.continually(zip.getNextEntry)
+        .takeWhile(z => z != null)
+        .filter(_.getName.contains("src/main/scala/uk/gov/hmrc/grafanadashboards"))
+        .map {_.getName -> Source.fromInputStream(zip).getLines().mkString("\n")}
+        .foldLeft(StatusCheck(status = false, None))((found, entry) => {
+        entry match {
+          case (_, grafanaCode)   if grafanaCode.contains(s"= \"$serviceName\"") =>
+            StatusCheck(status = true, Some("https://github.com/hmrc/grafana-dashboards/tree/main/src/main/scala/uk/gov/hmrc/grafanadashboards/dashboards"))
+          case _ =>
+            found
+        }
+      })
+    } yield statusCheck
+  }
+
+  private def checkBuildJobsArchiveExists(serviceName: String)(implicit hc: HeaderCarrier): Future[StatusCheck] = {
+    for {
+      inputStream <- gitHubConnector.streamGithubCodeLoad("/hmrc/build-jobs/zip/refs/heads/main")
+      zip = new ZipInputStream(inputStream.get)
+      statusCheck =  Iterator.continually(zip.getNextEntry)
+        .takeWhile(z => z != null)
+        .filter(_.getName.contains("jobs/live"))
+        .map { e =>
+          e.getName -> Source.fromInputStream(zip).getLines().mkString("\n")
+        }.foldLeft(StatusCheck(status = false, None))((found, entry) => {
+        entry match {
+          case (_, buildJobCode) if buildJobCode.contains(s"SbtMicroserviceJobBuilder(") && buildJobCode.contains(s"\'$serviceName\'") =>
+            StatusCheck(status = true, Some("https://github.com/hmrc/build-jobs/tree/main/jobs/live"))
+          case _ =>
+            found
+        }
+      })
+    } yield statusCheck
+  }
+
+
+
+
 }

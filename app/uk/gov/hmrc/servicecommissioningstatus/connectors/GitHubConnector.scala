@@ -53,7 +53,6 @@ class GitHubConnector @Inject() (
     doCall(requestUrl, newHc)
   }
 
-
   private def doCall(url: URL, newHc: HeaderCarrier): Future[Option[HttpResponse]] = {
     implicit val hc: HeaderCarrier = newHc
     httpClientV2
@@ -81,7 +80,7 @@ class GitHubConnector @Inject() (
       .stream[Either[UpstreamErrorResponse, Source[ByteString, _]]]
       .flatMap {
         case Right(source) =>
-          logger.info(s"Successfully downloaded archive -  https://codeload.github.com$path")
+          logger.info(s"Successfully downloaded archive - https://codeload.github.com$path")
           Future.successful(Some(source.runWith(StreamConverters.asInputStream())))
         case Left(UpstreamErrorResponse.WithStatusCode(404)) =>
           logger.info(s"https://codeload.github.com$path - not found")
