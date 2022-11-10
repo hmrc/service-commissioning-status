@@ -188,7 +188,7 @@ class StatusCheckService @Inject()(
         f.getName.contains("src/main/scala/uk/gov/hmrc/grafanadashboards")                ||
         f.getName.contains("jobs/live"))
       .map { e =>
-        e.getName -> Source.fromInputStream(zip).getLines.mkString("\n")
+        e.getName -> Source.fromInputStream(zip).getLines().mkString("\n")
       }.foldLeft(StatusCheck(status = false, None))((found, entry) => {
       entry match {
         case (_, kibanaCode)    if kibanaCode.contains(s"Microservice(\"$serviceName\"") =>

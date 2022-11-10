@@ -21,6 +21,7 @@ import uk.gov.hmrc.servicecommissioningstatus.config.ArtifactoryConfig
 import akka.stream.Materializer
 import akka.stream.scaladsl.{Source, StreamConverters}
 import akka.util.ByteString
+import play.api.Logging
 import uk.gov.hmrc.http.{HeaderCarrier, StringContextOps, UpstreamErrorResponse}
 
 import java.io.InputStream
@@ -31,9 +32,10 @@ import scala.concurrent.{ExecutionContext, Future}
 class ArtifactoryConnector @Inject()(
   config: ArtifactoryConfig,
   httpClientV2: HttpClientV2
-)(implicit ec: ExecutionContext,
+)(implicit
+  ec: ExecutionContext,
   materializer: Materializer
-){
+) extends Logging {
 
   def getSensuZip(implicit hc: HeaderCarrier): Future[Option[InputStream]] = {
     httpClientV2
@@ -41,9 +43,15 @@ class ArtifactoryConnector @Inject()(
       .withProxy
       .stream[Either[UpstreamErrorResponse, Source[ByteString, _]]]
       .flatMap{
-        case Right(source)                                   => Future.successful(Some(source.runWith(StreamConverters.asInputStream())))
-        case Left(UpstreamErrorResponse.WithStatusCode(404)) => Future.successful(None)
-        case Left(error)                                     => throw error
+        case Right(source) =>
+          logger.info(s"Successfully downloaded Sensu Config from ${config.artifactoryUrl}/artifactory/webstore/sensu-config/output.zip")
+          Future.successful(Some(source.runWith(StreamConverters.asInputStream())))
+        case Left(UpstreamErrorResponse.WithStatusCode(404)) =>
+          logger.info(s"${config.artifactoryUrl}/artifactory/webstore/sensu-config/output.zip - not found")
+          Future.successful(None)
+        case Left(error) =>
+          logger.error(s"Could not call ${config.artifactoryUrl}/artifactory/webstore/sensu-config/output.zip - ${error.getMessage}", error)
+          throw error
       }
   }
 }

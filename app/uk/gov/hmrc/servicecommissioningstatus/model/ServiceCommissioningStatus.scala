@@ -16,7 +16,7 @@
 
 package uk.gov.hmrc.servicecommissioningstatus.model
 
-import play.api.libs.json.{Format, Json, __}
+import play.api.libs.json.{Format, Json}
 
 case class StatusCheck(
   status  : Boolean

@@ -16,6 +16,7 @@
 
 package uk.gov.hmrc.servicecommissioningstatus.controllers
 
+import play.api.Logging
 import play.api.libs.json.{Format, Json}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 import play.api.mvc.{Action, AnyContent, ControllerComponents}
@@ -29,13 +30,19 @@ import scala.concurrent.ExecutionContext
 class ServiceStatusController @Inject()(
  cc: ControllerComponents,
  statusCheckService: StatusCheckService
-)(implicit ec: ExecutionContext)
-    extends BackendController(cc) {
+)(implicit
+  ec: ExecutionContext)
+  extends BackendController(cc)
+  with Logging {
 
   def statusChecks(serviceName: String): Action[AnyContent] = Action.async { implicit request =>
     implicit val apf: Format[ServiceCommissioningStatus] = ServiceCommissioningStatus.apiFormat
+    logger.info(s"Commissioning status checks for $serviceName")
     for {
       status <- statusCheckService.commissioningStatusChecks(serviceName)
-    } yield Ok(Json.toJson(status))
+    } yield {
+      logger.info(s"Commissioning status checks completed for $serviceName")
+      Ok(Json.toJson(status))
+    }
   }
 }
