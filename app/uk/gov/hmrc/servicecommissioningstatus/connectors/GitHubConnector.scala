@@ -40,35 +40,24 @@ class GitHubConnector @Inject() (
   import HttpReads.Implicits._
 
 
-  def getGithubApi(path: String)(implicit hc: HeaderCarrier): Future[Option[HttpResponse]] = {
-    val newHc = hc.withExtraHeaders(("Authorization", s"token ${gitHubConfig.githubToken}"))
+  def getGithubApi(path: String)(implicit hc: HeaderCarrier): Future[Option[String]] = {
     val requestUrl = new URL(s"${gitHubConfig.githubApiUrl}$path")
-    doCall(requestUrl, newHc)
-  }
-
-
-  def getGithubRaw(path: String)(implicit hc: HeaderCarrier): Future[Option[HttpResponse]] = {
-    val newHc = hc.withExtraHeaders(("Authorization", s"token ${gitHubConfig.githubToken}"))
-    val requestUrl = new URL(s"${gitHubConfig.githubRawUrl}$path")
-    doCall(requestUrl, newHc)
-  }
-
-  private def doCall(url: URL, newHc: HeaderCarrier): Future[Option[HttpResponse]] = {
-    implicit val hc: HeaderCarrier = newHc
     httpClientV2
-      .get(url)
+      .get(requestUrl)
+      .setHeader("Authorization" -> s"token ${gitHubConfig.githubToken}")
       .withProxy
-      .execute[HttpResponse]
-      .map {
-        case response if response.status == 200 =>
-          logger.info(s"Successfully called $url ${response.status}")
-          Some(response)
-        case response if response.status == 404 =>
-          logger.info(s"$url - not found")
-          None
-        case response =>
-          sys.error(s"Failed with status code '${response.status}' to get file from $url")
-      }
+      .execute[Option[HttpResponse]]
+      .map(response => response.map(_.body))
+  }
+
+  def getGithubRaw(path: String)(implicit hc: HeaderCarrier): Future[Option[String]] = {
+    val requestUrl = new URL(s"${gitHubConfig.githubRawUrl}$path")
+    httpClientV2
+      .get(requestUrl)
+      .setHeader("Authorization" -> s"token ${gitHubConfig.githubToken}")
+      .withProxy
+      .execute[Option[HttpResponse]]
+      .map(response => response.map(_.body))
   }
 
   def streamGithubCodeLoad(path: String)(implicit hc: HeaderCarrier): Future[Option[InputStream]] = {

@@ -16,8 +16,8 @@
 
 package uk.gov.hmrc.servicecommissioningstatus.connectors
 
-import play.api.libs.json.{Json, Reads}
-import uk.gov.hmrc.http.{HeaderCarrier, StringContextOps}
+import play.api.libs.json.{Reads, __}
+import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps}
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
 
@@ -27,36 +27,35 @@ import scala.concurrent.{ExecutionContext, Future}
 class ReleasesConnector @Inject()(
   servicesConfig: ServicesConfig,
   httpClientV2: HttpClientV2
-){
-
-  import uk.gov.hmrc.http.HttpReads.Implicits._
-
-  private implicit val hc: HeaderCarrier = HeaderCarrier()
+)(implicit ec: ExecutionContext){
 
   private val url: String = servicesConfig.baseUrl("releases-api")
 
-  def getReleases(serviceName: String)(implicit ec: ExecutionContext): Future[WhatsRunningWhereReleases] = {
+  def getReleases(serviceName: String)(implicit hc: HeaderCarrier): Future[WhatsRunningWhereReleases] = {
+    implicit val r: Reads[WhatsRunningWhereReleases] = WhatsRunningWhereReleases.reads
     httpClientV2
       .get(url"$url/releases-api/whats-running-where/$serviceName")
-      .execute[WhatsRunningWhereReleases]
-      .recover{
-        case ex: Exception => WhatsRunningWhereReleases(Seq.empty)
-      }
+      .execute[Option[WhatsRunningWhereReleases]]
+      .map(_.getOrElse(WhatsRunningWhereReleases(Seq.empty)))
   }
 }
 
 case class Release(environment: String)
 
 object Release {
-  implicit val reads: Reads[Release] = Json.reads[Release]
+ val reads: Reads[Release] = {
+    (__ \ "environment").read[String].map(Release(_))
+  }
 }
 
 case class WhatsRunningWhereReleases(versions: Seq[Release])
 
 object WhatsRunningWhereReleases {
-  implicit val reads: Reads[WhatsRunningWhereReleases] = Json.reads[WhatsRunningWhereReleases]
+  val reads: Reads[WhatsRunningWhereReleases] = {
+    implicit val rs: Reads[Release] = Release.reads
+    (__ \ "versions").read[Seq[Release]].map(WhatsRunningWhereReleases(_))
+  }
 }
-
 
 
 

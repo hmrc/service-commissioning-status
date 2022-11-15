@@ -16,7 +16,8 @@
 
 package uk.gov.hmrc.servicecommissioningstatus.connectors
 
-import play.api.libs.json.{Json, Reads}
+import play.api.libs.functional.syntax.toFunctionalBuilderOps
+import play.api.libs.json.{Reads, __}
 import uk.gov.hmrc.http.{HeaderCarrier, StringContextOps}
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
@@ -25,18 +26,14 @@ import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
 
 class ServiceConfigsConnector @Inject()(
-   servicesConfig: ServicesConfig,
-   httpClientV2: HttpClientV2
-){
-
-  import uk.gov.hmrc.http.HttpReads.Implicits._
+  servicesConfig: ServicesConfig,
+  httpClientV2: HttpClientV2
+)(implicit ec: ExecutionContext){
 
   private val url: String = servicesConfig.baseUrl("service-configs")
 
-  private implicit val hc: HeaderCarrier = HeaderCarrier()
-
-  // Check service has mdtp frontend routes
-  def getMDTPFrontendRoutes(serviceName: String)(implicit ec: ExecutionContext): Future[Seq[FrontendRoute]] = {
+  def getMDTPFrontendRoutes(serviceName: String)(implicit hc:  HeaderCarrier): Future[Seq[FrontendRoute]] = {
+    implicit val r: Reads[FrontendRoute] = FrontendRoute.reads
     httpClientV2
       .get(url"$url/frontend-route/$serviceName")
       .execute[Seq[FrontendRoute]]
@@ -46,11 +43,19 @@ class ServiceConfigsConnector @Inject()(
 case class Routes(ruleConfigurationUrl: String)
 
 object Routes {
-  implicit val reads: Reads[Routes] = Json.reads[Routes]
+  val reads: Reads[Routes] = {
+    (__ \ "ruleConfigurationUrl").read[String].map(Routes(_))
+  }
 }
 
 case class FrontendRoute(environment: String, routes: Seq[Routes])
 
 object FrontendRoute {
-  implicit val reads: Reads[FrontendRoute] = Json.reads[FrontendRoute]
+  val reads: Reads[FrontendRoute] = {
+    implicit val rs: Reads[Routes] = Routes.reads
+    ( (__ \ "environment").read[String]
+      ~ (__ \ "routes"   ).read[Seq[Routes]]
+    )(FrontendRoute.apply _)
+  }
 }
+
