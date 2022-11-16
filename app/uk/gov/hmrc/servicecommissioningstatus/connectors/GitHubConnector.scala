@@ -60,7 +60,7 @@ class GitHubConnector @Inject() (
       .map(response => response.map(_.body))
   }
 
-  def streamGithubCodeLoad(path: String)(implicit hc: HeaderCarrier): Future[Option[InputStream]] = {
+  def streamGithubCodeload(path: String)(implicit hc: HeaderCarrier): Future[Option[InputStream]] = {
     logger.info(s"Getting code archive from: https://codeload.github.com$path")
     httpClientV2
       .get(new URL(s"https://codeload.github.com$path"))
