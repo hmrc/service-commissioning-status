@@ -16,68 +16,39 @@
 
 package uk.gov.hmrc.servicecommissioningstatus.model
 
-import play.api.libs.json.{Format, Json}
+import play.api.libs.functional.syntax.{toFunctionalBuilderOps, unlift}
+import play.api.libs.json.{Writes, __}
 
-case class StatusCheck(
-  status  : Boolean
-, evidence: Option[String]
-)
+case class StatusCheck(evidence: Option[String]) {
+  lazy val exists: Boolean =
+    evidence.isDefined
+}
 
 object StatusCheck {
-  implicit val scFormat: Format[StatusCheck] =
-    Json.format[StatusCheck]
+  val writes: Writes[StatusCheck] =
+    ( (__ \ "evidence"  ).writeNullable[String]
+      ~ (__ \ "status"  ).write[Boolean]
+      )(sc => (sc.evidence, sc.exists))
 }
 
-case class FrontendRoutes(
-  integration : StatusCheck
-, development : StatusCheck
-, qa          : StatusCheck
-, staging     : StatusCheck
-, externalTest: StatusCheck
-, production  : StatusCheck
-)
+case class FrontendRoutes(asMap: Map[Environment, StatusCheck])
 
-object FrontendRoutes {
-  implicit val frFormat: Format[FrontendRoutes] =
-    Json.format[FrontendRoutes]
-}
+case class DeploymentEnvironment(asMap: Map[Environment, StatusCheck])
 
-case class AppConfigEnvironment(
-  integration : StatusCheck
-, development : StatusCheck
-, qa          : StatusCheck
-, staging     : StatusCheck
-, externalTest: StatusCheck
-, production  : StatusCheck
-)
+case class AppConfigEnvironment(asMap: Map[Environment, StatusCheck])
 
-object AppConfigEnvironment {
-  implicit val acFormat: Format[AppConfigEnvironment] =
-    Json.format[AppConfigEnvironment]
-}
-
-case class DeploymentEnvironment(
-  integration : StatusCheck
-, development : StatusCheck
-, qa          : StatusCheck
-, staging     : StatusCheck
-, externalTest: StatusCheck
-, production  : StatusCheck
-)
-
-object DeploymentEnvironment {
-  implicit val deFormat: Format[DeploymentEnvironment] =
-    Json.format[DeploymentEnvironment]
-}
-
-case class Dashboards(
+case class Dashboard(
   kibana  : StatusCheck
 , grafana : StatusCheck
 )
 
-object Dashboards {
-  implicit val dFormat: Format[Dashboards] =
-    Json.format[Dashboards]
+object Dashboard {
+  val writes: Writes[Dashboard] = {
+    implicit val scWrites: Writes[StatusCheck] = StatusCheck.writes
+    ((__ \ "kibana").write[StatusCheck]
+      ~ (__ \ "grafana").write[StatusCheck]
+      ) (unlift(Dashboard.unapply))
+  }
 }
 
 case class ServiceCommissioningStatus(
@@ -87,14 +58,45 @@ case class ServiceCommissioningStatus(
 , hasFrontendRoutes: FrontendRoutes
 , hasAppConfigBase : StatusCheck
 , hasAppConfigEnv  : AppConfigEnvironment
-, deployed         : DeploymentEnvironment
-, hasDashboards    : Dashboards
+, isDeployed       : DeploymentEnvironment
+, hasDashboards    : Dashboard
 , hasBuildJobs     : StatusCheck
 , hasAlerts        : StatusCheck
 )
 
 object ServiceCommissioningStatus {
 
-  implicit val apiFormat: Format[ServiceCommissioningStatus] =
-    Json.format[ServiceCommissioningStatus]
+  implicit val scWrites: Writes[StatusCheck] = StatusCheck.writes
+  implicit val dsWrites: Writes[Dashboard] = Dashboard.writes
+
+  private val mapFormat: Writes[Map[Environment, StatusCheck]] =
+    Writes
+      .of[Map[String, StatusCheck]]
+      .contramap(
+        _.map { case (k, v) => (k.asString, v) }
+      )
+
+  implicit val frWrites: Writes[FrontendRoutes] =
+    mapFormat.contramap(unlift(FrontendRoutes.unapply))
+
+  implicit val deWrites: Writes[DeploymentEnvironment] =
+    mapFormat.contramap(unlift(DeploymentEnvironment.unapply))
+
+  implicit val acWrites: Writes[AppConfigEnvironment] =
+    mapFormat.contramap(unlift(AppConfigEnvironment.unapply))
+
+
+  val writes: Writes[ServiceCommissioningStatus] = {
+    ( (__ \ "serviceName"        ).write[String]
+      ~ (__ \ "hasRepo"          ).write[StatusCheck]
+      ~ (__ \ "hasSMConfig"      ).write[StatusCheck]
+      ~ (__ \ "hasFrontendRoutes").write[FrontendRoutes]
+      ~ (__ \ "hasAppConfigBase" ).write[StatusCheck]
+      ~ (__ \ "hasAppConfigEnv"  ).write[AppConfigEnvironment]
+      ~ (__ \ "isDeployedIn"     ).write[DeploymentEnvironment]
+      ~ (__ \ "hasDashboards"    ).write[Dashboard]
+      ~ (__ \ "hasBuildJobs"     ).write[StatusCheck]
+      ~ (__ \ "hasAlerts"        ).write[StatusCheck]
+      )(unlift(ServiceCommissioningStatus.unapply))
+  }
 }

@@ -16,10 +16,11 @@
 
 package uk.gov.hmrc.servicecommissioningstatus.service
 
+import cats.data.OptionT
+import cats.implicits._
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.servicecommissioningstatus.connectors.{ArtifactoryConnector, FrontendRoute, GitHubConnector, Release, ReleasesConnector, ServiceConfigsConnector}
-import uk.gov.hmrc.servicecommissioningstatus.model.{AppConfigEnvironment, Dashboards, DeploymentEnvironment, Environment, FrontendRoutes, ServiceCommissioningStatus, StatusCheck}
-import uk.gov.hmrc.servicecommissioningstatus.model.Environment._
+import uk.gov.hmrc.servicecommissioningstatus.model.{AppConfigEnvironment, Dashboard, DeploymentEnvironment, Environment, FrontendRoutes, ServiceCommissioningStatus, StatusCheck}
 
 import java.io.InputStream
 import java.util.zip.ZipInputStream
@@ -43,31 +44,19 @@ class StatusCheckService @Inject()(
 
       smConfig <- checkServiceManagerConfigExists(serviceName)
 
-      frontend <- isFrontend(serviceName)
-      routes   <- lookUpRoutes(serviceName)
-      intRoute  = checkFrontendRoute(frontend, routes, Integration)
-      devRoute  = checkFrontendRoute(frontend, routes, Development)
-      qaRoute   = checkFrontendRoute(frontend, routes, QA)
-      stagRoute = checkFrontendRoute(frontend, routes, Staging)
-      etRoute   = checkFrontendRoute(frontend, routes, ExternalTest)
-      prodRoute = checkFrontendRoute(frontend, routes, Production)
+      frontend    <- isFrontend(serviceName)
+      routes      <- lookUpRoutes(serviceName)
+      envRoutesMap = Environment.values.map(env => env -> checkFrontendRoute(frontend, routes, env)).toMap
 
       appConfigBase <- checkAppConfigBaseExists(serviceName)
 
-      appConfigInt  <- checkAppConfigExistsForEnv(serviceName, Integration)
-      appConfigDev  <- checkAppConfigExistsForEnv(serviceName, Development)
-      appConfigQA   <- checkAppConfigExistsForEnv(serviceName, QA)
-      appConfigStag <- checkAppConfigExistsForEnv(serviceName, Staging)
-      appConfigET   <- checkAppConfigExistsForEnv(serviceName, ExternalTest)
-      appConfigProd <- checkAppConfigExistsForEnv(serviceName, Production)
+      appConfigEnvMap <- Environment.values.foldLeftM(Map.empty[Environment, StatusCheck])((acc, env) =>
+                        checkAppConfigExistsForEnv(serviceName, env)
+                          .map(status => acc + (env -> status))
+                        )
 
-      releases    <- releasesConnector.getReleases(serviceName).map(_.versions)
-      intDeployed  = checkIsDeployedForEnv(serviceName, releases, Integration)
-      devDeployed  = checkIsDeployedForEnv(serviceName, releases, Development)
-      qaDeployed   = checkIsDeployedForEnv(serviceName, releases, QA)
-      stagDeployed = checkIsDeployedForEnv(serviceName, releases, Staging)
-      etDeployed   = checkIsDeployedForEnv(serviceName, releases, ExternalTest)
-      prodDeployed = checkIsDeployedForEnv(serviceName, releases, Production)
+      releases      <- releasesConnector.getReleases(serviceName).map(_.versions)
+      isDeployedMap  = Environment.values.map(env => env -> checkIsDeployedForEnv(serviceName, releases, env)).toMap
 
       kibana    <- checkKibanaDashboardExists(serviceName)
       grafana   <- checkGrafanaDashboardExists(serviceName)
@@ -78,29 +67,27 @@ class StatusCheckService @Inject()(
       alertConfig = checkAlertConfigExists(serviceName, sensuZip.get)
 
     } yield ServiceCommissioningStatus(
-      serviceName = serviceName
-      , hasRepo = repo
-      , hasSMConfig = smConfig
-      , hasFrontendRoutes = FrontendRoutes(intRoute, devRoute, qaRoute, stagRoute, etRoute, prodRoute)
-      , hasAppConfigBase = appConfigBase
-      , hasAppConfigEnv = AppConfigEnvironment(appConfigInt, appConfigDev, appConfigQA, appConfigStag, appConfigET, appConfigProd)
-      , deployed = DeploymentEnvironment(intDeployed, devDeployed, qaDeployed, stagDeployed, etDeployed, prodDeployed)
-      , hasDashboards = Dashboards(kibana, grafana)
-      , hasBuildJobs = buildJobs
-      , hasAlerts = alertConfig
+      serviceName         = serviceName
+      , hasRepo           = repo
+      , hasSMConfig       = smConfig
+      , hasFrontendRoutes = FrontendRoutes(envRoutesMap)
+      , hasAppConfigBase  = appConfigBase
+      , hasAppConfigEnv   = AppConfigEnvironment(appConfigEnvMap)
+      , isDeployed        = DeploymentEnvironment(isDeployedMap)
+      , hasDashboards     = Dashboard(kibana, grafana)
+      , hasBuildJobs      = buildJobs
+      , hasAlerts         = alertConfig
     )
   }
 
   private def checkRepoExists(serviceName: String)(implicit hc: HeaderCarrier): Future[StatusCheck] = {
     for {
-      resp    <- gitHubConnector.getGithubRaw(s"/hmrc/$serviceName/main/repository.yaml")
-      status  <- if (resp.isDefined) {
-                    Future.successful(true)
-                  } else {
-                    gitHubConnector.getGithubApi(s"/repos/hmrc/$serviceName").map(_.isDefined)
-                  }
-      evidence = if (status) Some(s"https://github.com/hmrc/$serviceName") else None
-    } yield StatusCheck(status, evidence)
+      exists <- OptionT(gitHubConnector.getGithubRaw(s"/hmrc/$serviceName/main/repository.yaml"))
+        .orElse(OptionT(gitHubConnector.getGithubApi(s"/repos/hmrc/$serviceName")))
+        .value
+    } yield
+      if (exists.isDefined) StatusCheck(Some(s"https://github.com/hmrc/$serviceName"))
+      else StatusCheck(None)
   }
 
 
@@ -108,9 +95,9 @@ class StatusCheckService @Inject()(
     val serviceManagerKey = serviceName.toUpperCase.replaceAll("[-]", "_")
     for {
       resp    <- gitHubConnector.getGithubRaw("/hmrc/service-manager-config/main/services.json")
-      status   = resp.filter(_.contains(s"\"$serviceManagerKey\""))
-      evidence = status.map(_ => s"https://github.com/hmrc/service-manager-config/blob/main/services.json")
-    } yield StatusCheck(status.isDefined, evidence)
+      check    = resp.filter(_.contains(s"\"$serviceManagerKey\""))
+      evidence = check.map(_ => s"https://github.com/hmrc/service-manager-config/blob/main/services.json")
+    } yield StatusCheck(evidence)
   }
 
   private def isFrontend(serviceName: String)(implicit hc: HeaderCarrier): Future[Boolean] = {
@@ -124,32 +111,26 @@ class StatusCheckService @Inject()(
   }
 
   private def checkFrontendRoute(isFrontend: Boolean, frontendRoutes: Seq[FrontendRoute], env: Environment): StatusCheck = {
-    lazy val statusCheck = frontendRoutes
+    if (isFrontend)
+      frontendRoutes
       .find(_.environment == env.asString)
-      .map(maybeEnv => StatusCheck(status = true, Some(maybeEnv.routes.map(_.ruleConfigurationUrl).mkString)))
-      .getOrElse(StatusCheck(status = false, Some(s"frontend with no routes in $env")))
-
-    if (isFrontend) {
-      statusCheck
-    } else {
-      StatusCheck(status = false, None)
-    }
+      .fold(StatusCheck(None))(fr => StatusCheck(Some(fr.routes.map(_.ruleConfigurationUrl).mkString)))
+    else
+      StatusCheck(None)
   }
 
   private def checkAppConfigBaseExists(serviceName: String)(implicit hc: HeaderCarrier): Future[StatusCheck] = {
     for {
       resp    <- gitHubConnector.getGithubRaw(s"/hmrc/app-config-base/main/$serviceName.conf")
-      status   = resp.isDefined
       evidence = resp.map(_ => s"https://github.com/hmrc/app-config-base/blob/main/$serviceName.conf")
-    } yield StatusCheck(status, evidence)
+    } yield StatusCheck(evidence)
   }
 
   private def checkAppConfigExistsForEnv(serviceName: String, environment: Environment)(implicit hc: HeaderCarrier): Future[StatusCheck] = {
     for {
       resp    <- gitHubConnector.getGithubRaw(s"/hmrc/app-config-${environment.asString}/main/$serviceName.yaml")
-      status   = resp.isDefined
       evidence = resp.map(_ => s"https://github.com/hmrc/app-config-$environment/blob/main/$serviceName.yaml")
-    } yield StatusCheck(status, evidence)
+    } yield StatusCheck(evidence)
   }
 
   private def checkAlertConfigExists(serviceName: String, inputStream: InputStream): StatusCheck = {
@@ -159,20 +140,19 @@ class StatusCheckService @Inject()(
 
     Iterator.continually(zip.getNextEntry)
       .takeWhile(z => z != null)
-      .foldLeft(StatusCheck(status = false, None))((found, entry) => {
+      .foldLeft(StatusCheck(None))((found, entry) => {
         entry.getName match {
-          case n if n.equals(s"target/output/configs/$serviceName.json") => StatusCheck(status = true, Some(githubLink))
+          case n if n.equals(s"target/output/configs/$serviceName.json") => StatusCheck(Some(githubLink))
           case _                                                         => found
         }
       })
   }
 
   private def checkIsDeployedForEnv(serviceName: String, releases: Seq[Release], env: Environment): StatusCheck = {
-    if (releases.map(_.environment).contains(env.asString)) {
-      StatusCheck(status = true, Some(s"https://catalogue.tax.service.gov.uk/deployment-timeline?service=$serviceName"))
-    } else {
-      StatusCheck(status = false, None)
-    }
+    if (releases.map(_.environment).contains(env.asString))
+      StatusCheck(Some(s"https://catalogue.tax.service.gov.uk/deployment-timeline?service=$serviceName"))
+    else
+      StatusCheck(None)
   }
 
   private def findInZip(inputStream: Option[InputStream], fileFilter: String)(extractor: PartialFunction[String, String]): Option[String] = {
@@ -191,7 +171,7 @@ class StatusCheckService @Inject()(
         case content if content.contains(s"Microservice(\"$serviceName\"") =>
           "https://github.com/hmrc/kibana-dashboards/tree/main/src/main/scala/uk/gov/hmrc/kibanadashboards/digitalservices"
       }
-    } yield optEvidence.fold(StatusCheck(status = false, None))(evidence => StatusCheck(status = true, Some(evidence)))
+    } yield optEvidence.fold(StatusCheck(None))(evidence => StatusCheck(Some(evidence)))
   }
 
   private def checkGrafanaDashboardExists(serviceName: String)(implicit hc: HeaderCarrier): Future[StatusCheck] = {
@@ -201,7 +181,7 @@ class StatusCheckService @Inject()(
         case content if content.contains(s"= \"$serviceName\"") =>
           "https://github.com/hmrc/grafana-dashboards/tree/main/src/main/scala/uk/gov/hmrc/grafanadashboards/dashboards"
       }
-    } yield optEvidence.fold(StatusCheck(status = false, None))(evidence => StatusCheck(status = true, Some(evidence)))
+    } yield optEvidence.fold(StatusCheck(None))(evidence => StatusCheck(Some(evidence)))
   }
 
   private def checkBuildJobsArchiveExists(serviceName: String)(implicit hc: HeaderCarrier): Future[StatusCheck] = {
@@ -211,6 +191,6 @@ class StatusCheckService @Inject()(
         case content if content.contains(s"SbtMicroserviceJobBuilder(") && content.contains(s"\'$serviceName\'") =>
           "https://github.com/hmrc/build-jobs/tree/main/jobs/live"
       }
-    } yield optEvidence.fold(StatusCheck(status = false, None))(evidence => StatusCheck(status = true, Some(evidence)))
+    } yield optEvidence.fold(StatusCheck(None))(evidence => StatusCheck(Some(evidence)))
   }
 }

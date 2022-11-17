@@ -17,7 +17,7 @@
 package uk.gov.hmrc.servicecommissioningstatus.connectors
 
 import play.api.libs.json.{Reads, __}
-import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps}
+import uk.gov.hmrc.http.{HeaderCarrier, StringContextOps}
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
 

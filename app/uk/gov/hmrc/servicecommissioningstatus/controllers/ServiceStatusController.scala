@@ -17,7 +17,7 @@
 package uk.gov.hmrc.servicecommissioningstatus.controllers
 
 import play.api.Logging
-import play.api.libs.json.{Format, Json}
+import play.api.libs.json.{Json, Writes}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 import play.api.mvc.{Action, AnyContent, ControllerComponents}
 import uk.gov.hmrc.servicecommissioningstatus.model.ServiceCommissioningStatus
@@ -36,7 +36,7 @@ class ServiceStatusController @Inject()(
   with Logging {
 
   def statusChecks(serviceName: String): Action[AnyContent] = Action.async { implicit request =>
-    implicit val apf: Format[ServiceCommissioningStatus] = ServiceCommissioningStatus.apiFormat
+    implicit val apiWrites: Writes[ServiceCommissioningStatus] = ServiceCommissioningStatus.writes
     logger.info(s"Commissioning status checks for $serviceName")
     for {
       status <- statusCheckService.commissioningStatusChecks(serviceName)

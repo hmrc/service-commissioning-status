@@ -76,7 +76,7 @@ class GitHubConnector @Inject() (
           Future.successful(None)
         case Left(error) =>
           logger.error(s"Could not call https://codeload.github.com$path - ${error.getMessage}", error)
-          throw error
+          Future.failed(error)
       }
   }
 
@@ -96,7 +96,7 @@ class GitHubConnector @Inject() (
           Future.successful(None)
         case Left(error) =>
           logger.error(s"Could not call ${gitHubConfig.githubApiUrl}$path - ${error.getMessage}", error)
-          throw error
+          Future.failed(error)
       }
   }
 }
