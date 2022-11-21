@@ -20,7 +20,8 @@ import javax.inject.{Inject, Singleton}
 import play.api.Configuration
 
 @Singleton
-class AppConfig @Inject()(config: Configuration) {
-
-  val appName: String = config.get[String]("appName")
+class ArtifactoryConfig @Inject()(
+    config: Configuration
+) {
+  lazy val artifactoryUrl: String = config.get[String]("artifactory.url")
 }
