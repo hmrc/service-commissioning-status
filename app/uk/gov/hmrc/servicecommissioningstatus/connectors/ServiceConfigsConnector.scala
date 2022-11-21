@@ -43,9 +43,8 @@ class ServiceConfigsConnector @Inject()(
 case class Routes(ruleConfigurationUrl: String)
 
 object Routes {
-  val reads: Reads[Routes] = {
+  val reads: Reads[Routes] =
     (__ \ "ruleConfigurationUrl").read[String].map(Routes(_))
-  }
 }
 
 case class FrontendRoute(environment: String, routes: Seq[Routes])

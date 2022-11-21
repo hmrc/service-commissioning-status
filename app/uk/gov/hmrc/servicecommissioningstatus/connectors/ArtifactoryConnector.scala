@@ -37,7 +37,7 @@ class ArtifactoryConnector @Inject()(
   materializer: Materializer
 ) extends Logging {
 
-  def getSensuZip(implicit hc: HeaderCarrier): Future[Option[InputStream]] = {
+  def getSensuZip(implicit hc: HeaderCarrier): Future[Option[InputStream]] =
     httpClientV2
       .get(url"${config.artifactoryUrl}/artifactory/webstore/sensu-config/output.zip")
       .withProxy
@@ -53,5 +53,4 @@ class ArtifactoryConnector @Inject()(
           logger.error(s"Could not call ${config.artifactoryUrl}/artifactory/webstore/sensu-config/output.zip - ${error.getMessage}", error)
           throw error
       }
-  }
 }

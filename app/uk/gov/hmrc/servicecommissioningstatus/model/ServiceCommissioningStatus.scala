@@ -66,8 +66,8 @@ case class ServiceCommissioningStatus(
 
 object ServiceCommissioningStatus {
 
-  implicit val scWrites: Writes[StatusCheck] = StatusCheck.writes
-  implicit val dsWrites: Writes[Dashboard] = Dashboard.writes
+  private implicit val scWrites: Writes[StatusCheck] = StatusCheck.writes
+  private implicit val dsWrites: Writes[Dashboard] = Dashboard.writes
 
   private val mapFormat: Writes[Map[Environment, StatusCheck]] =
     Writes
@@ -76,17 +76,17 @@ object ServiceCommissioningStatus {
         _.map { case (k, v) => (k.asString, v) }
       )
 
-  implicit val frWrites: Writes[FrontendRoutes] =
+  private implicit val frWrites: Writes[FrontendRoutes] =
     mapFormat.contramap(unlift(FrontendRoutes.unapply))
 
-  implicit val deWrites: Writes[DeploymentEnvironment] =
+  private implicit val deWrites: Writes[DeploymentEnvironment] =
     mapFormat.contramap(unlift(DeploymentEnvironment.unapply))
 
-  implicit val acWrites: Writes[AppConfigEnvironment] =
+  private implicit val acWrites: Writes[AppConfigEnvironment] =
     mapFormat.contramap(unlift(AppConfigEnvironment.unapply))
 
 
-  val writes: Writes[ServiceCommissioningStatus] = {
+  val writes: Writes[ServiceCommissioningStatus] =
     ( (__ \ "serviceName"        ).write[String]
       ~ (__ \ "hasRepo"          ).write[StatusCheck]
       ~ (__ \ "hasSMConfig"      ).write[StatusCheck]
@@ -98,5 +98,4 @@ object ServiceCommissioningStatus {
       ~ (__ \ "hasBuildJobs"     ).write[StatusCheck]
       ~ (__ \ "hasAlerts"        ).write[StatusCheck]
       )(unlift(ServiceCommissioningStatus.unapply))
-  }
 }

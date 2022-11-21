@@ -43,9 +43,8 @@ class ReleasesConnector @Inject()(
 case class Release(environment: String)
 
 object Release {
- val reads: Reads[Release] = {
+ val reads: Reads[Release] =
     (__ \ "environment").read[String].map(Release(_))
-  }
 }
 
 case class WhatsRunningWhereReleases(versions: Seq[Release])
