@@ -73,7 +73,7 @@ class ReleasesConnectorSpec
 
     "return WhatsRunningWhereReleases that contains Empty Seq when service not found" in {
       stubFor(
-        get(urlEqualTo("/releases-api/whats-running-where/bar"))
+        get(urlEqualTo("/releases-api/whats-running-where/foo-non-existing"))
           .willReturn(
             aResponse()
               .withStatus(404)
@@ -82,7 +82,7 @@ class ReleasesConnectorSpec
       )
 
       val response = releasesConnector
-        .getReleases("bar")
+        .getReleases("foo-non-existing")
         .futureValue
 
       val expectedOutput = WhatsRunningWhereReleases(Seq.empty)
