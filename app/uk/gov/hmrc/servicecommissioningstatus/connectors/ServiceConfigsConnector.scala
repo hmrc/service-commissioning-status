@@ -17,10 +17,11 @@
 package uk.gov.hmrc.servicecommissioningstatus.connectors
 
 import play.api.libs.functional.syntax.toFunctionalBuilderOps
-import play.api.libs.json.{Reads, __}
-import uk.gov.hmrc.http.{HeaderCarrier, StringContextOps}
+import play.api.libs.json.{JsValue, Reads, __}
+import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps}
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
+import uk.gov.hmrc.servicecommissioningstatus.model.StatusCheck
 
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
@@ -29,15 +30,40 @@ class ServiceConfigsConnector @Inject()(
   servicesConfig: ServicesConfig,
   httpClientV2: HttpClientV2
 )(implicit ec: ExecutionContext){
+  import HttpReads.Implicits._
 
   private val url: String = servicesConfig.baseUrl("service-configs")
 
-  def getMDTPFrontendRoutes(serviceName: String)(implicit hc:  HeaderCarrier): Future[Seq[FrontendRoute]] = {
-    implicit val r: Reads[FrontendRoute] = FrontendRoute.reads
+  private implicit val frontendRoutesReads = FrontendRoute.reads
+
+  def getMDTPFrontendRoutes(serviceName: String)(implicit hc:  HeaderCarrier): Future[Seq[FrontendRoute]] =
     httpClientV2
       .get(url"$url/frontend-route/$serviceName")
       .execute[Seq[FrontendRoute]]
-  }
+
+  def getGrafanaDashboard(serviceName: String)(implicit hc:  HeaderCarrier): Future[StatusCheck] =
+    httpClientV2
+      .get(url"$url/grafana-dashboards/$serviceName")
+      .execute[Option[JsValue]]
+      .map(o => StatusCheck(o.map(js => (js \ "location").as[String])))
+
+  def getKibanaDashboard(serviceName: String)(implicit hc:  HeaderCarrier): Future[StatusCheck] =
+    httpClientV2
+      .get(url"$url/kibana-dashboards/$serviceName")
+      .execute[Option[JsValue]]
+      .map(o => StatusCheck(o.map(js => (js \ "location").as[String])))
+
+  def getBuildJobs(serviceName: String)(implicit hc:  HeaderCarrier): Future[StatusCheck] =
+    httpClientV2
+      .get(url"$url/build-jobs/$serviceName")
+      .execute[Option[JsValue]]
+      .map(o => StatusCheck(o.map(js => (js \ "location").as[String])))
+
+  def getAlertConfig(serviceName: String)(implicit hc:  HeaderCarrier): Future[StatusCheck] =
+    httpClientV2
+      .get(url"$url/alert-configs/$serviceName")
+      .execute[Option[JsValue]]
+      .map(o => StatusCheck(o.map(js => (js \ "location").as[String])))
 }
 
 case class Routes(ruleConfigurationUrl: String)
@@ -53,8 +79,7 @@ object FrontendRoute {
   val reads: Reads[FrontendRoute] = {
     implicit val rs: Reads[Routes] = Routes.reads
     ( (__ \ "environment").read[String]
-      ~ (__ \ "routes"   ).read[Seq[Routes]]
+    ~ (__ \ "routes"     ).read[Seq[Routes]]
     )(FrontendRoute.apply _)
   }
 }
-
