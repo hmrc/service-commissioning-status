@@ -19,7 +19,7 @@ package uk.gov.hmrc.servicecommissioningstatus.service
 import cats.data.OptionT
 import cats.implicits._
 import uk.gov.hmrc.http.HeaderCarrier
-import uk.gov.hmrc.servicecommissioningstatus.connectors.{ArtifactoryConnector, FrontendRoute, GitHubConnector, Release, ReleasesConnector, ServiceConfigsConnector}
+import uk.gov.hmrc.servicecommissioningstatus.connectors.{FrontendRoute, GitHubConnector, Release, ReleasesConnector, ServiceConfigsConnector}
 import uk.gov.hmrc.servicecommissioningstatus.model.{AppConfigEnvironment, Dashboard, DeploymentEnvironment, Environment, FrontendRoutes, ServiceCommissioningStatus, StatusCheck}
 
 import javax.inject.{Inject, Singleton}
@@ -29,7 +29,6 @@ import scala.concurrent.{ExecutionContext, Future}
 class StatusCheckService @Inject()(
   gitHubConnector         : GitHubConnector,
   serviceConfigsConnector : ServiceConfigsConnector,
-  artifactoryConnector    : ArtifactoryConnector,
   releasesConnector       : ReleasesConnector
 )(implicit ec: ExecutionContext){
 
