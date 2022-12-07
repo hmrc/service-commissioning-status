@@ -34,7 +34,7 @@ class GitHubConnector @Inject() (
   import HttpReads.Implicits._
 
   def getGithubApi(path: String)(implicit hc: HeaderCarrier): Future[Option[String]] =
-    get(new URL(s"${gitHubConfig.githubRawUrl}$path"))
+    get(new URL(s"${gitHubConfig.githubApiUrl}$path"))
 
   def getGithubRaw(path: String)(implicit hc: HeaderCarrier): Future[Option[String]] =
     get(new URL(s"${gitHubConfig.githubRawUrl}$path"))
