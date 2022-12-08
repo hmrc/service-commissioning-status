@@ -85,8 +85,6 @@ class ReleasesConnectorSpec
       response shouldBe expectedOutput
     }
 
-
-
     "return WhatsRunningWhereReleases that contains Empty Seq when service Not Found" in {
       stubFor(
         get(urlEqualTo("/releases-api/whats-running-where/foo-non-existing"))
@@ -101,5 +99,4 @@ class ReleasesConnectorSpec
       response shouldBe expectedOutput
     }
   }
-
 }
