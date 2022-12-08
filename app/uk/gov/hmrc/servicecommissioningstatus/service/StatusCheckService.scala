@@ -32,9 +32,7 @@ class StatusCheckService @Inject()(
   releasesConnector       : ReleasesConnector
 )(implicit ec: ExecutionContext){
 
-  def commissioningStatusChecks(serviceName: String): Future[ServiceCommissioningStatus] = {
-
-    implicit val hc: HeaderCarrier = HeaderCarrier()
+  def commissioningStatusChecks(serviceName: String)(implicit hc: HeaderCarrier): Future[ServiceCommissioningStatus] = {
 
     for {
       repo <- checkRepoExists(serviceName)

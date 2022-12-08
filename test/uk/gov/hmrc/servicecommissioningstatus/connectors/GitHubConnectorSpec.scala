@@ -37,6 +37,10 @@ class GitHubConnectorSpec
     with HttpClientV2Support
     with WireMockSupport {
 
+  private val repositoryContent     = "Repository Content"
+  private val rawRepositoryContent  = "Raw Repository Content"
+  private val testToken             = "test-token"
+
 
   private lazy val githubConnector =
     new GitHubConnector(
@@ -44,7 +48,7 @@ class GitHubConnectorSpec
       gitHubConfig = new GitHubConfig(Configuration(
         "github.open.api.rawurl" -> wireMockUrl,
         "github.open.api.url"    -> wireMockUrl,
-        "github.open.api.token"  -> "test-token"
+        "github.open.api.token"  -> testToken
       ))
     )
 
@@ -57,7 +61,7 @@ class GitHubConnectorSpec
           .willReturn(
             aResponse()
               .withStatus(200)
-              .withBody("Repository Content")
+              .withBody(repositoryContent)
           )
       )
 
@@ -66,11 +70,11 @@ class GitHubConnectorSpec
         .futureValue
         .value
 
-      response shouldBe "Repository Content"
+      response shouldBe repositoryContent
 
       verify(
         getRequestedFor(urlEqualTo("/hmrc/repos/foo"))
-          .withHeader("Authorization", equalTo("token test-token"))
+          .withHeader("Authorization", equalTo(s"token $testToken"))
       )
     }
 
@@ -87,7 +91,7 @@ class GitHubConnectorSpec
 
       verify(
         getRequestedFor(urlEqualTo("/hmrc/repos/foo-non-existing"))
-          .withHeader("Authorization", equalTo("token test-token"))
+          .withHeader("Authorization", equalTo(s"token $testToken"))
       )
     }
   }
@@ -99,7 +103,7 @@ class GitHubConnectorSpec
           .willReturn(
             aResponse()
               .withStatus(200)
-              .withBody("Raw Repository Content")
+              .withBody(rawRepositoryContent)
           )
       )
 
@@ -108,11 +112,11 @@ class GitHubConnectorSpec
         .futureValue
         .value
 
-      response shouldBe "Raw Repository Content"
+      response shouldBe rawRepositoryContent
 
       verify(
         getRequestedFor(urlEqualTo("/hmrc/repos/foo"))
-          .withHeader("Authorization", equalTo("token test-token"))
+          .withHeader("Authorization", equalTo(s"token $testToken"))
       )
     }
 
@@ -129,7 +133,7 @@ class GitHubConnectorSpec
 
       verify(
         getRequestedFor(urlEqualTo("/hmrc/repos/foo-non-existing"))
-          .withHeader("Authorization", equalTo("token test-token"))
+          .withHeader("Authorization", equalTo(s"token $testToken"))
       )
     }
   }

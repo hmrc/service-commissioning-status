@@ -80,9 +80,7 @@ class ReleasesConnectorSpec
         .getReleases("foo")
         .futureValue
 
-      val expectedOutput = WhatsRunningWhereReleases(Seq(Release("staging"), Release("qa"), Release("production")))
-
-      response shouldBe expectedOutput
+      response shouldBe WhatsRunningWhereReleases(Seq(Release("staging"), Release("qa"), Release("production")))
     }
 
     "return WhatsRunningWhereReleases that contains Empty Seq when service Not Found" in {
@@ -94,9 +92,7 @@ class ReleasesConnectorSpec
         .getReleases("foo-non-existing")
         .futureValue
 
-      val expectedOutput = WhatsRunningWhereReleases(Seq.empty)
-
-      response shouldBe expectedOutput
+      response shouldBe WhatsRunningWhereReleases(Seq.empty)
     }
   }
 }
