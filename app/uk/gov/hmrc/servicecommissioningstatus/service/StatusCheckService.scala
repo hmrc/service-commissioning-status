@@ -19,7 +19,7 @@ package uk.gov.hmrc.servicecommissioningstatus.service
 import cats.data.OptionT
 import cats.implicits._
 import uk.gov.hmrc.http.HeaderCarrier
-import uk.gov.hmrc.servicecommissioningstatus.connectors.{ArtifactoryConnector, FrontendRoute, GitHubConnector, Release, ReleasesConnector, ServiceConfigsConnector}
+import uk.gov.hmrc.servicecommissioningstatus.connectors.{FrontendRoute, GitHubConnector, Release, ReleasesConnector, ServiceConfigsConnector}
 import uk.gov.hmrc.servicecommissioningstatus.model.{AppConfigEnvironment, Dashboard, DeploymentEnvironment, Environment, FrontendRoutes, ServiceCommissioningStatus, StatusCheck}
 
 import javax.inject.{Inject, Singleton}
@@ -29,14 +29,10 @@ import scala.concurrent.{ExecutionContext, Future}
 class StatusCheckService @Inject()(
   gitHubConnector         : GitHubConnector,
   serviceConfigsConnector : ServiceConfigsConnector,
-  //artifactoryConnector    : ArtifactoryConnector,
   releasesConnector       : ReleasesConnector
 )(implicit ec: ExecutionContext){
 
-  def commissioningStatusChecks(serviceName: String): Future[ServiceCommissioningStatus] = {
-
-    implicit val hc: HeaderCarrier = HeaderCarrier()
-
+  def commissioningStatusChecks(serviceName: String)(implicit hc: HeaderCarrier): Future[ServiceCommissioningStatus] =
     for {
       repo <- checkRepoExists(serviceName)
 
@@ -73,7 +69,6 @@ class StatusCheckService @Inject()(
     , hasBuildJobs      = buildJobs
     , hasAlerts         = alertConfig
     )
-  }
 
   private def checkRepoExists(serviceName: String)(implicit hc: HeaderCarrier): Future[StatusCheck] =
     for {
@@ -84,15 +79,17 @@ class StatusCheckService @Inject()(
       if (exists.isDefined) StatusCheck(Some(s"https://github.com/hmrc/$serviceName"))
       else StatusCheck(None)
 
-
-  private def checkServiceManagerConfigExists(serviceName: String)(implicit hc: HeaderCarrier): Future[StatusCheck] = {
-    val serviceManagerKey = serviceName.toUpperCase.replaceAll("[-]", "_")
+  private def checkServiceManagerConfigExists(serviceName: String)(implicit hc: HeaderCarrier): Future[StatusCheck] =
     for {
-      resp    <- gitHubConnector.getGithubRaw("/hmrc/service-manager-config/main/services.json")
-      check    = resp.filter(_.contains(s"\"$serviceManagerKey\""))
-      evidence = check.map(_ => s"https://github.com/hmrc/service-manager-config/blob/main/services.json")
+      optStr  <- gitHubConnector.getGithubRaw("/hmrc/service-manager-config/main/services.json")
+      key      = serviceName.toUpperCase.replaceAll("[-]", "_")
+      evidence = optStr
+                  .getOrElse("")
+                  .linesIterator
+                  .zipWithIndex
+                  .find { case (line, _) => line.contains(s"\"$key\"") }
+                  .map { case (_, idx) => s"https://github.com/hmrc/service-manager-config/blob/main/services.json#L${idx + 1}" }
     } yield StatusCheck(evidence)
-  }
 
   private def isFrontend(serviceName: String)(implicit hc: HeaderCarrier): Future[Boolean] =
      gitHubConnector
