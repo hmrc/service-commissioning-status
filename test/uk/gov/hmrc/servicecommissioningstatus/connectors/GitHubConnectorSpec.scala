@@ -37,10 +37,7 @@ class GitHubConnectorSpec
     with HttpClientV2Support
     with WireMockSupport {
 
-  private val repositoryContent     = "Repository Content"
-  private val rawRepositoryContent  = "Raw Repository Content"
-  private val testToken             = "test-token"
-
+  private val testToken = "test-token"
 
   private lazy val githubConnector =
     new GitHubConnector(
@@ -55,6 +52,9 @@ class GitHubConnectorSpec
   implicit val headerCarrier: HeaderCarrier = HeaderCarrier()
 
   "GET getGithubApi" should {
+
+    val repositoryContent = "Repository Content"
+
     "return response body as a String for a valid repo" in {
       stubFor(
         get(urlEqualTo("/hmrc/repos/foo"))
@@ -97,6 +97,9 @@ class GitHubConnectorSpec
   }
 
   "GET getGithubRaw" should {
+
+    val rawRepositoryContent = "Raw Repository Content"
+
     "return response body as a String for a valid repo" in {
       stubFor(
         get(urlEqualTo("/hmrc/repos/foo"))
