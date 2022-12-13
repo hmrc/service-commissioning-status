@@ -25,13 +25,13 @@ object Check {
   type Result = Either[Missing, Present]
 
   sealed case class SimpleCheck(
-    title       : String
-  , checkResult : Result
+    title : String
+  , result: Result
   ) extends Check
 
   sealed case class EnvCheck(
-    title        : String
-  , checkResults : Map[Environment, Result]
+    title  : String
+  , results: Map[Environment, Result]
   ) extends Check
 
   import play.api.libs.functional.syntax.{toFunctionalBuilderOps, unlift}

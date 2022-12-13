@@ -49,9 +49,9 @@ class ServiceStatusControllerSpec
 
    import Check._
    private val checks =
-      SimpleCheck(title = "Github Repo"           , checkResult  = Right(Check.Present("https://github.com/hmrc/foo"))) ::
-      SimpleCheck(title = "App Config Base"       , checkResult  = Left( Check.Missing("https://github.com/hmrc/app-config-base/blob/main/foo.conf"))) ::
-      EnvCheck   (title = "App Config Environment", checkResults = appConfigEnvironment) ::
+      SimpleCheck(title = "Github Repo"           , result  = Right(Check.Present("https://github.com/hmrc/foo"))) ::
+      SimpleCheck(title = "App Config Base"       , result  = Left( Check.Missing("https://github.com/hmrc/app-config-base/blob/main/foo.conf"))) ::
+      EnvCheck   (title = "App Config Environment", results = appConfigEnvironment) ::
       Nil
 
   "ServiceStatusController" should {
