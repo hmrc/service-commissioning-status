@@ -20,7 +20,7 @@ import play.api.Logging
 import play.api.libs.json.{Json, Writes}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 import play.api.mvc.{Action, AnyContent, ControllerComponents}
-import uk.gov.hmrc.servicecommissioningstatus.model.ServiceCommissioningStatus
+import uk.gov.hmrc.servicecommissioningstatus.model.Check
 import uk.gov.hmrc.servicecommissioningstatus.service.StatusCheckService
 
 import javax.inject.{Inject, Singleton}
@@ -36,13 +36,13 @@ class ServiceStatusController @Inject()(
   with Logging {
 
   def statusChecks(serviceName: String): Action[AnyContent] = Action.async { implicit request =>
-    implicit val apiWrites: Writes[ServiceCommissioningStatus] = ServiceCommissioningStatus.writes
+    implicit val apiWrites: Writes[Check] = Check.writes
     logger.info(s"Commissioning status checks for $serviceName")
     for {
-      status <- statusCheckService.commissioningStatusChecks(serviceName)
+      checks <- statusCheckService.commissioningStatusChecks(serviceName)
     } yield {
       logger.info(s"Commissioning status checks completed for $serviceName")
-      Ok(Json.toJson(status))
+      Ok(Json.toJson(checks))
     }
   }
 }

@@ -21,7 +21,7 @@ import play.api.libs.json.{JsValue, Reads, __}
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps}
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
-import uk.gov.hmrc.servicecommissioningstatus.model.StatusCheck
+import uk.gov.hmrc.servicecommissioningstatus.model.Check
 
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
@@ -41,29 +41,45 @@ class ServiceConfigsConnector @Inject()(
       .get(url"$url/frontend-route/$serviceName")
       .execute[Seq[FrontendRoute]]
 
-  def getGrafanaDashboard(serviceName: String)(implicit hc:  HeaderCarrier): Future[StatusCheck] =
+  def getGrafanaDashboard(serviceName: String)(implicit hc:  HeaderCarrier): Future[Check.Result] =
     httpClientV2
       .get(url"$url/grafana-dashboards/$serviceName")
       .execute[Option[JsValue]]
-      .map(o => StatusCheck(o.map(js => (js \ "location").as[String])))
+      .map(_.map(js => (js \ "location").as[String]))
+      .map {
+        case Some(e) => Right(Check.Present(e))
+        case None    => Left(Check.Missing(s"https://github.com/hmrc/grafana-dashboards"))
+      }
 
-  def getKibanaDashboard(serviceName: String)(implicit hc:  HeaderCarrier): Future[StatusCheck] =
+  def getKibanaDashboard(serviceName: String)(implicit hc:  HeaderCarrier): Future[Check.Result] =
     httpClientV2
       .get(url"$url/kibana-dashboards/$serviceName")
       .execute[Option[JsValue]]
-      .map(o => StatusCheck(o.map(js => (js \ "location").as[String])))
+      .map(_.map(js => (js \ "location").as[String]))
+      .map {
+        case Some(e) => Right(Check.Present(e))
+        case None    => Left(Check.Missing(s"https://github.com/hmrc/kibana-dashboards"))
+      }
 
-  def getBuildJobs(serviceName: String)(implicit hc:  HeaderCarrier): Future[StatusCheck] =
+  def getBuildJobs(serviceName: String)(implicit hc:  HeaderCarrier): Future[Check.Result] =
     httpClientV2
       .get(url"$url/build-jobs/$serviceName")
       .execute[Option[JsValue]]
-      .map(o => StatusCheck(o.map(js => (js \ "location").as[String])))
+      .map(_.map(js => (js \ "location").as[String]))
+      .map {
+        case Some(e) => Right(Check.Present(e))
+        case None    => Left(Check.Missing(s"https://github.com/hmrc/build-jobs"))
+      }
 
-  def getAlertConfig(serviceName: String)(implicit hc:  HeaderCarrier): Future[StatusCheck] =
+  def getAlertConfig(serviceName: String)(implicit hc:  HeaderCarrier): Future[Check.Result] =
     httpClientV2
       .get(url"$url/alert-configs/$serviceName")
       .execute[Option[JsValue]]
-      .map(o => StatusCheck(o.map(js => (js \ "location").as[String])))
+      .map(_.map(js => (js \ "location").as[String]))
+      .map {
+        case Some(e) => Right(Check.Present(e))
+        case None    => Left(Check.Missing(s"https://github.com/hmrc/alert-configs"))
+      }
 }
 
 case class Routes(ruleConfigurationUrl: String)
