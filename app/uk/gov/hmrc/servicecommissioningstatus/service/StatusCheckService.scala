@@ -18,6 +18,8 @@ package uk.gov.hmrc.servicecommissioningstatus.service
 
 import cats.data.OptionT
 import cats.implicits._
+
+import play.api.Configuration
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.servicecommissioningstatus.connectors.{FrontendRoute, GitHubConnector, Release, ReleasesConnector, ServiceConfigsConnector}
 import uk.gov.hmrc.servicecommissioningstatus.model.{Check, Environment}
@@ -27,10 +29,17 @@ import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class StatusCheckService @Inject()(
+  config                  : Configuration,
   gitHubConnector         : GitHubConnector,
   serviceConfigsConnector : ServiceConfigsConnector,
   releasesConnector       : ReleasesConnector
 )(implicit ec: ExecutionContext){
+
+  import scala.jdk.CollectionConverters._
+  private val environmentsToHideWhenUnconfigured: Set[Environment] =
+    config.underlying.getStringList("environmentsToHideWhenUnconfigured").asScala.toSet.map { str: String =>
+      Environment.parse(str).getOrElse(sys.error(s"config 'environmentsToHideWhenUnconfigured' contains an invalid environment: $str"))
+    }
 
   import Check.{SimpleCheck, EnvCheck}
   def commissioningStatusChecks(serviceName: String)(implicit hc: HeaderCarrier): Future[List[Check]] =
@@ -57,7 +66,7 @@ class StatusCheckService @Inject()(
       kibana          <- serviceConfigsConnector.getKibanaDashboard(serviceName)
       grafana         <- serviceConfigsConnector.getGrafanaDashboard(serviceName)
       alertConfig     <- serviceConfigsConnector.getAlertConfig(serviceName)
-      checks           = SimpleCheck(title = "Github Repo"           , result  = githubRepo     ) ::
+      allChecks        = SimpleCheck(title = "Github Repo"           , result  = githubRepo     ) ::
                          SimpleCheck(title = "App Config Base"       , result  = appConfigBase  ) ::
                          EnvCheck   (title = "App Config Environment", results = appConfigEnvs  ) ::
                          oFrontendRoutes.map(x => EnvCheck(title = "Frontend Routes", results = x )).toList :::
@@ -68,6 +77,7 @@ class StatusCheckService @Inject()(
                          SimpleCheck(title = "Grafana"               , result  = grafana        ) ::
                          SimpleCheck(title = "Alerts"                , result  = alertConfig    ) ::
                          Nil
+      checks           = StatusCheckService.hideUnconfiguredEnvironments(allChecks, environmentsToHideWhenUnconfigured)
     } yield checks
 
   private def checkRepoExists(serviceName: String)(implicit hc: HeaderCarrier): Future[Check.Result] =
@@ -128,4 +138,24 @@ class StatusCheckService @Inject()(
       Right(Check.Present(s"https://catalogue.tax.service.gov.uk/deployment-timeline?service=$serviceName"))
     else
       Left(Check.Missing(s"https://orchestrator.tools.${env.asString}.tax.service.gov.uk/job/deploy-microservice"))
+}
+
+object StatusCheckService {
+
+  import Check.{SimpleCheck, EnvCheck}
+  def hideUnconfiguredEnvironments(checks: List[Check], environments: Set[Environment]): List[Check] = {
+    val configured =
+      checks
+        .flatMap {
+          case _: SimpleCheck => Nil
+          case x: EnvCheck    => x.results.toList
+        }
+        .collect { case (k, v) if environments.contains(k) && v.isRight => k }
+        .toSet
+
+    checks.collect {
+      case x: SimpleCheck => x
+      case x: EnvCheck    => x.copy(results = x.results.removedAll(environments.removedAll(configured)))
+    }
+  }
 }
