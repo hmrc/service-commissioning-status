@@ -25,7 +25,7 @@ import play.api.Configuration
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.http.test.{HttpClientV2Support, WireMockSupport}
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
-import uk.gov.hmrc.servicecommissioningstatus.model.StatusCheck
+import uk.gov.hmrc.servicecommissioningstatus.model.Check
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -121,7 +121,7 @@ class ServiceConfigsConnectorSpec
   }
 
   "GET getGrafanaDashboard" should {
-    "return StatusCheck with evidence for a service with a Grafana Dashboard" in {
+    "return Right(Present) for a service with a Grafana Dashboard" in {
       stubFor(
         get(urlEqualTo("/grafana-dashboards/foo"))
           .willReturn(
@@ -142,12 +142,12 @@ class ServiceConfigsConnectorSpec
         .getGrafanaDashboard("foo")
         .futureValue
 
-      val expectedOutput = StatusCheck(Some("https://github.com/hmrc/grafana-dashboards/blob/HEAD/src/main/scala/uk/gov/hmrc/grafanadashboards/dashboards/TeamFoo.scala#L15"))
+      val expectedOutput = Right(Check.Present("https://github.com/hmrc/grafana-dashboards/blob/HEAD/src/main/scala/uk/gov/hmrc/grafanadashboards/dashboards/TeamFoo.scala#L15"))
 
       response shouldBe expectedOutput
     }
 
-    "return StatusCheck with None when no Grafana Dashboard is Not Found" in {
+    "return Left(Missing) when no Grafana Dashboard is Not Found" in {
       stubFor(
         get(urlEqualTo("/grafana-dashboards/foo-no-grafana"))
           .willReturn(aResponse().withStatus(404)))
@@ -156,14 +156,14 @@ class ServiceConfigsConnectorSpec
         .getGrafanaDashboard("foo-no-grafana")
         .futureValue
 
-      val expectedOutput = StatusCheck(None)
+      val expectedOutput = Left(Check.Missing("https://github.com/hmrc/grafana-dashboards"))
 
       response shouldBe expectedOutput
     }
   }
 
   "GET getKibanaDashboard" should {
-    "return StatusCheck with evidence for a service with a Kibana Dashboard" in {
+    "return Right(Present) for a service with a Kibana Dashboard" in {
       stubFor(
         get(urlEqualTo("/kibana-dashboards/foo"))
           .willReturn(
@@ -184,12 +184,12 @@ class ServiceConfigsConnectorSpec
         .getKibanaDashboard("foo")
         .futureValue
 
-      val expectedOutput = StatusCheck(Some("https://github.com/hmrc/kibana-dashboards/blob/HEAD/src/main/scala/uk/gov/hmrc/kibanadashboards/digitalservices/TeamFoo.scala#L10"))
+      val expectedOutput = Right(Check.Present("https://github.com/hmrc/kibana-dashboards/blob/HEAD/src/main/scala/uk/gov/hmrc/kibanadashboards/digitalservices/TeamFoo.scala#L10"))
 
       response shouldBe expectedOutput
     }
 
-    "return StatusCheck with None when Kibana Dashboard is Not Found" in {
+    "return Left(Missing) when Kibana Dashboard is Not Found" in {
       stubFor(
         get(urlEqualTo("/kibana-dashboards/foo-no-kibana"))
           .willReturn(aResponse().withStatus(404)))
@@ -198,14 +198,14 @@ class ServiceConfigsConnectorSpec
         .getKibanaDashboard("foo-no-kibana")
         .futureValue
 
-      val expectedOutput = StatusCheck(None)
+      val expectedOutput = Left(Check.Missing(("https://github.com/hmrc/kibana-dashboards")))
 
       response shouldBe expectedOutput
     }
   }
 
   "GET getBuildJobs" should {
-    "return StatusCheck with evidence for a service with build jobs" in {
+    "return Right(Present) for a service with build jobs" in {
       stubFor(
         get(urlEqualTo("/build-jobs/foo"))
           .willReturn(
@@ -226,12 +226,12 @@ class ServiceConfigsConnectorSpec
         .getBuildJobs("foo")
         .futureValue
 
-      val expectedOutput = StatusCheck(Some("https://github.com/hmrc/build-jobs/blob/HEAD/jobs/live/team-foo.groovy#L480"))
+      val expectedOutput = Right(Check.Present("https://github.com/hmrc/build-jobs/blob/HEAD/jobs/live/team-foo.groovy#L480"))
 
       response shouldBe expectedOutput
     }
 
-    "return StatusCheck with None when Build Jobs for service is Not Found" in {
+    "return Left(Missing) when Build Jobs for service is Not Found" in {
       stubFor(
         get(urlEqualTo("/build-jobs/foo-no-build-jobs"))
           .willReturn(aResponse().withStatus(404)))
@@ -240,14 +240,14 @@ class ServiceConfigsConnectorSpec
         .getBuildJobs("foo-no-build-jobs")
         .futureValue
 
-      val expectedOutput = StatusCheck(None)
+      val expectedOutput = Left(Check.Missing("https://github.com/hmrc/build-jobs"))
 
       response shouldBe expectedOutput
     }
   }
 
   "GET getAlertConfig" should {
-    "return StatusCheck with evidence for a service that has AlertConfig" in {
+    "return Right(Present) for a service that has AlertConfig" in {
       stubFor(
         get(urlEqualTo("/alert-configs/foo"))
           .willReturn(
@@ -269,12 +269,12 @@ class ServiceConfigsConnectorSpec
         .getAlertConfig("foo")
         .futureValue
 
-      val expectedOutput = StatusCheck(Some("https://github.com/hmrc/alert-config/blob/HEAD/src/main/scala/uk/gov/hmrc/alertconfig/configs/TeamFoo.scala#L13"))
+      val expectedOutput = Right(Check.Present("https://github.com/hmrc/alert-config/blob/HEAD/src/main/scala/uk/gov/hmrc/alertconfig/configs/TeamFoo.scala#L13"))
 
       response shouldBe expectedOutput
     }
 
-    "return StatusCheck with None when AlertConfig for service is Not Found" in {
+    "return Left(Missing) when AlertConfig for service is Not Found" in {
       stubFor(
         get(urlEqualTo("/alert-configs/foo-no-alert-config"))
           .willReturn(aResponse().withStatus(404)))
@@ -283,7 +283,7 @@ class ServiceConfigsConnectorSpec
         .getAlertConfig("foo-no-alert-config")
         .futureValue
 
-      val expectedOutput = StatusCheck(None)
+      val expectedOutput = Left(Check.Missing("https://github.com/hmrc/alert-configs"))
 
       response shouldBe expectedOutput
     }

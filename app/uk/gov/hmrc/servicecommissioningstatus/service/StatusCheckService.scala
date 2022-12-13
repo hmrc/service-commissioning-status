@@ -20,7 +20,7 @@ import cats.data.OptionT
 import cats.implicits._
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.servicecommissioningstatus.connectors.{FrontendRoute, GitHubConnector, Release, ReleasesConnector, ServiceConfigsConnector}
-import uk.gov.hmrc.servicecommissioningstatus.model.{AppConfigEnvironment, Dashboard, DeploymentEnvironment, Environment, FrontendRoutes, ServiceCommissioningStatus, StatusCheck}
+import uk.gov.hmrc.servicecommissioningstatus.model.{Check, Environment}
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
@@ -32,56 +32,78 @@ class StatusCheckService @Inject()(
   releasesConnector       : ReleasesConnector
 )(implicit ec: ExecutionContext){
 
-  def commissioningStatusChecks(serviceName: String)(implicit hc: HeaderCarrier): Future[ServiceCommissioningStatus] = {
-
+  import Check.{SimpleCheck, EnvCheck}
+  def commissioningStatusChecks(serviceName: String)(implicit hc: HeaderCarrier): Future[List[Check]] =
     for {
-      repo <- checkRepoExists(serviceName)
-
-      smConfig <- checkServiceManagerConfigExists(serviceName)
-
-      isFrontend  <- isFrontend(serviceName)  // TODO check serviceType?
-      routes      <- if (isFrontend) serviceConfigsConnector.getMDTPFrontendRoutes(serviceName)
-                     else            Future.successful(Nil)
-      envRoutes    = FrontendRoutes(Environment.values.map(env => env -> checkFrontendRoute(routes, env)).toMap) // TODO make optional
-
+      githubRepo    <- checkRepoExists(serviceName)
       appConfigBase <- checkAppConfigBaseExists(serviceName)
-
-      appConfigEnvs <- Environment.values.foldLeftM(Map.empty[Environment, StatusCheck])((acc, env) =>
-                         checkAppConfigExistsForEnv(serviceName, env)
-                           .map(status => acc + (env -> status))
-                       ).map(AppConfigEnvironment.apply)
-
-      releases      <- releasesConnector.getReleases(serviceName).map(_.versions)
-      deploymentEnv  = DeploymentEnvironment(Environment.values.map(env => env -> checkIsDeployedForEnv(serviceName, releases, env)).toMap)
-
-      kibana      <- serviceConfigsConnector.getKibanaDashboard(serviceName)
-      grafana     <- serviceConfigsConnector.getGrafanaDashboard(serviceName)
-      buildJobs   <- serviceConfigsConnector.getBuildJobs(serviceName)
-      alertConfig <- serviceConfigsConnector.getAlertConfig(serviceName)
-    } yield ServiceCommissioningStatus(
-      serviceName       = serviceName
-    , hasRepo           = repo
-    , hasSMConfig       = smConfig
-    , hasFrontendRoutes = envRoutes
-    , hasAppConfigBase  = appConfigBase
-    , hasAppConfigEnv   = appConfigEnvs
-    , isDeployed        = deploymentEnv
-    , hasDashboards     = Dashboard(kibana, grafana)
-    , hasBuildJobs      = buildJobs
-    , hasAlerts         = alertConfig
-    )
-  }
-
-  private def checkRepoExists(serviceName: String)(implicit hc: HeaderCarrier): Future[StatusCheck] =
-    for {
-      exists <- OptionT(gitHubConnector.getGithubRaw(s"/hmrc/$serviceName/main/repository.yaml"))
-        .orElse(OptionT(gitHubConnector.getGithubApi(s"/repos/hmrc/$serviceName")))
-        .value
+      appConfigEnvs <- Environment
+                        .values
+                        .foldLeftM(Map.empty[Environment, Check.Result]) {
+                          (acc, env) => checkAppConfigExistsForEnv(serviceName, env).map(r => acc + (env -> r))
+                        }
+      isFrontend    <- isFrontend(serviceName)  // TODO check serviceType?
+      routes        <- if (isFrontend) serviceConfigsConnector.getMDTPFrontendRoutes(serviceName)
+                       else            Future.successful(Nil)
+      frontendRoutes = Environment
+                        .values
+                        .map(env => env -> checkFrontendRoute(routes, env)) // TODO make optional
+                        .toMap
+      buildJobs     <- serviceConfigsConnector.getBuildJobs(serviceName)
+      smConfig      <- checkServiceManagerConfigExists(serviceName)
+      deploymentEnv <- releasesConnector
+                        .getReleases(serviceName)
+                        .map(releases => Environment.values.map(env => env -> checkIsDeployedForEnv(serviceName, releases.versions, env)).toMap)
+      kibana        <- serviceConfigsConnector.getKibanaDashboard(serviceName)
+      grafana       <- serviceConfigsConnector.getGrafanaDashboard(serviceName)
+      alertConfig   <- serviceConfigsConnector.getAlertConfig(serviceName)
     } yield
-      if (exists.isDefined) StatusCheck(Some(s"https://github.com/hmrc/$serviceName"))
-      else StatusCheck(None)
+      SimpleCheck(title = "Github Repo"           , checkResult  = githubRepo     ) ::
+      SimpleCheck(title = "App Config Base"       , checkResult  = appConfigBase  ) ::
+      EnvCheck   (title = "App Config Environment", checkResults = appConfigEnvs  ) ::
+      EnvCheck   (title = "Frontend Routes"       , checkResults = frontendRoutes ) ::
+      SimpleCheck(title = "Build Jobs"            , checkResult  = buildJobs      ) ::
+      SimpleCheck(title = "Service Manager Config", checkResult  = smConfig       ) ::
+      EnvCheck   (title = "Deployed"              , checkResults = deploymentEnv  ) ::
+      SimpleCheck(title = "Kibana"                , checkResult  = kibana         ) ::
+      SimpleCheck(title = "Grafana"               , checkResult  = grafana        ) ::
+      SimpleCheck(title = "Alerts"                , checkResult  = alertConfig    ) ::
+      Nil
 
-  private def checkServiceManagerConfigExists(serviceName: String)(implicit hc: HeaderCarrier): Future[StatusCheck] =
+  private def checkRepoExists(serviceName: String)(implicit hc: HeaderCarrier): Future[Check.Result] =
+    OptionT(gitHubConnector.getGithubRaw(s"/hmrc/$serviceName/main/repository.yaml"))
+      .orElse(OptionT(gitHubConnector.getGithubApi(s"/repos/hmrc/$serviceName")))
+      .value
+      .map {
+        case Some(_) => Right(Check.Present(s"https://github.com/hmrc/$serviceName"))
+        case None    => Left(Check.Missing("https://build.tax.service.gov.uk/job/PlatOps/job/Tools/job/create-a-repository/build"))
+      }
+
+  private def checkAppConfigBaseExists(serviceName: String)(implicit hc: HeaderCarrier): Future[Check.Result] =
+    gitHubConnector
+      .getGithubRaw(s"/hmrc/app-config-base/main/$serviceName.conf")
+      .map {
+        case Some(_) => Right(Check.Present(s"https://github.com/hmrc/app-config-base/blob/main/$serviceName.conf"))
+        case None    => Left(Check.Missing("https://github.com/hmrc/app-config-base"))
+      }
+
+  private def checkAppConfigExistsForEnv(serviceName: String, env: Environment)(implicit hc: HeaderCarrier): Future[Check.Result] =
+    gitHubConnector
+      .getGithubRaw(s"/hmrc/app-config-${env.asString}/main/$serviceName.yaml")
+      .map {
+        case Some(_) => Right(Check.Present(s"https://github.com/hmrc/app-config-${env.asString}/blob/main/$serviceName.yaml"))
+        case None    => Left(Check.Missing(s"https://github.com/hmrc/app-config-${env.asString}"))
+      }
+
+  private def checkFrontendRoute(frontendRoutes: Seq[FrontendRoute], env: Environment): Check.Result =
+    frontendRoutes
+      .find(_.environment == env.asString)
+      .flatMap(_.routes.map(_.ruleConfigurationUrl).headOption) match {
+        case Some(e) => Right(Check.Present(e))
+        case None    => Left(Check.Missing(s"https://github.com/hmrc/mdtp-frontend-routes/${env.asString}"))
+      }
+
+  private def checkServiceManagerConfigExists(serviceName: String)(implicit hc: HeaderCarrier): Future[Check.Result] =
     for {
       optStr  <- gitHubConnector.getGithubRaw("/hmrc/service-manager-config/main/services.json")
       key      = serviceName.toUpperCase.replaceAll("[-]", "_")
@@ -91,33 +113,19 @@ class StatusCheckService @Inject()(
                   .zipWithIndex
                   .find { case (line, _) => line.contains(s"\"$key\"") }
                   .map { case (_, idx) => s"https://github.com/hmrc/service-manager-config/blob/main/services.json#L${idx + 1}" }
-    } yield StatusCheck(evidence)
+    } yield evidence match {
+      case Some(e) => Right(Check.Present(e))
+      case None    => Left(Check.Missing(s"https://github.com/hmrc/service-manager-config"))
+    }
 
   private def isFrontend(serviceName: String)(implicit hc: HeaderCarrier): Future[Boolean] =
      gitHubConnector
        .getGithubRaw(s"/hmrc/$serviceName/main/conf/application.conf")
        .map(_.exists(_.contains("\"frontend.conf\"")))
 
-  private def checkFrontendRoute(frontendRoutes: Seq[FrontendRoute], env: Environment): StatusCheck =
-    frontendRoutes
-      .find(_.environment == env.asString)
-      .fold(StatusCheck(None))(fr => StatusCheck(fr.routes.map(_.ruleConfigurationUrl).headOption))
-
-  private def checkAppConfigBaseExists(serviceName: String)(implicit hc: HeaderCarrier): Future[StatusCheck] =
-    for {
-      resp    <- gitHubConnector.getGithubRaw(s"/hmrc/app-config-base/main/$serviceName.conf")
-      evidence = resp.map(_ => s"https://github.com/hmrc/app-config-base/blob/main/$serviceName.conf")
-    } yield StatusCheck(evidence)
-
-  private def checkAppConfigExistsForEnv(serviceName: String, environment: Environment)(implicit hc: HeaderCarrier): Future[StatusCheck] =
-    for {
-      resp    <- gitHubConnector.getGithubRaw(s"/hmrc/app-config-${environment.asString}/main/$serviceName.yaml")
-      evidence = resp.map(_ => s"https://github.com/hmrc/app-config-$environment/blob/main/$serviceName.yaml")
-    } yield StatusCheck(evidence)
-
-  private def checkIsDeployedForEnv(serviceName: String, releases: Seq[Release], env: Environment): StatusCheck =
+  private def checkIsDeployedForEnv(serviceName: String, releases: Seq[Release], env: Environment): Check.Result =
     if (releases.map(_.environment).contains(env.asString))
-      StatusCheck(Some(s"https://catalogue.tax.service.gov.uk/deployment-timeline?service=$serviceName"))
+      Right(Check.Present(s"https://catalogue.tax.service.gov.uk/deployment-timeline?service=$serviceName"))
     else
-      StatusCheck(None)
+      Left(Check.Missing(s"https://orchestrator.tools.${env.asString}.tax.service.gov.uk/job/deploy-microservice"))
 }
