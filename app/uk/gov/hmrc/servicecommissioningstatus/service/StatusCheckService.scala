@@ -18,6 +18,8 @@ package uk.gov.hmrc.servicecommissioningstatus.service
 
 import cats.data.OptionT
 import cats.implicits._
+
+import play.api.Configuration
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.servicecommissioningstatus.connectors.{FrontendRoute, GitHubConnector, Release, ReleasesConnector, ServiceConfigsConnector}
 import uk.gov.hmrc.servicecommissioningstatus.model.{Check, Environment}
@@ -27,48 +29,56 @@ import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class StatusCheckService @Inject()(
+  config                  : Configuration,
   gitHubConnector         : GitHubConnector,
   serviceConfigsConnector : ServiceConfigsConnector,
   releasesConnector       : ReleasesConnector
 )(implicit ec: ExecutionContext){
 
+  import scala.jdk.CollectionConverters._
+  private val environmentsToHideWhenUnconfigured: Set[Environment] =
+    config.underlying.getStringList("environmentsToHideWhenUnconfigured").asScala.toSet.map { str: String =>
+      Environment.parse(str).getOrElse(sys.error(s"config 'environmentsToHideWhenUnconfigured' contains an invalid environment: $str"))
+    }
+
   import Check.{SimpleCheck, EnvCheck}
   def commissioningStatusChecks(serviceName: String)(implicit hc: HeaderCarrier): Future[List[Check]] =
     for {
-      githubRepo    <- checkRepoExists(serviceName)
-      appConfigBase <- checkAppConfigBaseExists(serviceName)
-      appConfigEnvs <- Environment
-                        .values
-                        .foldLeftM(Map.empty[Environment, Check.Result]) {
-                          (acc, env) => checkAppConfigExistsForEnv(serviceName, env).map(r => acc + (env -> r))
-                        }
-      isFrontend    <- isFrontend(serviceName)  // TODO check serviceType?
-      routes        <- if (isFrontend) serviceConfigsConnector.getMDTPFrontendRoutes(serviceName)
-                       else            Future.successful(Nil)
-      frontendRoutes = Environment
-                        .values
-                        .map(env => env -> checkFrontendRoute(routes, env)) // TODO make optional
-                        .toMap
-      buildJobs     <- serviceConfigsConnector.getBuildJobs(serviceName)
-      smConfig      <- checkServiceManagerConfigExists(serviceName)
-      deploymentEnv <- releasesConnector
-                        .getReleases(serviceName)
-                        .map(releases => Environment.values.map(env => env -> checkIsDeployedForEnv(serviceName, releases.versions, env)).toMap)
-      kibana        <- serviceConfigsConnector.getKibanaDashboard(serviceName)
-      grafana       <- serviceConfigsConnector.getGrafanaDashboard(serviceName)
-      alertConfig   <- serviceConfigsConnector.getAlertConfig(serviceName)
-    } yield
-      SimpleCheck(title = "Github Repo"           , checkResult  = githubRepo     ) ::
-      SimpleCheck(title = "App Config Base"       , checkResult  = appConfigBase  ) ::
-      EnvCheck   (title = "App Config Environment", checkResults = appConfigEnvs  ) ::
-      EnvCheck   (title = "Frontend Routes"       , checkResults = frontendRoutes ) ::
-      SimpleCheck(title = "Build Jobs"            , checkResult  = buildJobs      ) ::
-      SimpleCheck(title = "Service Manager Config", checkResult  = smConfig       ) ::
-      EnvCheck   (title = "Deployed"              , checkResults = deploymentEnv  ) ::
-      SimpleCheck(title = "Kibana"                , checkResult  = kibana         ) ::
-      SimpleCheck(title = "Grafana"               , checkResult  = grafana        ) ::
-      SimpleCheck(title = "Alerts"                , checkResult  = alertConfig    ) ::
-      Nil
+      githubRepo      <- checkRepoExists(serviceName)
+      appConfigBase   <- checkAppConfigBaseExists(serviceName)
+      appConfigEnvs   <- Environment
+                          .values
+                          .foldLeftM(Map.empty[Environment, Check.Result]) {
+                            (acc, env) => checkAppConfigExistsForEnv(serviceName, env).map(r => acc + (env -> r))
+                          }
+      isFrontend      <- isFrontend(serviceName)  // TODO check serviceType?
+      oFrontendRoutes <- if (isFrontend)
+                          serviceConfigsConnector
+                            .getMDTPFrontendRoutes(serviceName)
+                            .map(routes => Environment.values.map(env => env -> checkFrontendRouteForEnv(routes, env)).toMap)
+                            .map(Some(_))
+                         else Future.successful(None)
+      buildJobs       <- serviceConfigsConnector.getBuildJobs(serviceName)
+      smConfig        <- checkServiceManagerConfigExists(serviceName)
+      deploymentEnv   <- releasesConnector
+                          .getReleases(serviceName)
+                          .map(releases => Environment.values.map(env => env -> checkIsDeployedForEnv(serviceName, releases.versions, env)).toMap)
+      kibana          <- serviceConfigsConnector.getKibanaDashboard(serviceName)
+      grafana         <- serviceConfigsConnector.getGrafanaDashboard(serviceName)
+      alertConfig     <- serviceConfigsConnector.getAlertConfig(serviceName)
+      allChecks        = SimpleCheck(title = "Github Repo"           , result  = githubRepo     ) ::
+                         SimpleCheck(title = "App Config Base"       , result  = appConfigBase  ) ::
+                         EnvCheck   (title = "App Config Environment", results = appConfigEnvs  ) ::
+                         oFrontendRoutes.map(x => EnvCheck(title = "Frontend Routes", results = x )).toList :::
+                         SimpleCheck(title = "Build Jobs"            , result  = buildJobs      ) ::
+                         SimpleCheck(title = "Service Manager Config", result  = smConfig       ) ::
+                         EnvCheck   (title = "Deployed"              , results = deploymentEnv  ) ::
+                         SimpleCheck(title = "Kibana"                , result  = kibana         ) ::
+                         SimpleCheck(title = "Grafana"               , result  = grafana        ) ::
+                         SimpleCheck(title = "Alerts"                , result  = alertConfig    ) ::
+                         Nil
+      checks           = StatusCheckService.hideUnconfiguredEnvironments(allChecks, environmentsToHideWhenUnconfigured)
+    } yield checks
 
   private def checkRepoExists(serviceName: String)(implicit hc: HeaderCarrier): Future[Check.Result] =
     OptionT(gitHubConnector.getGithubRaw(s"/hmrc/$serviceName/main/repository.yaml"))
@@ -95,7 +105,12 @@ class StatusCheckService @Inject()(
         case None    => Left(Check.Missing(s"https://github.com/hmrc/app-config-${env.asString}"))
       }
 
-  private def checkFrontendRoute(frontendRoutes: Seq[FrontendRoute], env: Environment): Check.Result =
+  private def isFrontend(serviceName: String)(implicit hc: HeaderCarrier): Future[Boolean] =
+     gitHubConnector
+       .getGithubRaw(s"/hmrc/$serviceName/main/conf/application.conf")
+       .map(_.exists(_.contains("\"frontend.conf\"")))
+
+  private def checkFrontendRouteForEnv(frontendRoutes: Seq[FrontendRoute], env: Environment): Check.Result =
     frontendRoutes
       .find(_.environment == env.asString)
       .flatMap(_.routes.map(_.ruleConfigurationUrl).headOption) match {
@@ -118,14 +133,29 @@ class StatusCheckService @Inject()(
       case None    => Left(Check.Missing(s"https://github.com/hmrc/service-manager-config"))
     }
 
-  private def isFrontend(serviceName: String)(implicit hc: HeaderCarrier): Future[Boolean] =
-     gitHubConnector
-       .getGithubRaw(s"/hmrc/$serviceName/main/conf/application.conf")
-       .map(_.exists(_.contains("\"frontend.conf\"")))
-
   private def checkIsDeployedForEnv(serviceName: String, releases: Seq[Release], env: Environment): Check.Result =
     if (releases.map(_.environment).contains(env.asString))
       Right(Check.Present(s"https://catalogue.tax.service.gov.uk/deployment-timeline?service=$serviceName"))
     else
       Left(Check.Missing(s"https://orchestrator.tools.${env.asString}.tax.service.gov.uk/job/deploy-microservice"))
+}
+
+object StatusCheckService {
+
+  import Check.{SimpleCheck, EnvCheck}
+  def hideUnconfiguredEnvironments(checks: List[Check], environments: Set[Environment]): List[Check] = {
+    val configured =
+      checks
+        .flatMap {
+          case _: SimpleCheck => Nil
+          case x: EnvCheck    => x.results.toList
+        }
+        .collect { case (k, v) if environments.contains(k) && v.isRight => k }
+        .toSet
+
+    checks.collect {
+      case x: SimpleCheck => x
+      case x: EnvCheck    => x.copy(results = x.results.removedAll(environments.removedAll(configured)))
+    }
+  }
 }
