@@ -78,7 +78,7 @@ class ServiceConfigsConnector @Inject()(
       .map(_.map(js => (js \ "location").as[String]))
       .map {
         case Some(e) => Right(Check.Present(e))
-        case None    => Left(Check.Missing(s"https://github.com/hmrc/alert-configs"))
+        case None    => Left(Check.Missing(s"https://github.com/hmrc/alert-config"))
       }
 }
 

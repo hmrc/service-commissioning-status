@@ -283,7 +283,7 @@ class ServiceConfigsConnectorSpec
         .getAlertConfig("foo-no-alert-config")
         .futureValue
 
-      val expectedOutput = Left(Check.Missing("https://github.com/hmrc/alert-configs"))
+      val expectedOutput = Left(Check.Missing("https://github.com/hmrc/alert-config"))
 
       response shouldBe expectedOutput
     }
