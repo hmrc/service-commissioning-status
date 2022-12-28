@@ -52,7 +52,7 @@ class ServiceConfigsConnectorSpec
   "GET getMDTPFrontendRoutes" should {
     "return FrontendRoutes for service" in {
       stubFor(
-        get(urlEqualTo("/frontend-route/foo"))
+        get(urlEqualTo("/service-configs/frontend-route/foo"))
           .willReturn(
             aResponse()
               .withStatus(200)
@@ -102,7 +102,7 @@ class ServiceConfigsConnectorSpec
 
     "return empty Seq when a service has no frontend routes" in {
       stubFor(
-        get(urlEqualTo("/frontend-route/foo-non-existing"))
+        get(urlEqualTo("/service-configs/frontend-route/foo-non-existing"))
           .willReturn(
             aResponse()
               .withStatus(200)
@@ -123,7 +123,7 @@ class ServiceConfigsConnectorSpec
   "GET getGrafanaDashboard" should {
     "return Right(Present) for a service with a Grafana Dashboard" in {
       stubFor(
-        get(urlEqualTo("/grafana-dashboards/foo"))
+        get(urlEqualTo("/service-configs/grafana-dashboards/foo"))
           .willReturn(
             aResponse()
               .withStatus(200)
@@ -149,7 +149,7 @@ class ServiceConfigsConnectorSpec
 
     "return Left(Missing) when no Grafana Dashboard is Not Found" in {
       stubFor(
-        get(urlEqualTo("/grafana-dashboards/foo-no-grafana"))
+        get(urlEqualTo("/service-configs/grafana-dashboards/foo-no-grafana"))
           .willReturn(aResponse().withStatus(404)))
 
       val response = serviceConfigsConnector
@@ -165,7 +165,7 @@ class ServiceConfigsConnectorSpec
   "GET getKibanaDashboard" should {
     "return Right(Present) for a service with a Kibana Dashboard" in {
       stubFor(
-        get(urlEqualTo("/kibana-dashboards/foo"))
+        get(urlEqualTo("/service-configs/kibana-dashboards/foo"))
           .willReturn(
             aResponse()
               .withStatus(200)
@@ -191,7 +191,7 @@ class ServiceConfigsConnectorSpec
 
     "return Left(Missing) when Kibana Dashboard is Not Found" in {
       stubFor(
-        get(urlEqualTo("/kibana-dashboards/foo-no-kibana"))
+        get(urlEqualTo("/service-configs/kibana-dashboards/foo-no-kibana"))
           .willReturn(aResponse().withStatus(404)))
 
       val response = serviceConfigsConnector
@@ -207,7 +207,7 @@ class ServiceConfigsConnectorSpec
   "GET getBuildJobs" should {
     "return Right(Present) for a service with build jobs" in {
       stubFor(
-        get(urlEqualTo("/build-jobs/foo"))
+        get(urlEqualTo("/service-configs/build-jobs/foo"))
           .willReturn(
             aResponse()
               .withStatus(200)
@@ -233,7 +233,7 @@ class ServiceConfigsConnectorSpec
 
     "return Left(Missing) when Build Jobs for service is Not Found" in {
       stubFor(
-        get(urlEqualTo("/build-jobs/foo-no-build-jobs"))
+        get(urlEqualTo("/service-configs/build-jobs/foo-no-build-jobs"))
           .willReturn(aResponse().withStatus(404)))
 
       val response = serviceConfigsConnector
@@ -249,7 +249,7 @@ class ServiceConfigsConnectorSpec
   "GET getAlertConfig" should {
     "return Right(Present) for a service that has AlertConfig" in {
       stubFor(
-        get(urlEqualTo("/alert-configs/foo"))
+        get(urlEqualTo("/service-configs/alert-configs/foo"))
           .willReturn(
             aResponse()
               .withStatus(200)
@@ -276,7 +276,7 @@ class ServiceConfigsConnectorSpec
 
     "return Left(Missing) when AlertConfig for service is Not Found" in {
       stubFor(
-        get(urlEqualTo("/alert-configs/foo-no-alert-config"))
+        get(urlEqualTo("/service-configs/alert-configs/foo-no-alert-config"))
           .willReturn(aResponse().withStatus(404)))
 
       val response = serviceConfigsConnector
