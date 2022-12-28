@@ -38,12 +38,12 @@ class ServiceConfigsConnector @Inject()(
 
   def getMDTPFrontendRoutes(serviceName: String)(implicit hc:  HeaderCarrier): Future[Seq[FrontendRoute]] =
     httpClientV2
-      .get(url"$url/frontend-route/$serviceName")
+      .get(url"$url/service-configs/frontend-route/$serviceName")
       .execute[Seq[FrontendRoute]]
 
   def getGrafanaDashboard(serviceName: String)(implicit hc:  HeaderCarrier): Future[Check.Result] =
     httpClientV2
-      .get(url"$url/grafana-dashboards/$serviceName")
+      .get(url"$url/service-configs/grafana-dashboards/$serviceName")
       .execute[Option[JsValue]]
       .map(_.map(js => (js \ "location").as[String]))
       .map {
@@ -53,7 +53,7 @@ class ServiceConfigsConnector @Inject()(
 
   def getKibanaDashboard(serviceName: String)(implicit hc:  HeaderCarrier): Future[Check.Result] =
     httpClientV2
-      .get(url"$url/kibana-dashboards/$serviceName")
+      .get(url"$url/service-configs/kibana-dashboards/$serviceName")
       .execute[Option[JsValue]]
       .map(_.map(js => (js \ "location").as[String]))
       .map {
@@ -63,7 +63,7 @@ class ServiceConfigsConnector @Inject()(
 
   def getBuildJobs(serviceName: String)(implicit hc:  HeaderCarrier): Future[Check.Result] =
     httpClientV2
-      .get(url"$url/build-jobs/$serviceName")
+      .get(url"$url/service-configs/build-jobs/$serviceName")
       .execute[Option[JsValue]]
       .map(_.map(js => (js \ "location").as[String]))
       .map {
@@ -73,7 +73,7 @@ class ServiceConfigsConnector @Inject()(
 
   def getAlertConfig(serviceName: String)(implicit hc:  HeaderCarrier): Future[Check.Result] =
     httpClientV2
-      .get(url"$url/alert-configs/$serviceName")
+      .get(url"$url/service-configs/alert-configs/$serviceName")
       .execute[Option[JsValue]]
       .map(_.map(js => (js \ "location").as[String]))
       .map {
