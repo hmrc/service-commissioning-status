@@ -36,7 +36,7 @@ class ReleasesConnectorSpec
     with IntegrationPatience
     with HttpClientV2Support
     with WireMockSupport {
-
+  import ReleasesConnector.{WhatsRunningWhereReleases, Release}
 
   private lazy val releasesConnector =
     new ReleasesConnector(
