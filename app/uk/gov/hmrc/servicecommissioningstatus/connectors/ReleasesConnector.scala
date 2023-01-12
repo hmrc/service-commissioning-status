@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 HM Revenue & Customs
+ * Copyright 2023 HM Revenue & Customs
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,11 +24,30 @@ import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
 
+object ReleasesConnector {
+  case class Release(environment: String)
+
+  object Release {
+  val reads: Reads[Release] =
+      (__ \ "environment").read[String].map(Release(_))
+  }
+
+  case class WhatsRunningWhereReleases(versions: Seq[Release])
+
+  object WhatsRunningWhereReleases {
+    val reads: Reads[WhatsRunningWhereReleases] = {
+      implicit val rs: Reads[Release] = Release.reads
+      (__ \ "versions").read[Seq[Release]].map(WhatsRunningWhereReleases(_))
+    }
+  }
+}
+
 class ReleasesConnector @Inject()(
   servicesConfig: ServicesConfig,
   httpClientV2: HttpClientV2
 )(implicit ec: ExecutionContext){
   import HttpReads.Implicits._
+  import ReleasesConnector._
 
   private val url: String = servicesConfig.baseUrl("releases-api")
 
@@ -40,22 +59,4 @@ class ReleasesConnector @Inject()(
       .map(_.getOrElse(WhatsRunningWhereReleases(Seq.empty)))
   }
 }
-
-case class Release(environment: String)
-
-object Release {
- val reads: Reads[Release] =
-    (__ \ "environment").read[String].map(Release(_))
-}
-
-case class WhatsRunningWhereReleases(versions: Seq[Release])
-
-object WhatsRunningWhereReleases {
-  val reads: Reads[WhatsRunningWhereReleases] = {
-    implicit val rs: Reads[Release] = Release.reads
-    (__ \ "versions").read[Seq[Release]].map(WhatsRunningWhereReleases(_))
-  }
-}
-
-
 
