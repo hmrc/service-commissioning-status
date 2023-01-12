@@ -21,7 +21,7 @@ import cats.implicits._
 
 import play.api.Configuration
 import uk.gov.hmrc.http.HeaderCarrier
-import uk.gov.hmrc.servicecommissioningstatus.connectors.{FrontendRoute, GitHubConnector, Release, ReleasesConnector, ServiceConfigsConnector}
+import uk.gov.hmrc.servicecommissioningstatus.connectors.{GitHubConnector, ReleasesConnector, ServiceConfigsConnector, TeamsAndRepositoriesConnector}
 import uk.gov.hmrc.servicecommissioningstatus.model.{Check, Environment}
 
 import javax.inject.{Inject, Singleton}
@@ -32,7 +32,8 @@ class StatusCheckService @Inject()(
   config                  : Configuration,
   gitHubConnector         : GitHubConnector,
   serviceConfigsConnector : ServiceConfigsConnector,
-  releasesConnector       : ReleasesConnector
+  releasesConnector       : ReleasesConnector,
+  teamsAndReposConnector  : TeamsAndRepositoriesConnector
 )(implicit ec: ExecutionContext){
 
   import scala.jdk.CollectionConverters._
@@ -44,6 +45,10 @@ class StatusCheckService @Inject()(
   import Check.{SimpleCheck, EnvCheck}
   def commissioningStatusChecks(serviceName: String)(implicit hc: HeaderCarrier): Future[List[Check]] =
     for {
+      oRepo           <- teamsAndReposConnector.findRepo(serviceName)
+      isFrontend      =  oRepo.map(_.serviceType).exists(_ == TeamsAndRepositoriesConnector.ServiceType.Frontend)
+      isAdminFrontend =  oRepo.map(_.tags       ).exists(_.contains(TeamsAndRepositoriesConnector.Tag.AdminFrontend))
+
       githubRepo      <- checkRepoExists(serviceName)
       appConfigBase   <- checkAppConfigBaseExists(serviceName)
       appConfigEnvs   <- Environment
@@ -51,13 +56,14 @@ class StatusCheckService @Inject()(
                           .foldLeftM(Map.empty[Environment, Check.Result]) {
                             (acc, env) => checkAppConfigExistsForEnv(serviceName, env).map(r => acc + (env -> r))
                           }
-      isFrontend      <- isFrontend(serviceName)  // TODO check serviceType?
-      oFrontendRoutes <- if (isFrontend)
-                          serviceConfigsConnector
-                            .getMDTPFrontendRoutes(serviceName)
-                            .map(routes => Environment.values.map(env => env -> checkFrontendRouteForEnv(routes, env)).toMap)
-                            .map(Some(_))
-                         else Future.successful(None)
+      oMdptFrontend   <- serviceConfigsConnector
+                          .getMDTPFrontendRoutes(serviceName)
+                          .map(routes => Environment.values.map(env => env -> checkFrontendRouteForEnv(routes, env)).toMap)
+                          .map(xs => Option.when(xs.values.filter(_.isRight).nonEmpty || (isFrontend && !isAdminFrontend))(xs))
+      oAdminFrontend  <- serviceConfigsConnector
+                          .getAdminFrontendRoutes(serviceName)
+                          .map(routes => Environment.values.map(env => env -> checkAdminFrontendRouteForEnv(routes, env)).toMap)
+                          .map(xs => Option.when(xs.values.filter(_.isRight).nonEmpty || isAdminFrontend)(xs))
       buildJobs       <- serviceConfigsConnector.getBuildJobs(serviceName)
       smConfig        <- checkServiceManagerConfigExists(serviceName)
       deploymentEnv   <- releasesConnector
@@ -69,7 +75,8 @@ class StatusCheckService @Inject()(
       allChecks        = SimpleCheck(title = "Github Repo"           , result  = githubRepo     ) ::
                          SimpleCheck(title = "App Config Base"       , result  = appConfigBase  ) ::
                          EnvCheck   (title = "App Config Environment", results = appConfigEnvs  ) ::
-                         oFrontendRoutes.map(x => EnvCheck(title = "Frontend Routes", results = x )).toList :::
+                         oMdptFrontend.map( x => EnvCheck(title = "Frontend Routes",       results = x )).toList :::
+                         oAdminFrontend.map(x => EnvCheck(title = "Admin Frontend Routes", results = x )).toList :::
                          SimpleCheck(title = "Build Jobs"            , result  = buildJobs      ) ::
                          SimpleCheck(title = "Service Manager Config", result  = smConfig       ) ::
                          EnvCheck   (title = "Deployed"              , results = deploymentEnv  ) ::
@@ -105,18 +112,21 @@ class StatusCheckService @Inject()(
         case None    => Left(Check.Missing(s"https://github.com/hmrc/app-config-${env.asString}"))
       }
 
-  private def isFrontend(serviceName: String)(implicit hc: HeaderCarrier): Future[Boolean] =
-     gitHubConnector
-       .getGithubRaw(s"/hmrc/$serviceName/main/conf/application.conf")
-       .map(_.exists(_.contains("\"frontend.conf\"")))
-
-  private def checkFrontendRouteForEnv(frontendRoutes: Seq[FrontendRoute], env: Environment): Check.Result =
+  private def checkFrontendRouteForEnv(frontendRoutes: Seq[ServiceConfigsConnector.FrontendRoute], env: Environment): Check.Result =
     frontendRoutes
-      .find(_.environment == env.asString)
+      .find(_.environment == env)
       .flatMap(_.routes.map(_.ruleConfigurationUrl).headOption) match {
         case Some(e) => Right(Check.Present(e))
         case None    => Left(Check.Missing(s"https://github.com/hmrc/mdtp-frontend-routes/${env.asString}"))
       }
+
+  private def checkAdminFrontendRouteForEnv(adminFrontendRoutes: Seq[ServiceConfigsConnector.AdminFrontendRoute], env: Environment): Check.Result =
+    adminFrontendRoutes.headOption match {
+      case Some(e)
+        if e.allow.contains(env)
+             => Right(Check.Present(e.location))
+      case _ => Left(Check.Missing(s"https://github.com/hmrc/mdtp-frontend-routes/${env.asString}"))
+    }
 
   private def checkServiceManagerConfigExists(serviceName: String)(implicit hc: HeaderCarrier): Future[Check.Result] =
     for {
@@ -133,7 +143,7 @@ class StatusCheckService @Inject()(
       case None    => Left(Check.Missing(s"https://github.com/hmrc/service-manager-config"))
     }
 
-  private def checkIsDeployedForEnv(serviceName: String, releases: Seq[Release], env: Environment): Check.Result =
+  private def checkIsDeployedForEnv(serviceName: String, releases: Seq[ReleasesConnector.Release], env: Environment): Check.Result =
     if (releases.map(_.environment).contains(env.asString))
       Right(Check.Present(s"https://catalogue.tax.service.gov.uk/deployment-timeline?service=$serviceName"))
     else

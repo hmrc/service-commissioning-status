@@ -16,32 +16,80 @@
 
 package uk.gov.hmrc.servicecommissioningstatus.connectors
 
-import play.api.libs.functional.syntax.toFunctionalBuilderOps
-import play.api.libs.json.{JsValue, Reads, __}
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps}
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
-import uk.gov.hmrc.servicecommissioningstatus.model.Check
+import uk.gov.hmrc.servicecommissioningstatus.model.{Check, Environment}
+
+import play.api.libs.functional.syntax._
+import play.api.libs.json._
 
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
+
+object ServiceConfigsConnector {
+  case class Routes(ruleConfigurationUrl: String)
+
+  object Routes {
+    val reads: Reads[Routes] =
+      (__ \ "ruleConfigurationUrl").read[String].map(Routes(_))
+  }
+
+  case class FrontendRoute(environment: Environment, routes: Seq[Routes])
+
+  object FrontendRoute {
+    val reads: Reads[FrontendRoute] = {
+      implicit val readsRoute: Reads[Routes]    = Routes.reads
+      implicit val readsEnv: Reads[Environment] = Environment.reads
+      ( (__ \ "environment").read[Environment]
+      ~ (__ \ "routes"     ).read[Seq[Routes]]
+      )(FrontendRoute.apply _)
+    }
+  }
+
+  case class AdminFrontendRoute(
+    allow   : Map[Environment, List[String]]
+  , location: String
+  )
+
+  object AdminFrontendRoute {
+    val reads: Reads[AdminFrontendRoute] = {
+      import cats.implicits._
+      implicit val readsAllow: Reads[Map[Environment, List[String]]] =
+        _.as[Map[String, List[String]]]
+         .toList
+         .traverse { case (k, v) => Environment.parse(k).map(_ -> v) }
+         .fold(JsError.apply, xs => JsSuccess.apply(xs.toMap))
+
+      ( (__ \ "allow"   ).read[Map[Environment, List[String]]]
+      ~ (__ \ "location").read[String]
+      )(AdminFrontendRoute.apply _)
+    }
+  }
+}
 
 class ServiceConfigsConnector @Inject()(
   servicesConfig: ServicesConfig,
   httpClientV2: HttpClientV2
 )(implicit ec: ExecutionContext){
   import HttpReads.Implicits._
+  import ServiceConfigsConnector._
 
   private val url: String = servicesConfig.baseUrl("service-configs")
 
   private implicit val frontendRoutesReads = FrontendRoute.reads
-
-  def getMDTPFrontendRoutes(serviceName: String)(implicit hc:  HeaderCarrier): Future[Seq[FrontendRoute]] =
+  def getMDTPFrontendRoutes(serviceName: String)(implicit hc: HeaderCarrier): Future[Seq[FrontendRoute]] =
     httpClientV2
       .get(url"$url/service-configs/frontend-route/$serviceName")
       .execute[Seq[FrontendRoute]]
 
-  def getGrafanaDashboard(serviceName: String)(implicit hc:  HeaderCarrier): Future[Check.Result] =
+  private implicit val adminFrontendRoutesReads = AdminFrontendRoute.reads
+  def getAdminFrontendRoutes(serviceName: String)(implicit hc: HeaderCarrier): Future[Seq[AdminFrontendRoute]] =
+    httpClientV2
+      .get(url"$url/service-configs/admin-frontend-route/$serviceName")
+      .execute[Seq[AdminFrontendRoute]]
+
+  def getGrafanaDashboard(serviceName: String)(implicit hc: HeaderCarrier): Future[Check.Result] =
     httpClientV2
       .get(url"$url/service-configs/grafana-dashboards/$serviceName")
       .execute[Option[JsValue]]
@@ -51,7 +99,7 @@ class ServiceConfigsConnector @Inject()(
         case None    => Left(Check.Missing(s"https://github.com/hmrc/grafana-dashboards"))
       }
 
-  def getKibanaDashboard(serviceName: String)(implicit hc:  HeaderCarrier): Future[Check.Result] =
+  def getKibanaDashboard(serviceName: String)(implicit hc: HeaderCarrier): Future[Check.Result] =
     httpClientV2
       .get(url"$url/service-configs/kibana-dashboards/$serviceName")
       .execute[Option[JsValue]]
@@ -61,7 +109,7 @@ class ServiceConfigsConnector @Inject()(
         case None    => Left(Check.Missing(s"https://github.com/hmrc/kibana-dashboards"))
       }
 
-  def getBuildJobs(serviceName: String)(implicit hc:  HeaderCarrier): Future[Check.Result] =
+  def getBuildJobs(serviceName: String)(implicit hc: HeaderCarrier): Future[Check.Result] =
     httpClientV2
       .get(url"$url/service-configs/build-jobs/$serviceName")
       .execute[Option[JsValue]]
@@ -71,7 +119,7 @@ class ServiceConfigsConnector @Inject()(
         case None    => Left(Check.Missing(s"https://github.com/hmrc/build-jobs"))
       }
 
-  def getAlertConfig(serviceName: String)(implicit hc:  HeaderCarrier): Future[Check.Result] =
+  def getAlertConfig(serviceName: String)(implicit hc: HeaderCarrier): Future[Check.Result] =
     httpClientV2
       .get(url"$url/service-configs/alert-configs/$serviceName")
       .execute[Option[JsValue]]
@@ -80,22 +128,4 @@ class ServiceConfigsConnector @Inject()(
         case Some(e) => Right(Check.Present(e))
         case None    => Left(Check.Missing(s"https://github.com/hmrc/alert-configs"))
       }
-}
-
-case class Routes(ruleConfigurationUrl: String)
-
-object Routes {
-  val reads: Reads[Routes] =
-    (__ \ "ruleConfigurationUrl").read[String].map(Routes(_))
-}
-
-case class FrontendRoute(environment: String, routes: Seq[Routes])
-
-object FrontendRoute {
-  val reads: Reads[FrontendRoute] = {
-    implicit val rs: Reads[Routes] = Routes.reads
-    ( (__ \ "environment").read[String]
-    ~ (__ \ "routes"     ).read[Seq[Routes]]
-    )(FrontendRoute.apply _)
-  }
 }
