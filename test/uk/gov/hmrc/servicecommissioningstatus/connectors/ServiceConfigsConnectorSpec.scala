@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 HM Revenue & Customs
+ * Copyright 2023 HM Revenue & Customs
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ import play.api.Configuration
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.http.test.{HttpClientV2Support, WireMockSupport}
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
-import uk.gov.hmrc.servicecommissioningstatus.model.Check
+import uk.gov.hmrc.servicecommissioningstatus.model.{Check, Environment}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -37,6 +37,7 @@ class ServiceConfigsConnectorSpec
     with IntegrationPatience
     with HttpClientV2Support
     with WireMockSupport {
+  import ServiceConfigsConnector.{FrontendRoute, Routes}
 
   implicit val headerCarrier: HeaderCarrier = HeaderCarrier()
 
@@ -92,9 +93,9 @@ class ServiceConfigsConnectorSpec
         .futureValue
 
       val expectedOutput = Seq(
-        FrontendRoute("qa",         Seq(Routes("https://github.com/hmrc/mdtp-frontend-routes/blob/main/qa/foo.conf#L2505"))),
-        FrontendRoute("production", Seq(Routes("https://github.com/hmrc/mdtp-frontend-routes/blob/main/production/foo.conf#L2505"))),
-        FrontendRoute("staging",    Seq(Routes("https://github.com/hmrc/mdtp-frontend-routes/blob/main/staging/foo.conf#L2505")))
+        FrontendRoute(Environment.QA,         Seq(Routes("https://github.com/hmrc/mdtp-frontend-routes/blob/main/qa/foo.conf#L2505"))),
+        FrontendRoute(Environment.Production, Seq(Routes("https://github.com/hmrc/mdtp-frontend-routes/blob/main/production/foo.conf#L2505"))),
+        FrontendRoute(Environment.Staging,    Seq(Routes("https://github.com/hmrc/mdtp-frontend-routes/blob/main/staging/foo.conf#L2505")))
       )
 
       response shouldBe expectedOutput
