@@ -1,7 +1,7 @@
 
 # service-commissioning-status
 
-This is a placeholder README.md for a new repository
+Runs a lists of checks to gain an overall picture of a service's commissioning state. This service is called by [Catalogue](https://github.com/hmrc/catalogue-frontend).
 
 ### License
 

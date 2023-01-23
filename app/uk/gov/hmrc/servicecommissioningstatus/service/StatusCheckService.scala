@@ -66,12 +66,12 @@ class StatusCheckService @Inject()(
                           .map(xs => Option.when(xs.values.filter(_.isRight).nonEmpty || isAdminFrontend)(xs))
       buildJobs       <- serviceConfigsConnector.getBuildJobs(serviceName)
       smConfig        <- checkServiceManagerConfigExists(serviceName)
-      deploymentEnv   <- releasesConnector
-                          .getReleases(serviceName)
-                          .map(releases => Environment.values.map(env => env -> checkIsDeployedForEnv(serviceName, releases.versions, env)).toMap)
       kibana          <- serviceConfigsConnector.getKibanaDashboard(serviceName)
       grafana         <- serviceConfigsConnector.getGrafanaDashboard(serviceName)
       alertConfig     <- serviceConfigsConnector.getAlertConfig(serviceName)
+      deploymentEnv   <- releasesConnector
+                          .getReleases(serviceName)
+                          .map(releases => Environment.values.map(env => env -> checkIsDeployedForEnv(serviceName, releases.versions, env)).toMap)
       allChecks        = SimpleCheck(title = "Github Repo"           , result  = githubRepo     ) ::
                          SimpleCheck(title = "App Config Base"       , result  = appConfigBase  ) ::
                          EnvCheck   (title = "App Config Environment", results = appConfigEnvs  ) ::
@@ -79,10 +79,10 @@ class StatusCheckService @Inject()(
                          oAdminFrontend.map(x => EnvCheck(title = "Admin Frontend Routes", results = x )).toList :::
                          SimpleCheck(title = "Build Jobs"            , result  = buildJobs      ) ::
                          SimpleCheck(title = "Service Manager Config", result  = smConfig       ) ::
+                         SimpleCheck(title = "Logging - Kibana"      , result  = kibana         ) ::
+                         SimpleCheck(title = "Metrics - Grafana"     , result  = grafana        ) ::
+                         SimpleCheck(title = "Alerts - PagerDuty"    , result  = alertConfig    ) ::
                          EnvCheck   (title = "Deployed"              , results = deploymentEnv  ) ::
-                         SimpleCheck(title = "Kibana"                , result  = kibana         ) ::
-                         SimpleCheck(title = "Grafana"               , result  = grafana        ) ::
-                         SimpleCheck(title = "Alerts"                , result  = alertConfig    ) ::
                          Nil
       checks           = StatusCheckService.hideUnconfiguredEnvironments(allChecks, environmentsToHideWhenUnconfigured)
     } yield checks
@@ -109,7 +109,7 @@ class StatusCheckService @Inject()(
       .getGithubRaw(s"/hmrc/app-config-${env.asString}/main/$serviceName.yaml")
       .map {
         case Some(_) => Right(Check.Present(s"https://github.com/hmrc/app-config-${env.asString}/blob/main/$serviceName.yaml"))
-        case None    => Left(Check.Missing(s"https://github.com/hmrc/app-config-${env.asString}"))
+        case None    => Left(Check.Missing("https://build.tax.service.gov.uk/job/PlatOps/job/Tools/job/create-app-configs/build"))
       }
 
   private def checkFrontendRouteForEnv(frontendRoutes: Seq[ServiceConfigsConnector.FrontendRoute], env: Environment): Check.Result =
