@@ -18,10 +18,10 @@ package uk.gov.hmrc.servicecommissioningstatus.service
 
 import cats.data.OptionT
 import cats.implicits._
-
 import play.api.Configuration
 import uk.gov.hmrc.http.HeaderCarrier
-import uk.gov.hmrc.servicecommissioningstatus.connectors.{GitHubConnector, ReleasesConnector, ServiceConfigsConnector, TeamsAndRepositoriesConnector}
+import uk.gov.hmrc.servicecommissioningstatus.connectors.ServiceMetricsConnector.MongoCollectionSize
+import uk.gov.hmrc.servicecommissioningstatus.connectors.{GitHubConnector, ReleasesConnector, ServiceConfigsConnector, ServiceMetricsConnector, TeamsAndRepositoriesConnector}
 import uk.gov.hmrc.servicecommissioningstatus.model.{Check, Environment}
 
 import javax.inject.{Inject, Singleton}
@@ -33,7 +33,8 @@ class StatusCheckService @Inject()(
   gitHubConnector         : GitHubConnector,
   serviceConfigsConnector : ServiceConfigsConnector,
   releasesConnector       : ReleasesConnector,
-  teamsAndReposConnector  : TeamsAndRepositoriesConnector
+  teamsAndReposConnector  : TeamsAndRepositoriesConnector,
+  serviceMetricsConnector : ServiceMetricsConnector
 )(implicit ec: ExecutionContext){
 
   import scala.jdk.CollectionConverters._
@@ -72,6 +73,9 @@ class StatusCheckService @Inject()(
       deploymentEnv   <- releasesConnector
                           .getReleases(serviceName)
                           .map(releases => Environment.values.map(env => env -> checkIsDeployedForEnv(serviceName, releases.versions, env)).toMap)
+      mongoDb         <- serviceMetricsConnector
+                           .getCollections(serviceName)
+                           .map(mcss => Environment.values.map(env => env -> checkMongoDbExistsInEnv(mcss, env)).toMap)
       allChecks        = SimpleCheck(title = "Github Repo"           , result  = githubRepo     ) ::
                          SimpleCheck(title = "App Config Base"       , result  = appConfigBase  ) ::
                          EnvCheck   (title = "App Config Environment", results = appConfigEnvs  ) ::
@@ -83,6 +87,7 @@ class StatusCheckService @Inject()(
                          SimpleCheck(title = "Metrics - Grafana"     , result  = grafana        ) ::
                          SimpleCheck(title = "Alerts - PagerDuty"    , result  = alertConfig    ) ::
                          EnvCheck   (title = "Deployed"              , results = deploymentEnv  ) ::
+                         EnvCheck   (title = "Mongo Database"        , results = mongoDb        ) ::
                          Nil
       checks           = StatusCheckService.hideUnconfiguredEnvironments(allChecks, environmentsToHideWhenUnconfigured)
     } yield checks
@@ -148,6 +153,12 @@ class StatusCheckService @Inject()(
       Right(Check.Present(s"https://catalogue.tax.service.gov.uk/deployment-timeline?service=$serviceName"))
     else
       Left(Check.Missing(s"https://orchestrator.tools.${env.asString}.tax.service.gov.uk/job/deploy-microservice"))
+
+  private def checkMongoDbExistsInEnv(collections: Seq[MongoCollectionSize], env: Environment): Check.Result =
+    if (collections.map(_.environment).contains(env)) {
+      val db = collections.headOption.fold("")(_.database)
+      Right(Check.Present(s"https://grafana.tools.${env.asString}.tax.service.gov.uk/d/platops-mongo-collections?var-replica_set=*&var-database=$db&var-collection=All&orgId=1"))
+    } else Left(Check.Missing(""))
 }
 
 object StatusCheckService {
