@@ -66,6 +66,7 @@ class StatusCheckService @Inject()(
                           .map(routes => Environment.values.map(env => env -> checkAdminFrontendRouteForEnv(routes, env)).toMap)
                           .map(xs => Option.when(xs.values.filter(_.isRight).nonEmpty || isAdminFrontend)(xs))
       buildJobs       <- serviceConfigsConnector.getBuildJobs(serviceName)
+      orchestratorJob <- checkOrchestratorJob(serviceName)
       smConfig        <- checkServiceManagerConfigExists(serviceName)
       kibana          <- serviceConfigsConnector.getKibanaDashboard(serviceName)
       grafana         <- serviceConfigsConnector.getGrafanaDashboard(serviceName)
@@ -82,6 +83,7 @@ class StatusCheckService @Inject()(
                          oMdptFrontend.map( x => EnvCheck(title = "Frontend Routes",       results = x )).toList :::
                          oAdminFrontend.map(x => EnvCheck(title = "Admin Frontend Routes", results = x )).toList :::
                          SimpleCheck(title = "Build Jobs"            , result  = buildJobs      ) ::
+                         SimpleCheck (title = "Orchestrator Jobs"    , result  = orchestratorJob) ::
                          SimpleCheck(title = "Service Manager Config", result  = smConfig       ) ::
                          SimpleCheck(title = "Logging - Kibana"      , result  = kibana         ) ::
                          SimpleCheck(title = "Metrics - Grafana"     , result  = grafana        ) ::
@@ -122,7 +124,7 @@ class StatusCheckService @Inject()(
       .find(_.environment == env)
       .flatMap(_.routes.map(_.ruleConfigurationUrl).headOption) match {
         case Some(e) => Right(Check.Present(e))
-        case None    => Left(Check.Missing(s"https://github.com/hmrc/mdtp-frontend-routes/${env.asString}"))
+        case None    => Left(Check.Missing(s"https://github.com/hmrc/mdtp-frontend-routes/tree/main/${env.asString}"))
       }
 
   private def checkAdminFrontendRouteForEnv(adminFrontendRoutes: Seq[ServiceConfigsConnector.AdminFrontendRoute], env: Environment): Check.Result =
@@ -130,7 +132,22 @@ class StatusCheckService @Inject()(
       case Some(e)
         if e.allow.contains(env)
              => Right(Check.Present(e.location))
-      case _ => Left(Check.Missing(s"https://github.com/hmrc/mdtp-frontend-routes/${env.asString}"))
+      case _ => Left(Check.Missing(s"https://github.com/hmrc/admin-frontend-proxy"))
+    }
+
+  private def checkOrchestratorJob(serviceName: String)(implicit hc: HeaderCarrier): Future[Check.Result] =
+    for {
+      optStr  <- gitHubConnector.getGithubRaw("/hmrc/orchestrator-jobs/main/src/main/groovy/uk/gov/hmrc/orchestratorjobs/Microservices.groovy")
+      link     = "https://github.com/hmrc/orchestrator-jobs/blob/main/src/main/groovy/uk/gov/hmrc/orchestratorjobs/Microservices.groovy"
+      evidence = optStr
+                  .getOrElse("")
+                  .linesIterator
+                  .zipWithIndex
+                  .find { case (line, _) => line.contains(s"\'$serviceName\'") }
+                  .map  { case (_, idx)  => s"$link#L${idx + 1}" }
+    } yield evidence match {
+      case Some(e) => Right(Check.Present(e))
+      case None    => Left(Check.Missing(link))
     }
 
   private def checkServiceManagerConfigExists(serviceName: String)(implicit hc: HeaderCarrier): Future[Check.Result] =
