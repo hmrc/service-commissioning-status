@@ -108,7 +108,7 @@ class StatusCheckService @Inject()(
       .getGithubRaw(s"/hmrc/app-config-base/main/$serviceName.conf")
       .map {
         case Some(_) => Right(Check.Present(s"https://github.com/hmrc/app-config-base/blob/main/$serviceName.conf"))
-        case None    => Left(Check.Missing("https://github.com/hmrc/app-config-base"))
+        case None    => Left(Check.Missing("https://build.tax.service.gov.uk/job/PlatOps/job/Tools/job/create-app-configs/build"))
       }
 
   private def checkAppConfigExistsForEnv(serviceName: String, env: Environment)(implicit hc: HeaderCarrier): Future[Check.Result] =
