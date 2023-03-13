@@ -19,31 +19,32 @@ package uk.gov.hmrc.servicecommissioningstatus.connectors
 import play.api.Logging
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, HttpResponse}
 import uk.gov.hmrc.http.client.HttpClientV2
-import uk.gov.hmrc.servicecommissioningstatus.config.GitHubConfig
+import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
 
 import java.net.URL
+
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
 
-class GitHubConnector @Inject() (
-  httpClientV2: HttpClientV2,
-  gitHubConfig: GitHubConfig
+class GitHubProxyConnector @Inject()(
+  httpClientV2  : HttpClientV2,
+  servicesConfig: ServicesConfig
 )(implicit
   ec: ExecutionContext
 ) extends Logging {
   import HttpReads.Implicits._
 
-  def getGithubApi(path: String)(implicit hc: HeaderCarrier): Future[Option[String]] =
-    get(new URL(s"${gitHubConfig.githubApiUrl}$path"))
+  private lazy val gitHubProxyBaseURL = servicesConfig.baseUrl("platops-github-proxy")
 
-  def getGithubRaw(path: String)(implicit hc: HeaderCarrier): Future[Option[String]] =
-    get(new URL(s"${gitHubConfig.githubRawUrl}$path"))
+  def getGitHubProxyRest(path: String)(implicit hc: HeaderCarrier): Future[Option[String]] =
+    get(new URL(s"$gitHubProxyBaseURL/platops-github-proxy/github-rest$path"))
+
+  def getGitHubProxyRaw(path: String)(implicit hc: HeaderCarrier): Future[Option[String]] =
+    get(new URL(s"$gitHubProxyBaseURL/platops-github-proxy/github-raw$path"))
 
   private def get(url: URL)(implicit hc: HeaderCarrier): Future[Option[String]] =
     httpClientV2
       .get(url)
-      .setHeader("Authorization" -> s"token ${gitHubConfig.githubToken}")
-      .withProxy
       .execute[Option[HttpResponse]]
       .map(response => response.map(_.body))
 }

@@ -24,11 +24,11 @@ import org.scalatest.matchers.should.Matchers
 import play.api.Configuration
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.http.test.{HttpClientV2Support, WireMockSupport}
-import uk.gov.hmrc.servicecommissioningstatus.config.GitHubConfig
+import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
-class GitHubConnectorSpec
+class GitHubProxyConnectorSpec
   extends AnyWordSpec
     with Matchers
     with OptionValues
@@ -37,27 +37,24 @@ class GitHubConnectorSpec
     with HttpClientV2Support
     with WireMockSupport {
 
-  private val testToken = "test-token"
-
-  private lazy val githubConnector =
-    new GitHubConnector(
+  private lazy val gitHubProxyConnector =
+    new GitHubProxyConnector(
       httpClientV2   = httpClientV2,
-      gitHubConfig = new GitHubConfig(Configuration(
-        "github.open.api.rawurl" -> wireMockUrl,
-        "github.open.api.url"    -> wireMockUrl,
-        "github.open.api.token"  -> testToken
+      new ServicesConfig(Configuration(
+        "microservice.services.platops-github-proxy.port" -> wireMockPort,
+        "microservice.services.platops-github-proxy.host" -> wireMockHost
       ))
     )
 
   implicit val headerCarrier: HeaderCarrier = HeaderCarrier()
 
-  "GET getGithubApi" should {
+  "GET getGitHubProxyRest" should {
 
     val repositoryContent = "Repository Content"
 
     "return response body as a String for a valid repo" in {
       stubFor(
-        get(urlEqualTo("/hmrc/repos/foo"))
+        get(urlEqualTo("/platops-github-proxy/github-rest/foo"))
           .willReturn(
             aResponse()
               .withStatus(200)
@@ -65,44 +62,42 @@ class GitHubConnectorSpec
           )
       )
 
-      val response = githubConnector
-        .getGithubApi("/hmrc/repos/foo")
+      val response = gitHubProxyConnector
+        .getGitHubProxyRest("/foo")
         .futureValue
         .value
 
       response shouldBe repositoryContent
 
       verify(
-        getRequestedFor(urlEqualTo("/hmrc/repos/foo"))
-          .withHeader("Authorization", equalTo(s"token $testToken"))
+        getRequestedFor(urlEqualTo("/platops-github-proxy/github-rest/foo"))
       )
     }
 
     "return None when repo Not Found" in {
       stubFor(
-        get(urlEqualTo("/hmrc/repos/foo-non-existing"))
+        get(urlEqualTo("/platops-github-proxy/github-rest/foo-non-existing"))
           .willReturn(aResponse().withStatus(404)))
 
-      val response = githubConnector
-        .getGithubApi("/hmrc/repos/foo-non-existing")
+      val response = gitHubProxyConnector
+        .getGitHubProxyRest("/foo-non-existing")
         .futureValue
 
       response shouldBe None
 
       verify(
-        getRequestedFor(urlEqualTo("/hmrc/repos/foo-non-existing"))
-          .withHeader("Authorization", equalTo(s"token $testToken"))
+        getRequestedFor(urlEqualTo("/platops-github-proxy/github-rest/foo-non-existing"))
       )
     }
   }
 
-  "GET getGithubRaw" should {
+  "GET getGitHubProxyRaw" should {
 
     val rawRepositoryContent = "Raw Repository Content"
 
     "return response body as a String for a valid repo" in {
       stubFor(
-        get(urlEqualTo("/hmrc/repos/foo"))
+        get(urlEqualTo("/platops-github-proxy/github-raw/foo"))
           .willReturn(
             aResponse()
               .withStatus(200)
@@ -110,33 +105,31 @@ class GitHubConnectorSpec
           )
       )
 
-      val response = githubConnector
-        .getGithubRaw("/hmrc/repos/foo")
+      val response = gitHubProxyConnector
+        .getGitHubProxyRaw("/foo")
         .futureValue
         .value
 
       response shouldBe rawRepositoryContent
 
       verify(
-        getRequestedFor(urlEqualTo("/hmrc/repos/foo"))
-          .withHeader("Authorization", equalTo(s"token $testToken"))
+        getRequestedFor(urlEqualTo("/platops-github-proxy/github-raw/foo"))
       )
     }
 
     "return None when repo Not Found" in {
       stubFor(
-        get(urlEqualTo("/hmrc/repos/foo-non-existing"))
+        get(urlEqualTo("/platops-github-proxy/github-raw/foo-non-existing"))
           .willReturn(aResponse().withStatus(404)))
 
-      val response = githubConnector
-        .getGithubRaw("/hmrc/repos/foo-non-existing")
+      val response = gitHubProxyConnector
+        .getGitHubProxyRaw("/foo-non-existing")
         .futureValue
 
       response shouldBe None
 
       verify(
-        getRequestedFor(urlEqualTo("/hmrc/repos/foo-non-existing"))
-          .withHeader("Authorization", equalTo(s"token $testToken"))
+        getRequestedFor(urlEqualTo("/platops-github-proxy/github-raw/foo-non-existing"))
       )
     }
   }

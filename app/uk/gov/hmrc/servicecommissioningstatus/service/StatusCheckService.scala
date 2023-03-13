@@ -21,7 +21,7 @@ import cats.implicits._
 import play.api.Configuration
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.servicecommissioningstatus.connectors.ServiceMetricsConnector.MongoCollectionSize
-import uk.gov.hmrc.servicecommissioningstatus.connectors.{GitHubConnector, ReleasesConnector, ServiceConfigsConnector, ServiceMetricsConnector, TeamsAndRepositoriesConnector}
+import uk.gov.hmrc.servicecommissioningstatus.connectors.{GitHubProxyConnector, ReleasesConnector, ServiceConfigsConnector, ServiceMetricsConnector, TeamsAndRepositoriesConnector}
 import uk.gov.hmrc.servicecommissioningstatus.model.{Check, Environment}
 
 import javax.inject.{Inject, Singleton}
@@ -30,7 +30,7 @@ import scala.concurrent.{ExecutionContext, Future}
 @Singleton
 class StatusCheckService @Inject()(
   config                  : Configuration,
-  gitHubConnector         : GitHubConnector,
+  gitHubProxyConnector    : GitHubProxyConnector,
   serviceConfigsConnector : ServiceConfigsConnector,
   releasesConnector       : ReleasesConnector,
   teamsAndReposConnector  : TeamsAndRepositoriesConnector,
@@ -95,8 +95,8 @@ class StatusCheckService @Inject()(
     } yield checks
 
   private def checkRepoExists(serviceName: String)(implicit hc: HeaderCarrier): Future[Check.Result] =
-    OptionT(gitHubConnector.getGithubRaw(s"/hmrc/$serviceName/main/repository.yaml"))
-      .orElse(OptionT(gitHubConnector.getGithubApi(s"/repos/hmrc/$serviceName")))
+    OptionT(gitHubProxyConnector.getGitHubProxyRaw(s"/$serviceName/main/repository.yaml"))
+      .orElse(OptionT(gitHubProxyConnector.getGitHubProxyRest(s"/$serviceName")))
       .value
       .map {
         case Some(_) => Right(Check.Present(s"https://github.com/hmrc/$serviceName"))
@@ -104,16 +104,16 @@ class StatusCheckService @Inject()(
       }
 
   private def checkAppConfigBaseExists(serviceName: String)(implicit hc: HeaderCarrier): Future[Check.Result] =
-    gitHubConnector
-      .getGithubRaw(s"/hmrc/app-config-base/main/$serviceName.conf")
+    gitHubProxyConnector
+      .getGitHubProxyRaw(s"/app-config-base/main/$serviceName.conf")
       .map {
         case Some(_) => Right(Check.Present(s"https://github.com/hmrc/app-config-base/blob/main/$serviceName.conf"))
         case None    => Left(Check.Missing("https://build.tax.service.gov.uk/job/PlatOps/job/Tools/job/create-app-configs/build"))
       }
 
   private def checkAppConfigExistsForEnv(serviceName: String, env: Environment)(implicit hc: HeaderCarrier): Future[Check.Result] =
-    gitHubConnector
-      .getGithubRaw(s"/hmrc/app-config-${env.asString}/main/$serviceName.yaml")
+    gitHubProxyConnector
+      .getGitHubProxyRaw(s"/app-config-${env.asString}/main/$serviceName.yaml")
       .map {
         case Some(_) => Right(Check.Present(s"https://github.com/hmrc/app-config-${env.asString}/blob/main/$serviceName.yaml"))
         case None    => Left(Check.Missing("https://build.tax.service.gov.uk/job/PlatOps/job/Tools/job/create-app-configs/build"))
@@ -137,7 +137,7 @@ class StatusCheckService @Inject()(
 
   private def checkOrchestratorJob(serviceName: String)(implicit hc: HeaderCarrier): Future[Check.Result] =
     for {
-      optStr  <- gitHubConnector.getGithubRaw("/hmrc/orchestrator-jobs/main/src/main/groovy/uk/gov/hmrc/orchestratorjobs/Microservices.groovy")
+      optStr  <- gitHubProxyConnector.getGitHubProxyRaw("/orchestrator-jobs/main/src/main/groovy/uk/gov/hmrc/orchestratorjobs/Microservices.groovy")
       link     = "https://github.com/hmrc/orchestrator-jobs/blob/main/src/main/groovy/uk/gov/hmrc/orchestratorjobs/Microservices.groovy"
       evidence = optStr
                   .getOrElse("")
@@ -152,7 +152,7 @@ class StatusCheckService @Inject()(
 
   private def checkServiceManagerConfigExists(serviceName: String)(implicit hc: HeaderCarrier): Future[Check.Result] =
     for {
-      optStr  <- gitHubConnector.getGithubRaw("/hmrc/service-manager-config/main/services.json")
+      optStr  <- gitHubProxyConnector.getGitHubProxyRaw("/service-manager-config/main/services.json")
       key      = serviceName.toUpperCase.replaceAll("[-]", "_")
       evidence = optStr
                   .getOrElse("")
