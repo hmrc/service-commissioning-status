@@ -77,19 +77,88 @@ class StatusCheckService @Inject()(
       mongoDb         <- serviceMetricsConnector
                            .getCollections(serviceName)
                            .map(mcss => Environment.values.map(env => env -> checkMongoDbExistsInEnv(mcss, env)).toMap)
-      allChecks        = SimpleCheck(title = "Github Repo"           , result  = githubRepo     ) ::
-                         SimpleCheck(title = "App Config Base"       , result  = appConfigBase  ) ::
-                         EnvCheck   (title = "App Config Environment", results = appConfigEnvs  ) ::
-                         oMdptFrontend.map( x => EnvCheck(title = "Frontend Routes",       results = x )).toList :::
-                         oAdminFrontend.map(x => EnvCheck(title = "Admin Frontend Routes", results = x )).toList :::
-                         SimpleCheck(title = "Build Jobs"            , result  = buildJobs      ) ::
-                         SimpleCheck (title = "Orchestrator Jobs"    , result  = orchestratorJob) ::
-                         SimpleCheck(title = "Service Manager Config", result  = smConfig       ) ::
-                         SimpleCheck(title = "Logging - Kibana"      , result  = kibana         ) ::
-                         SimpleCheck(title = "Metrics - Grafana"     , result  = grafana        ) ::
-                         SimpleCheck(title = "Alerts - PagerDuty"    , result  = alertConfig    ) ::
-                         EnvCheck   (title = "Deployed"              , results = deploymentEnv  ) ::
-                         EnvCheck   (title = "Mongo Database"        , results = mongoDb        ) ::
+      allChecks        = SimpleCheck(
+                           title      = "Github Repo",
+                           result     = githubRepo,
+                           helpText   = "Has the Github repository for the service been created? This is where the source code for the service is stored and managed.",
+                           linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/create-github-repository.html")
+                         ) ::
+                         SimpleCheck(
+                           title      = "App Config Base",
+                           result     = appConfigBase,
+                           helpText   = "Does the service have config defined in app-config-base? The service will fail to build without one.",
+                           linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/create-app-config.html")
+                         ) ::
+                         EnvCheck(
+                           title      = "App Config Environment",
+                           results    = appConfigEnvs,
+                           helpText   = "Does the service have environment specific config defined? The service will fail deploy if there is not config defined for the given environment.",
+                           linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/create-app-config.html")
+                         ) ::
+                         oMdptFrontend.map { results =>
+                           EnvCheck(
+                             title      = "Frontend Routes",
+                             results    = results,
+                             helpText   = "Has user access for the service been configured? This is required to expose the service under the tax.service.gov.uk domain.",
+                             linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/allow-user-access.html")
+                           )
+                         }.toList :::
+                         oAdminFrontend.map { results =>
+                           EnvCheck(
+                             title      = "Admin Frontend Routes",
+                             results    = results,
+                             helpText   = "Has user access for the service been configured? This is required to expose the service under the admin.tax.service.gov.uk domain.",
+                             linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/allow-user-access.html")
+                           )
+                         }.toList :::
+                         SimpleCheck(
+                           title      = "Build Jobs",
+                           result     = buildJobs,
+                           helpText   = "Has a CI/CD pipeline been created for the service? This configuration defines jobs that run in Jenkins such as running tests and deploying to pre production environments when changes have been made to the service.",
+                           linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/create-a-ci-cd-pipeline.html")
+                         ) ::
+                         SimpleCheck(
+                           title      = "Orchestrator Jobs",
+                           result     = orchestratorJob,
+                           helpText   = "Has the service been defined in orchestrator-jobs? This populates a dropdown in the Deploy Microservice job in Orchestrator Jenkins, allowing the service to be deployed to a given environment manually.",
+                           linkToDocs = None
+                         ) ::
+                         SimpleCheck(
+                           title = "Service Manager Config",
+                           result  = smConfig,
+                           helpText = "Has the service been set up in service manager? This will enable the service to be run locally using service manager, which is a useful tool for running microservices locally.",
+                           linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/add-a-microservice-to-service-manager.html")
+                         ) ::
+                         SimpleCheck(
+                           title      = "Logging - Kibana",
+                           result     = kibana,
+                           helpText   = "Has a Kibana Dashboard been created for the service? This is where the logs from the service will be sent.",
+                           linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/add-a-logs-dashboard-using-Kibana.html")
+                         ) ::
+                         SimpleCheck(
+                           title = "Metrics - Grafana",
+                           result  = grafana,
+                           helpText = "Has a Grafana Dashboard been created for the service? This is where the metrics from the service will be sent.",
+                           linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/add-a-metrics-dashboard-using-Grafana.html")
+                         ) ::
+                         SimpleCheck(
+                           title = "Alerts - PagerDuty",
+                           result  = alertConfig,
+                           helpText = "Has PagerDuty alerting been configured for the service? This enables PagerDuty to send alerts regarding the service to the team Slack Channel.",
+                           linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/add-service-alerting-using-pagerduty.html")
+                         ) ::
+                         EnvCheck(
+                           title = "Deployed",
+                           results = deploymentEnv,
+                           helpText = "Which environments has the service been deployed to? It is encouraged to deploy into Production as early as possible.",
+                           linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/carry-out-an-early-deployment-to-production.html")
+                         ) ::
+                         EnvCheck(
+                           title = "Mongo Database",
+                           results = mongoDb,
+                           helpText = "Does the service have any data stored in MongoDB? If the service does not use MongoDB or the service has not been deployed to a given environment yet, then do not worry as the MongoDB collection is only created at deploy time.",
+                           linkToDocs = None
+                         ) ::
                          Nil
       checks           = StatusCheckService.hideUnconfiguredEnvironments(allChecks, environmentsToHideWhenUnconfigured)
     } yield checks

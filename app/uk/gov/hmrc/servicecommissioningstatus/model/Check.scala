@@ -16,7 +16,11 @@
 
 package uk.gov.hmrc.servicecommissioningstatus.model
 
-sealed trait Check
+sealed trait Check {
+  val title     : String
+  val helpText  : String
+  val linkToDocs: Option[String]
+}
 
 object Check {
   case class Missing(addLink: String)
@@ -25,13 +29,17 @@ object Check {
   type Result = Either[Missing, Present]
 
   sealed case class SimpleCheck(
-    title : String
-  , result: Result
+    title     : String
+  , result    : Result
+  , helpText  : String
+  , linkToDocs: Option[String]
   ) extends Check
 
   sealed case class EnvCheck(
-    title  : String
-  , results: Map[Environment, Result]
+    title     : String
+  , results   : Map[Environment, Result]
+  , helpText  : String
+  , linkToDocs: Option[String]
   ) extends Check
 
   import play.api.libs.functional.syntax.{toFunctionalBuilderOps, unlift}
@@ -48,6 +56,8 @@ object Check {
     implicit val writesSimpleCheck: Writes[SimpleCheck] =
       ( (__ \ "title"      ).write[String]
       ~ (__ \ "simpleCheck").write[Result]
+      ~ (__ \ "helpText"   ).write[String]
+      ~ (__ \ "linkToDocs" ).writeNullable[String]
       ) (unlift(SimpleCheck.unapply))
 
     implicit val mapFormat: Writes[Map[Environment, Result]] =
@@ -60,6 +70,8 @@ object Check {
     implicit val writesEnvCheck: Writes[EnvCheck] =
       ( (__ \ "title"           ).write[String]
       ~ (__ \ "environmentCheck").write[Map[Environment, Result]]
+      ~ (__ \ "helpText"        ).write[String]
+      ~ (__ \ "linkToDocs"      ).writeNullable[String]
       ) (unlift(EnvCheck.unapply))
 
     def writes(check: Check) = check match {

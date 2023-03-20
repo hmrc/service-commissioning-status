@@ -49,9 +49,24 @@ class ServiceStatusControllerSpec
 
    import Check._
    private val checks =
-      SimpleCheck(title = "Github Repo"           , result  = Right(Check.Present("https://github.com/hmrc/foo"))) ::
-      SimpleCheck(title = "App Config Base"       , result  = Left( Check.Missing("https://github.com/hmrc/app-config-base/blob/main/foo.conf"))) ::
-      EnvCheck   (title = "App Config Environment", results = appConfigEnvironment) ::
+      SimpleCheck(
+        title      = "Github Repo",
+        result     = Right(Check.Present("https://github.com/hmrc/foo")),
+        helpText   = "Github help text",
+        linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook")
+      ) ::
+      SimpleCheck(
+        title      = "App Config Base",
+        result     = Left( Check.Missing("https://github.com/hmrc/app-config-base/blob/main/foo.conf")),
+        helpText   = "Base help text",
+        linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook")
+      ) ::
+      EnvCheck(
+        title      = "App Config Environment",
+        results    = appConfigEnvironment,
+        helpText   = "Env help text",
+        linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook")
+      ) ::
       Nil
 
   "ServiceStatusController" should {
@@ -69,10 +84,14 @@ class ServiceStatusControllerSpec
   private val json1 = """
     [{
       "title": "Github Repo",
-      "simpleCheck": { "evidence": "https://github.com/hmrc/foo" }
+      "simpleCheck": { "evidence": "https://github.com/hmrc/foo" },
+      "helpText": "Github help text",
+      "linkToDocs": "https://docs.tax.service.gov.uk/mdtp-handbook"
     }, {
       "title": "App Config Base",
-      "simpleCheck": { "add"     : "https://github.com/hmrc/app-config-base/blob/main/foo.conf" }
+      "simpleCheck": { "add"     : "https://github.com/hmrc/app-config-base/blob/main/foo.conf" },
+      "helpText": "Base help text",
+      "linkToDocs": "https://docs.tax.service.gov.uk/mdtp-handbook"
     }, {
       "title": "App Config Environment",
       "environmentCheck": {
@@ -82,7 +101,9 @@ class ServiceStatusControllerSpec
         "staging":      { "evidence": "https://github.com/hmrc/app-config-staging/blob/main/foo.yaml" },
         "qa":           { "evidence": "https://github.com/hmrc/app-config-qa/blob/main/foo.yaml" },
         "externaltest": { "evidence": "https://github.com/hmrc/app-config-externaltest/blob/main/foo.yaml" }
-      }
+      },
+      "helpText": "Env help text",
+      "linkToDocs": "https://docs.tax.service.gov.uk/mdtp-handbook"
     }]"""
 
 }
