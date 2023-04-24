@@ -58,11 +58,10 @@ class ShutterApiConnectorSpec
     val serviceUrl = s"/shutter-api/${env.asString.toLowerCase}/outage-pages/$serviceName"
 
     val shutterApiContent = ShutterApiResponse(
-      serviceName = "service-name",
-      environment = "qa",
-      outagePageURL = "http://outagePage.url",
-      templatedElements = Seq(),
-      warnings = Seq(),
+      serviceName       = "service-name",
+      environment       = "qa",
+      outagePageUrl     = "http://outagePage.url",
+      warnings          = Seq(),
     )
 
     "return response body as a String for a valid outage page" in {

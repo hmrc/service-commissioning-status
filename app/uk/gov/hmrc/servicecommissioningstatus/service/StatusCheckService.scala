@@ -78,9 +78,12 @@ class StatusCheckService @Inject()(
       mongoDb         <- serviceMetricsConnector
                            .getCollections(serviceName)
                            .map(mcss => Environment.values.map(env => env -> checkMongoDbExistsInEnv(mcss, env)).toMap)
-      shutterPageEnvs <- Future.traverse(Environment.values)(env => checkShutterPageExistsInEnv(serviceName, env)
-                           .map(check => env -> check)
-                         ).map(_.toMap)
+      shutterPageEnvs <- Environment
+                          .values
+                          .foldLeftM(Map.empty[Environment, Check.Result])(
+                            (acc, env) => checkShutterPageExistsInEnv(serviceName, env)
+                              .map(check => acc + (env -> check))
+                          )
       allChecks        = SimpleCheck(
                            title      = "Github Repo",
                            result     = githubRepo,
@@ -167,7 +170,7 @@ class StatusCheckService @Inject()(
                            title = "Customised Shutter Pages",
                            results = shutterPageEnvs,
                            helpText = "Which environments have shutter pages.",
-                           linkToDocs = Some("https://confluence.tools.tax.service.gov.uk/display/DTRG/Creating+a+new+microservice#Creatinganewmicroservice-Forservicesprovidingafrontend,addshutteringconfigurationandoutagepages:.2")
+                           linkToDocs = Some("https://confluence.tools.tax.service.gov.uk/display/DTRG/Shuttering+your+service#Shutteringyourservice-Configuringshutteringformyservice")
                          ) ::
                          Nil
       checks           = StatusCheckService.hideUnconfiguredEnvironments(allChecks, environmentsToHideWhenUnconfigured)
@@ -260,11 +263,10 @@ class StatusCheckService @Inject()(
     val githubShutterPageUrl = s"https://github.com/hmrc/outage-pages/tree/main/${env.asString}"
     shutterApiConnector.getShutterPage(serviceName, env)
       .map(response =>
-        if (response.warnings.nonEmpty) {
+        if (response.warnings.nonEmpty)
           Left(Check.Missing(githubShutterPageUrl))
-        } else {
+        else
           Right(Check.Present(s"$githubShutterPageUrl/$serviceName/index.html"))
-        }
       )
   }
 }

@@ -17,7 +17,8 @@
 package uk.gov.hmrc.servicecommissioningstatus.connectors
 
 import play.api.Logging
-import play.api.libs.json.{Json, OFormat}
+import play.api.libs.functional.syntax.{toFunctionalBuilderOps, unlift}
+import play.api.libs.json._
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads}
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
@@ -29,28 +30,31 @@ import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
 
 case class ShutterApiResponse(
-  serviceName: String,
-  environment: String,
-  outagePageURL: String,
-  warnings: Seq[ShutterApiWarningResponse],
-  templatedElements: Seq[TemplatedContent]
+  serviceName      : String,
+  environment      : String,
+  outagePageUrl    : String,
+  warnings         : Seq[ShutterApiWarningResponse],
 )
 object ShutterApiResponse {
-  implicit val format: OFormat[ShutterApiResponse] = Json.format[ShutterApiResponse]
+  implicit val format: OFormat[ShutterApiResponse] =
+      ( (__ \ "serviceName"      ).format[String]
+      ~ (__ \ "environment"      ).format[String]
+      ~ (__ \ "outagePageURL"    ).format[String]
+      ~ (__ \ "warnings"         ).format[Seq[ShutterApiWarningResponse]]
+      )(ShutterApiResponse.apply, unlift(ShutterApiResponse.unapply))
 }
 
 case class ShutterApiWarningResponse(
-  `type`: String,
-  message: String,
+  warningType: String,
+  message    : String,
   consequence: String,
 )
 object ShutterApiWarningResponse {
-  implicit val format: OFormat[ShutterApiWarningResponse] = Json.format[ShutterApiWarningResponse]
-}
-
-case class TemplatedContent(elementID: String, innerHTML: String)
-object TemplatedContent {
-  implicit val format: OFormat[TemplatedContent] = Json.format[TemplatedContent]
+  implicit val format: OFormat[ShutterApiWarningResponse] =
+      ( (__ \ "type"       ).format[String]
+      ~ (__ \ "message"    ).format[String]
+      ~ (__ \ "consequence").format[String]
+      )(ShutterApiWarningResponse.apply, unlift(ShutterApiWarningResponse.unapply))
 }
 
 class ShutterApiConnector @Inject()(
@@ -61,10 +65,10 @@ class ShutterApiConnector @Inject()(
 ) extends Logging {
   import HttpReads.Implicits._
 
-  private lazy val shutterApiURL = s"${servicesConfig.baseUrl("shutter-api")}/shutter-api"
+  private lazy val shutterApiUrl = s"${servicesConfig.baseUrl("shutter-api")}/shutter-api"
 
   def getShutterPage(serviceName: String, environment: Environment)(implicit hc: HeaderCarrier): Future[ShutterApiResponse] =
     httpClientV2
-      .get(new URL(s"$shutterApiURL/${environment.asString.toLowerCase}/outage-pages/$serviceName"))
+      .get(new URL(s"$shutterApiUrl/${environment.asString.toLowerCase}/outage-pages/$serviceName"))
       .execute[ShutterApiResponse]
 }
