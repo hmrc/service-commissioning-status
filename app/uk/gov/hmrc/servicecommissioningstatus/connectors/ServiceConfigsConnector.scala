@@ -77,6 +77,8 @@ class ServiceConfigsConnector @Inject()(
 
   private val url: String = servicesConfig.baseUrl("service-configs")
 
+  private implicit val readsEnv: Reads[Environment] = Environment.reads
+
   private implicit val frontendRoutesReads = FrontendRoute.reads
   def getMDTPFrontendRoutes(serviceName: String)(implicit hc: HeaderCarrier): Future[Seq[FrontendRoute]] =
     httpClientV2
@@ -128,4 +130,20 @@ class ServiceConfigsConnector @Inject()(
         case Some(e) => Right(Check.Present(e))
         case None    => Left(Check.Missing(s"https://github.com/hmrc/alert-config"))
       }
+
+  def getShutterPages(serviceName: String)(implicit hc: HeaderCarrier): Future[List[(Environment, Check.Result)]] =
+    for {
+      optOutagePagesEnvironments <- httpClientV2
+                                      .get(url"$url/service-configs/outage-pages/$serviceName")
+                                      .execute[Option[JsValue]]
+                                      .map(_.map(_.as[Set[Environment]]))
+      outagePagesUrl             = "https://github.com/hmrc/outage-pages"
+    } yield {
+      val missingResult = Left(Check.Missing(outagePagesUrl))
+      Environment.values.map(env =>
+        optOutagePagesEnvironments.flatMap(_.find(_ == env)
+            .map[(Environment, Check.Result)](_ => (env, Right(Check.Present(s"$outagePagesUrl/blob/main/${env.asString}/$serviceName/index.html"))))
+        ).getOrElse((env, missingResult))
+      )
+  }
 }

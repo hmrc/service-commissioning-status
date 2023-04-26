@@ -35,7 +35,6 @@ class StatusCheckService @Inject()(
   releasesConnector       : ReleasesConnector,
   teamsAndReposConnector  : TeamsAndRepositoriesConnector,
   serviceMetricsConnector : ServiceMetricsConnector,
-  shutterApiConnector     : ShutterApiConnector,
 )(implicit ec: ExecutionContext){
 
   import scala.jdk.CollectionConverters._
@@ -78,12 +77,7 @@ class StatusCheckService @Inject()(
       mongoDb         <- serviceMetricsConnector
                            .getCollections(serviceName)
                            .map(mcss => Environment.values.map(env => env -> checkMongoDbExistsInEnv(mcss, env)).toMap)
-      shutterPageEnvs <- Environment
-                          .values
-                          .foldLeftM(Map.empty[Environment, Check.Result])(
-                            (acc, env) => checkShutterPageExistsInEnv(serviceName, env)
-                              .map(check => acc + (env -> check))
-                          )
+      shutterPageEnvs <- serviceConfigsConnector.getShutterPages(serviceName)
       allChecks        = SimpleCheck(
                            title      = "Github Repo",
                            result     = githubRepo,
@@ -168,7 +162,7 @@ class StatusCheckService @Inject()(
                          ) ::
                          EnvCheck(
                            title = "Customised Shutter Pages",
-                           results = shutterPageEnvs,
+                           results = shutterPageEnvs.toMap,
                            helpText = "Which environments have shutter pages.",
                            linkToDocs = Some("https://confluence.tools.tax.service.gov.uk/display/DTRG/Shuttering+your+service#Shutteringyourservice-Configuringshutteringformyservice")
                          ) ::
@@ -258,17 +252,6 @@ class StatusCheckService @Inject()(
       val db = collections.headOption.fold("")(_.database)
       Right(Check.Present(s"https://grafana.tools.${env.asString}.tax.service.gov.uk/d/platops-mongo-collections?var-replica_set=*&var-database=$db&var-collection=All&orgId=1"))
     } else Left(Check.Missing(""))
-
-  private def checkShutterPageExistsInEnv(serviceName: String, env: Environment)(implicit hc: HeaderCarrier): Future[Check.Result] = {
-    val githubShutterPageUrl = s"https://github.com/hmrc/outage-pages/tree/main/${env.asString}"
-    shutterApiConnector.getShutterPage(serviceName, env)
-      .map(response =>
-        if (response.warnings.nonEmpty)
-          Left(Check.Missing(githubShutterPageUrl))
-        else
-          Right(Check.Present(s"$githubShutterPageUrl/$serviceName/index.html"))
-      )
-  }
 }
 
 object StatusCheckService {
