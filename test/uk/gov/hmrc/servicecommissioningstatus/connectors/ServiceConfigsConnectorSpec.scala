@@ -22,6 +22,7 @@ import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import play.api.Configuration
+import play.api.libs.json.Json
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.http.test.{HttpClientV2Support, WireMockSupport}
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
@@ -287,6 +288,72 @@ class ServiceConfigsConnectorSpec
       val expectedOutput = Left(Check.Missing("https://github.com/hmrc/alert-config"))
 
       response shouldBe expectedOutput
+    }
+  }
+
+  "GET getShutterPages" should {
+    "return present checks for service's shutter pages when all environments have them" in {
+      stubFor(
+        get(urlEqualTo("/service-configs/outage-pages/foo"))
+          .willReturn(
+            aResponse()
+              .withStatus(200)
+              .withBody(Json.toJson(Environment.values.map(_.asString)).toString())
+          )
+      )
+
+      val response = serviceConfigsConnector
+        .getShutterPages("foo")
+        .futureValue
+
+      val expectedOutput = Environment.values.map(env =>
+          env -> Right(Check.Present(s"https://github.com/hmrc/outage-pages/blob/main/${env.asString}/foo/index.html")),
+        )
+
+      response shouldBe expectedOutput
+    }
+
+    "return missing checks for service's shutter pages when all environments have them" in {
+      stubFor(
+        get(urlEqualTo("/service-configs/outage-pages/foo-no-alert-config"))
+          .willReturn(aResponse().withStatus(404)))
+
+      val response = serviceConfigsConnector
+        .getShutterPages("foo-no-alert-config")
+        .futureValue
+
+        val expectedOutput = Environment.values.map(env =>
+          env -> Left(Check.Missing("https://github.com/hmrc/outage-pages")),
+        )
+
+      response shouldBe expectedOutput
+    }
+
+    "return missing and present checks for service's shutter pages when some environments have them for a service" in {
+      stubFor(
+        get(urlEqualTo("/service-configs/outage-pages/foo"))
+          .willReturn(aResponse()
+              .withStatus(200)
+              .withBody(Json.toJson(Seq(Environment.QA, Environment.Production).map(_.asString)).toString())
+          )
+      )
+
+      val response = serviceConfigsConnector
+        .getShutterPages("foo")
+        .futureValue
+
+        val expectedOutput = Seq(Environment.QA,Environment.Production)
+            .map(env =>
+              env -> Right(Check.Present(s"https://github.com/hmrc/outage-pages/blob/main/${env.asString}/foo/index.html"))
+            ) ++
+            Seq(
+              Environment.Development,
+              Environment.ExternalTest,
+              Environment.Integration,
+              Environment.Staging,
+            ).map(_ -> Left(Check.Missing("https://github.com/hmrc/outage-pages")))
+
+      response should contain theSameElementsAs expectedOutput
     }
   }
 }
