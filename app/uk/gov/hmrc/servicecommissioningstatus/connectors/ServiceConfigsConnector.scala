@@ -139,11 +139,13 @@ class ServiceConfigsConnector @Inject()(
                                       .map(_.map(_.as[Set[Environment]]))
       outagePagesUrl             = "https://github.com/hmrc/outage-pages"
     } yield {
-      val missingResult = Left(Check.Missing(outagePagesUrl))
-      Environment.values.map(env =>
-        optOutagePagesEnvironments.flatMap(_.find(_ == env)
-            .map[(Environment, Check.Result)](_ => (env, Right(Check.Present(s"$outagePagesUrl/blob/main/${env.asString}/$serviceName/index.html"))))
-        ).getOrElse((env, missingResult))
-      )
+      Environment.values.map{env =>
+        val envOutagePageUrl = s"$outagePagesUrl/blob/main/${env.asString}"
+        optOutagePagesEnvironments.flatMap(
+          _.find(_ == env).map(_ => 
+            (env, Right(Check.Present(s"$envOutagePageUrl/$serviceName/index.html")))
+          )
+        ).getOrElse((env, Left(Check.Missing(envOutagePageUrl))))
+      }
   }
 }

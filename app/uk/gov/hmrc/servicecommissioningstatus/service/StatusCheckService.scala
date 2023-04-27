@@ -161,9 +161,9 @@ class StatusCheckService @Inject()(
                            linkToDocs = None
                          ) ::
                          EnvCheck(
-                           title = "Customised Shutter Pages",
+                           title = "Custom Shutter Pages",
                            results = shutterPageEnvs.toMap,
-                           helpText = "Which environments have customised shutter pages. These are optional.",
+                           helpText = "Which environments have custom shutter pages. These are optional.",
                            linkToDocs = Some("https://confluence.tools.tax.service.gov.uk/display/DTRG/Shuttering+your+service#Shutteringyourservice-Configuringshutteringformyservice")
                          ) ::
                          Nil

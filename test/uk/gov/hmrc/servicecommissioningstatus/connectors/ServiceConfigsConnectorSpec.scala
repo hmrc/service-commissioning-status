@@ -323,7 +323,7 @@ class ServiceConfigsConnectorSpec
         .futureValue
 
         val expectedOutput = Environment.values.map(env =>
-          env -> Left(Check.Missing("https://github.com/hmrc/outage-pages")),
+          env -> Left(Check.Missing(s"https://github.com/hmrc/outage-pages/blob/main/${env.asString}")),
         )
 
       response shouldBe expectedOutput
@@ -351,7 +351,7 @@ class ServiceConfigsConnectorSpec
               Environment.ExternalTest,
               Environment.Integration,
               Environment.Staging,
-            ).map(_ -> Left(Check.Missing("https://github.com/hmrc/outage-pages")))
+            ).map(env => env -> Left(Check.Missing(s"https://github.com/hmrc/outage-pages/blob/main/${env.asString}")))
 
       response should contain theSameElementsAs expectedOutput
     }
