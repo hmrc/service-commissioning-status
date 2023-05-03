@@ -47,8 +47,8 @@ class StatusCheckService @Inject()(
   def commissioningStatusChecks(serviceName: String)(implicit hc: HeaderCarrier): Future[List[Check]] =
     for {
       oRepo           <- teamsAndReposConnector.findRepo(serviceName)
-      isFrontend      =  oRepo.map(_.serviceType).exists(_ == TeamsAndRepositoriesConnector.ServiceType.Frontend)
-      isAdminFrontend =  oRepo.map(_.tags       ).exists(_.contains(TeamsAndRepositoriesConnector.Tag.AdminFrontend))
+      isFrontend      =  oRepo.flatMap(_.serviceType).contains(TeamsAndRepositoriesConnector.ServiceType.Frontend)
+      isAdminFrontend =  oRepo.flatMap(_.tags).exists(_ == TeamsAndRepositoriesConnector.Tag.AdminFrontend)
 
       githubRepo      <- checkRepoExists(serviceName)
       appConfigBase   <- checkAppConfigBaseExists(serviceName)
