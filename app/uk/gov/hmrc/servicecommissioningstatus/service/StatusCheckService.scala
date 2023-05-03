@@ -48,7 +48,7 @@ class StatusCheckService @Inject()(
     for {
       oRepo           <- teamsAndReposConnector.findRepo(serviceName)
       isFrontend      =  oRepo.flatMap(_.serviceType).contains(TeamsAndRepositoriesConnector.ServiceType.Frontend)
-      isAdminFrontend =  oRepo.flatMap(_.tags).exists(_ == TeamsAndRepositoriesConnector.Tag.AdminFrontend)
+      isAdminFrontend =  oRepo.map(_.tags).exists(_.contains(TeamsAndRepositoriesConnector.Tag.AdminFrontend))
 
       githubRepo      <- checkRepoExists(serviceName)
       appConfigBase   <- checkAppConfigBaseExists(serviceName)
