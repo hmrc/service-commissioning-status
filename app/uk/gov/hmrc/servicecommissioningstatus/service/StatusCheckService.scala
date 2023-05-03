@@ -60,11 +60,11 @@ class StatusCheckService @Inject()(
       oMdptFrontend   <- serviceConfigsConnector
                           .getMDTPFrontendRoutes(serviceName)
                           .map(routes => Environment.values.map(env => env -> checkFrontendRouteForEnv(routes, env)).toMap)
-                          .map(xs => Option.when(xs.values.filter(_.isRight).nonEmpty || (isFrontend && !isAdminFrontend))(xs))
+                          .map(xs => Option.when(xs.values.exists(_.isRight) || (isFrontend && !isAdminFrontend))(xs))
       oAdminFrontend  <- serviceConfigsConnector
                           .getAdminFrontendRoutes(serviceName)
                           .map(routes => Environment.values.map(env => env -> checkAdminFrontendRouteForEnv(routes, env)).toMap)
-                          .map(xs => Option.when(xs.values.filter(_.isRight).nonEmpty || isAdminFrontend)(xs))
+                          .map(xs => Option.when(xs.values.exists(_.isRight) || isAdminFrontend)(xs))
       buildJobs       <- serviceConfigsConnector.getBuildJobs(serviceName)
       orchestratorJob <- checkOrchestratorJob(serviceName)
       smConfig        <- checkServiceManagerConfigExists(serviceName)
