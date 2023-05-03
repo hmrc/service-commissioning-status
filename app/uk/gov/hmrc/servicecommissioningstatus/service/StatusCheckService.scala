@@ -47,8 +47,8 @@ class StatusCheckService @Inject()(
   def commissioningStatusChecks(serviceName: String)(implicit hc: HeaderCarrier): Future[List[Check]] =
     for {
       oRepo           <- teamsAndReposConnector.findRepo(serviceName)
-      isFrontend      =  oRepo.map(_.serviceType).exists(_ == TeamsAndRepositoriesConnector.ServiceType.Frontend)
-      isAdminFrontend =  oRepo.map(_.tags       ).exists(_.contains(TeamsAndRepositoriesConnector.Tag.AdminFrontend))
+      isFrontend      =  oRepo.flatMap(_.serviceType).contains(TeamsAndRepositoriesConnector.ServiceType.Frontend)
+      isAdminFrontend =  oRepo.map(_.tags).exists(_.contains(TeamsAndRepositoriesConnector.Tag.AdminFrontend))
 
       githubRepo      <- checkRepoExists(serviceName)
       appConfigBase   <- checkAppConfigBaseExists(serviceName)
@@ -60,11 +60,11 @@ class StatusCheckService @Inject()(
       oMdptFrontend   <- serviceConfigsConnector
                           .getMDTPFrontendRoutes(serviceName)
                           .map(routes => Environment.values.map(env => env -> checkFrontendRouteForEnv(routes, env)).toMap)
-                          .map(xs => Option.when(xs.values.filter(_.isRight).nonEmpty || (isFrontend && !isAdminFrontend))(xs))
+                          .map(xs => Option.when(xs.values.exists(_.isRight) || (isFrontend && !isAdminFrontend))(xs))
       oAdminFrontend  <- serviceConfigsConnector
                           .getAdminFrontendRoutes(serviceName)
                           .map(routes => Environment.values.map(env => env -> checkAdminFrontendRouteForEnv(routes, env)).toMap)
-                          .map(xs => Option.when(xs.values.filter(_.isRight).nonEmpty || isAdminFrontend)(xs))
+                          .map(xs => Option.when(xs.values.exists(_.isRight) || isAdminFrontend)(xs))
       buildJobs       <- serviceConfigsConnector.getBuildJobs(serviceName)
       orchestratorJob <- checkOrchestratorJob(serviceName)
       smConfig        <- checkServiceManagerConfigExists(serviceName)
