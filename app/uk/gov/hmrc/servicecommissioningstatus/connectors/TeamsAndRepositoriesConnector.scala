@@ -50,6 +50,8 @@ object TeamsAndRepositoriesConnector {
     name       : String
   , serviceType: Option[ServiceType] = None
   , tags       : Seq[Tag]
+  , isArchived : Boolean
+  , githubUrl  : String
   )
 
   object Repo {
@@ -59,6 +61,8 @@ object TeamsAndRepositoriesConnector {
       ( (__ \ "name"       ).read[String]
       ~ (__ \ "serviceType").readNullable[ServiceType]
       ~ (__ \ "tags"       ).read[Seq[Tag]]
+      ~ (__ \ "isArchived"        ).formatWithDefault[Boolean](false)
+      ~ (__ \ "url"               ).format[String]
       ) (apply _)
     }
   }
