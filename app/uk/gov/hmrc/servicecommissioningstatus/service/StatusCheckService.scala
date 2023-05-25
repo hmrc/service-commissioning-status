@@ -174,9 +174,11 @@ class StatusCheckService @Inject()(
     } yield checks
 
   private def checkRepoExists(serviceName: String)(implicit hc: HeaderCarrier): Future[Check.Result] = {
-    OptionT(teamsAndReposConnector.findRepo(serviceName)).value.map {
-      case Some(repo) if !repo.isArchived => Right(Check.Present(repo.githubUrl))
-      case _ => Left(Check.Missing(CREATE_A_REPO))
+    OptionT(teamsAndReposConnector.findRepo(serviceName))
+      .value
+      .map {
+        case Some(repo) if !repo.isArchived => Right(Check.Present(repo.githubUrl))
+        case _ => Left(Check.Missing(CREATE_A_REPO))
     }
   }
 
