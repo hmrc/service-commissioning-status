@@ -38,6 +38,7 @@ class StatusCheckService @Inject()(
 )(implicit ec: ExecutionContext){
 
   import scala.jdk.CollectionConverters._
+
   private val environmentsToHideWhenUnconfigured: Set[Environment] =
     config.underlying.getStringList("environmentsToHideWhenUnconfigured").asScala.toSet.map { str: String =>
       Environment.parse(str).getOrElse(sys.error(s"config 'environmentsToHideWhenUnconfigured' contains an invalid environment: $str"))
@@ -171,12 +172,11 @@ class StatusCheckService @Inject()(
     } yield checks
 
   private def checkRepoExists(serviceName: String)(implicit hc: HeaderCarrier): Future[Check.Result] =
-    OptionT(gitHubProxyConnector.getGitHubProxyRaw(s"/$serviceName/main/repository.yaml"))
-      .orElse(OptionT(gitHubProxyConnector.getGitHubProxyRest(s"/$serviceName")))
+    OptionT(teamsAndReposConnector.findRepo(serviceName))
       .value
       .map {
-        case Some(_) => Right(Check.Present(s"https://github.com/hmrc/$serviceName"))
-        case None    => Left(Check.Missing("https://build.tax.service.gov.uk/job/PlatOps/job/Tools/job/create-a-repository/build"))
+        case Some(repo) if !repo.isArchived => Right(Check.Present(repo.githubUrl))
+        case _ => Left(Check.Missing("https://build.tax.service.gov.uk/job/PlatOps/job/Tools/job/create-a-repository/build"))
       }
 
   private def checkAppConfigBaseExists(serviceName: String)(implicit hc: HeaderCarrier): Future[Check.Result] =

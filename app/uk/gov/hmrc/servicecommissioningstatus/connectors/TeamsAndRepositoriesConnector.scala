@@ -49,7 +49,9 @@ object TeamsAndRepositoriesConnector {
   case class Repo(
     name       : String
   , serviceType: Option[ServiceType] = None
-  , tags       : Seq[Tag]
+  , tags       : Seq[Tag] = Seq.empty
+  , isArchived : Boolean
+  , githubUrl  : String
   )
 
   object Repo {
@@ -58,7 +60,9 @@ object TeamsAndRepositoriesConnector {
       implicit val readTag         = Tag.reads
       ( (__ \ "name"       ).read[String]
       ~ (__ \ "serviceType").readNullable[ServiceType]
-      ~ (__ \ "tags"       ).read[Seq[Tag]]
+      ~ (__ \ "tags"       ).readWithDefault[Seq[Tag]](Seq.empty)
+      ~ (__ \ "isArchived" ).readWithDefault[Boolean](false)
+      ~ (__ \ "url"        ).read[String]
       ) (apply _)
     }
   }
