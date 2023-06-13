@@ -66,6 +66,22 @@ object TeamsAndRepositoriesConnector {
       ) (apply _)
     }
   }
+
+  case class BuildJob(
+    repoName   : String,
+    jobName    : String,
+    jenkinsUrl : String,
+    jobType    : String
+  )
+
+  object BuildJob {
+    implicit val reads: Reads[BuildJob] =
+      ( (__ \ "repoName"  ).read[String]
+      ~ (__ \ "jobName"   ).read[String]
+      ~ (__ \ "jenkinsUrl").read[String]
+      ~ (__ \ "jobType"   ).read[String]
+      )(BuildJob.apply _)
+  }
 }
 
 @Singleton
@@ -83,4 +99,11 @@ class TeamsAndRepositoriesConnector @Inject()(
     httpClientV2
       .get(url"$url/api/v2/repositories/$name")
       .execute[Option[Repo]]
+
+  private implicit val readBuildJobs = BuildJob.reads
+  def findPipelineJobs(repoName: String)(implicit hc: HeaderCarrier): Future[Seq[BuildJob]] =
+    httpClientV2
+      .get(url"$url/api/jenkins-jobs/$repoName")
+      .execute[Seq[BuildJob]]
+      .map(_.filter(_.jobType == "pipeline"))
 }
