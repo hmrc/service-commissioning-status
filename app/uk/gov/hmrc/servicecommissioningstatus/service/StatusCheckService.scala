@@ -21,6 +21,7 @@ import cats.implicits._
 import play.api.Configuration
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.servicecommissioningstatus.connectors.ServiceMetricsConnector.MongoCollectionSize
+import uk.gov.hmrc.servicecommissioningstatus.connectors.TeamsAndRepositoriesConnector.BuildJobType
 import uk.gov.hmrc.servicecommissioningstatus.connectors._
 import uk.gov.hmrc.servicecommissioningstatus.model.{Check, Environment}
 
@@ -68,6 +69,7 @@ class StatusCheckService @Inject()(
                           .map(xs => Option.when(xs.values.exists(_.isRight) || isAdminFrontend)(xs))
       buildJobs       <- serviceConfigsConnector.getBuildJobs(serviceName)
       orchestratorJob <- checkOrchestratorJob(serviceName)
+      pipelineJob     <- checkPipelineJob(serviceName)
       smConfig        <- checkServiceManagerConfigExists(serviceName)
       kibana          <- serviceConfigsConnector.getKibanaDashboard(serviceName)
       grafana         <- serviceConfigsConnector.getGrafanaDashboard(serviceName)
@@ -124,6 +126,12 @@ class StatusCheckService @Inject()(
                            result     = orchestratorJob,
                            helpText   = "Configuration required to allow deployment from Deploy Microservice job.",
                            linkToDocs = None
+                         ) ::
+                         SimpleCheck(
+                           title      = "Pipeline Jobs",
+                           result     = pipelineJob,
+                           helpText   = "Configuration to automatically deploy to lower environments when a build completes",
+                           linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/create-a-ci-cd-pipeline.html#add-the-pipelinejobbuilder")
                          ) ::
                          SimpleCheck(
                            title = "Service Manager Config",
@@ -209,6 +217,15 @@ class StatusCheckService @Inject()(
         if e.allow.contains(env)
              => Right(Check.Present(e.location))
       case _ => Left(Check.Missing(s"https://github.com/hmrc/admin-frontend-proxy"))
+    }
+
+  private def checkPipelineJob(serviceName: String)(implicit hc: HeaderCarrier): Future[Check.Result] =
+    for {
+      jobs <- teamsAndReposConnector.findBuildJobs(serviceName)
+      check = jobs.find(_.jobType == BuildJobType.Pipeline)
+    } yield check match {
+      case Some(job) => Right(Check.Present(job.jenkinsUrl))
+      case None      => Left(Check.Missing(""))
     }
 
   private def checkOrchestratorJob(serviceName: String)(implicit hc: HeaderCarrier): Future[Check.Result] =

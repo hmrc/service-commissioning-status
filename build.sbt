@@ -12,7 +12,6 @@ lazy val microservice = Project("service-commissioning-status", file("."))
     // suppress warnings in generated routes files
     scalacOptions            += "-Wconf:src=routes/.*:s",
   )
-  .settings(publishingSettings: _*)
   .configs(IntegrationTest)
   .settings(integrationTestSettings(): _*)
   .settings(resolvers += Resolver.jcenterRepo)
