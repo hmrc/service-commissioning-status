@@ -67,9 +67,14 @@ object TeamsAndRepositoriesConnector {
     }
   }
 
+  sealed trait BuildJobType { def asString: String }
+
+  object BuildJobType {
+    case object Pipeline extends BuildJobType {override val asString = "pipeline"}
+  }
+
   case class BuildJob(
     repoName   : String,
-    jobName    : String,
     jenkinsUrl : String,
     jobType    : String
   )
@@ -77,7 +82,6 @@ object TeamsAndRepositoriesConnector {
   object BuildJob {
     implicit val reads: Reads[BuildJob] =
       ( (__ \ "repoName"  ).read[String]
-      ~ (__ \ "jobName"   ).read[String]
       ~ (__ \ "jenkinsUrl").read[String]
       ~ (__ \ "jobType"   ).read[String]
       )(BuildJob.apply _)
@@ -101,9 +105,8 @@ class TeamsAndRepositoriesConnector @Inject()(
       .execute[Option[Repo]]
 
   private implicit val readBuildJobs = BuildJob.reads
-  def findPipelineJobs(repoName: String)(implicit hc: HeaderCarrier): Future[Seq[BuildJob]] =
+  def findBuildJobs(repoName: String)(implicit hc: HeaderCarrier): Future[Seq[BuildJob]] =
     httpClientV2
       .get(url"$url/api/jenkins-jobs/$repoName")
       .execute[Seq[BuildJob]]
-      .map(_.filter(_.jobType == "pipeline"))
 }

@@ -21,7 +21,7 @@ import cats.implicits._
 import play.api.Configuration
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.servicecommissioningstatus.connectors.ServiceMetricsConnector.MongoCollectionSize
-import uk.gov.hmrc.servicecommissioningstatus.connectors.TeamsAndRepositoriesConnector.BuildJob
+import uk.gov.hmrc.servicecommissioningstatus.connectors.TeamsAndRepositoriesConnector.BuildJobType
 import uk.gov.hmrc.servicecommissioningstatus.connectors._
 import uk.gov.hmrc.servicecommissioningstatus.model.{Check, Environment}
 
@@ -220,7 +220,9 @@ class StatusCheckService @Inject()(
     }
 
   private def checkPipelineJob(serviceName: String)(implicit hc: HeaderCarrier): Future[Check.Result] =
-    OptionT(teamsAndReposConnector.findPipelineJobs(serviceName).map(_.headOption))
+    OptionT(teamsAndReposConnector.findBuildJobs(serviceName)
+      .map(_.filter(_.jobType == BuildJobType.Pipeline.asString))
+      .map(_.headOption))
       .value
       .map {
         case Some(job) => Right(Check.Present(job.jenkinsUrl))
