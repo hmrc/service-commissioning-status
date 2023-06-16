@@ -220,14 +220,13 @@ class StatusCheckService @Inject()(
     }
 
   private def checkPipelineJob(serviceName: String)(implicit hc: HeaderCarrier): Future[Check.Result] =
-    OptionT(teamsAndReposConnector.findBuildJobs(serviceName)
-      .map(_.filter(_.jobType == BuildJobType.Pipeline.asString))
-      .map(_.headOption))
-      .value
-      .map {
-        case Some(job) => Right(Check.Present(job.jenkinsUrl))
-        case None      => Left(Check.Missing(""))
-      }
+    for {
+      jobs <- teamsAndReposConnector.findBuildJobs(serviceName)
+      check = jobs.find(_.jobType == BuildJobType.Pipeline)
+    } yield check match {
+      case Some(job) => Right(Check.Present(job.jenkinsUrl))
+      case None      => Left(Check.Missing(""))
+    }
 
   private def checkOrchestratorJob(serviceName: String)(implicit hc: HeaderCarrier): Future[Check.Result] =
     for {

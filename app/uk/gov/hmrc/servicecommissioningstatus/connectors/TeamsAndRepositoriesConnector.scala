@@ -16,6 +16,7 @@
 
 package uk.gov.hmrc.servicecommissioningstatus.connectors
 
+import play.api.Logger
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps}
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
@@ -70,20 +71,37 @@ object TeamsAndRepositoriesConnector {
   sealed trait BuildJobType { def asString: String }
 
   object BuildJobType {
-    case object Pipeline extends BuildJobType {override val asString = "pipeline"}
+    case object Job         extends BuildJobType { override val asString = "job"         }
+    case object Pipeline    extends BuildJobType { override val asString = "pipeline"    }
+    case object Performance extends BuildJobType { override val asString = "performance" }
+
+    private val logger = Logger(this.getClass)
+
+    val values: List[BuildJobType] =
+      List(Job, Pipeline, Performance)
+
+    def parse(s: String): BuildJobType =
+      values
+        .find(_.asString.equalsIgnoreCase(s)).getOrElse {
+        logger.info(s"Unable to find job type: $s, defaulted to: job")
+        Job
+      }
+
+    implicit val reads: Reads[BuildJobType] =
+      Reads.of[String].map(parse)
   }
 
   case class BuildJob(
     repoName   : String,
     jenkinsUrl : String,
-    jobType    : String
+    jobType    : BuildJobType
   )
 
   object BuildJob {
     implicit val reads: Reads[BuildJob] =
       ( (__ \ "repoName"  ).read[String]
       ~ (__ \ "jenkinsUrl").read[String]
-      ~ (__ \ "jobType"   ).read[String]
+      ~ (__ \ "jobType"   ).read[BuildJobType]
       )(BuildJob.apply _)
   }
 }
