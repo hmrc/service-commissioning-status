@@ -225,7 +225,7 @@ class StatusCheckService @Inject()(
       check = jobs.find(_.jobType == BuildJobType.Pipeline)
     } yield check match {
       case Some(job) => Right(Check.Present(job.jenkinsUrl))
-      case None      => Left(Check.Missing(""))
+      case None      => Left(Check.Missing(s"https://github.com/hmrc/build-jobs"))
     }
 
   private def checkOrchestratorJob(serviceName: String)(implicit hc: HeaderCarrier): Future[Check.Result] =
