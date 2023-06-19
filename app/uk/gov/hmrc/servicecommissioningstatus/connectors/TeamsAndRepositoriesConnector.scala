@@ -17,6 +17,7 @@
 package uk.gov.hmrc.servicecommissioningstatus.connectors
 
 import play.api.Logger
+import play.api.libs.json.{Reads, __}
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps}
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
@@ -100,7 +101,7 @@ object TeamsAndRepositoriesConnector {
   object BuildJob {
     implicit val reads: Reads[BuildJob] =
       ( (__ \ "repoName"  ).read[String]
-      ~ (__ \ "jenkinsUrl").read[String]
+      ~ (__ \ "jenkinsURL").read[String]
       ~ (__ \ "jobType"   ).read[BuildJobType]
       )(BuildJob.apply _)
   }
@@ -122,9 +123,13 @@ class TeamsAndRepositoriesConnector @Inject()(
       .get(url"$url/api/v2/repositories/$name")
       .execute[Option[Repo]]
 
-  private implicit val readBuildJobs = BuildJob.reads
-  def findBuildJobs(repoName: String)(implicit hc: HeaderCarrier): Future[Seq[BuildJob]] =
+
+  def findBuildJobs(repoName: String)(implicit hc: HeaderCarrier): Future[Seq[BuildJob]] = {
+    implicit val readJobs: Reads[Seq[BuildJob]] =
+      Reads.at(__ \ "jobs")(Reads.seq(BuildJob.reads))
+
     httpClientV2
       .get(url"$url/api/jenkins-jobs/$repoName")
       .execute[Seq[BuildJob]]
+  }
 }
