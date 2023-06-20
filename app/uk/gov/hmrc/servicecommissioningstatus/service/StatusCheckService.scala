@@ -68,7 +68,6 @@ class StatusCheckService @Inject()(
                           .map(routes => Environment.values.map(env => env -> checkAdminFrontendRouteForEnv(routes, env)).toMap)
                           .map(xs => Option.when(xs.values.exists(_.isRight) || isAdminFrontend)(xs))
       buildJobs       <- serviceConfigsConnector.getBuildJobs(serviceName)
-      orchestratorJob <- checkOrchestratorJob(serviceName)
       pipelineJob     <- checkPipelineJob(serviceName)
       smConfig        <- checkServiceManagerConfigExists(serviceName)
       kibana          <- serviceConfigsConnector.getKibanaDashboard(serviceName)
@@ -120,12 +119,6 @@ class StatusCheckService @Inject()(
                            result     = buildJobs,
                            helpText   = "Configuration required to trigger test runs or deploy to pre-production environments automatically on merge.",
                            linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/create-a-ci-cd-pipeline.html")
-                         ) ::
-                         SimpleCheck(
-                           title      = "Orchestrator Jobs",
-                           result     = orchestratorJob,
-                           helpText   = "Configuration required to allow deployment from Deploy Microservice job.",
-                           linkToDocs = None
                          ) ::
                          SimpleCheck(
                            title      = "Pipeline Jobs",
@@ -228,25 +221,10 @@ class StatusCheckService @Inject()(
       case None      => Left(Check.Missing(s"https://github.com/hmrc/build-jobs"))
     }
 
-  private def checkOrchestratorJob(serviceName: String)(implicit hc: HeaderCarrier): Future[Check.Result] =
-    for {
-      optStr  <- gitHubProxyConnector.getGitHubProxyRaw("/orchestrator-jobs/main/src/main/groovy/uk/gov/hmrc/orchestratorjobs/Microservices.groovy")
-      link     = "https://github.com/hmrc/orchestrator-jobs/blob/main/src/main/groovy/uk/gov/hmrc/orchestratorjobs/Microservices.groovy"
-      evidence = optStr
-                  .getOrElse("")
-                  .linesIterator
-                  .zipWithIndex
-                  .find { case (line, _) => line.contains(s"\'$serviceName\'") }
-                  .map  { case (_, idx)  => s"$link#L${idx + 1}" }
-    } yield evidence match {
-      case Some(e) => Right(Check.Present(e))
-      case None    => Left(Check.Missing(link))
-    }
-
   private def checkServiceManagerConfigExists(serviceName: String)(implicit hc: HeaderCarrier): Future[Check.Result] =
     for {
       optStr  <- gitHubProxyConnector.getGitHubProxyRaw("/service-manager-config/main/services.json")
-      key      = serviceName.toUpperCase.replaceAll("[-]", "_")
+      key      = serviceName.toUpperCase.replaceAll("-", "_")
       evidence = optStr
                   .getOrElse("")
                   .linesIterator
