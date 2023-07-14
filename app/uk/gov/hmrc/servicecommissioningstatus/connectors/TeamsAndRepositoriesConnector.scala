@@ -58,8 +58,8 @@ object TeamsAndRepositoriesConnector {
 
   object Repo {
     val reads: Reads[Repo] = {
-      implicit val readServiceType = ServiceType.reads
-      implicit val readTag         = Tag.reads
+      implicit val formatServiceType = ServiceType.format
+      implicit val formatTag         = Tag.format
       ( (__ \ "name"       ).read[String]
       ~ (__ \ "serviceType").readNullable[ServiceType]
       ~ (__ \ "tags"       ).readWithDefault[Seq[Tag]](Seq.empty)

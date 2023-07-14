@@ -20,9 +20,9 @@ import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps}
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
 import uk.gov.hmrc.servicecommissioningstatus.model.{Check, Environment}
-
 import play.api.libs.functional.syntax._
 import play.api.libs.json._
+import uk.gov.hmrc.servicecommissioningstatus.connectors.model.InternalAuthConfig
 
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
@@ -40,7 +40,7 @@ object ServiceConfigsConnector {
   object FrontendRoute {
     val reads: Reads[FrontendRoute] = {
       implicit val readsRoute: Reads[Routes]    = Routes.reads
-      implicit val readsEnv: Reads[Environment] = Environment.reads
+      implicit val envFormat: Format[Environment] = Environment.format
       ( (__ \ "environment").read[Environment]
       ~ (__ \ "routes"     ).read[Seq[Routes]]
       )(FrontendRoute.apply _)
@@ -77,7 +77,7 @@ class ServiceConfigsConnector @Inject()(
 
   private val url: String = servicesConfig.baseUrl("service-configs")
 
-  private implicit val readsEnv: Reads[Environment] = Environment.reads
+  private implicit val formatEnv: Format[Environment] = Environment.format
 
   private implicit val frontendRoutesReads = FrontendRoute.reads
   def getMDTPFrontendRoutes(serviceName: String)(implicit hc: HeaderCarrier): Future[Seq[FrontendRoute]] =
@@ -90,6 +90,12 @@ class ServiceConfigsConnector @Inject()(
     httpClientV2
       .get(url"$url/service-configs/admin-frontend-route/$serviceName")
       .execute[Seq[AdminFrontendRoute]]
+
+  private implicit val internalAuthConfigFormat = InternalAuthConfig.format
+  def getInternalAuthConfig(serviceName: String)(implicit hc: HeaderCarrier): Future[Seq[InternalAuthConfig]] =
+    httpClientV2
+      .get(url"$url/service-configs/internal-auth-config/$serviceName")
+      .execute[Seq[InternalAuthConfig]]
 
   def getGrafanaDashboard(serviceName: String)(implicit hc: HeaderCarrier): Future[Check.Result] =
     httpClientV2

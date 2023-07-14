@@ -23,6 +23,8 @@ import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.servicecommissioningstatus.connectors.ServiceMetricsConnector.MongoCollectionSize
 import uk.gov.hmrc.servicecommissioningstatus.connectors.TeamsAndRepositoriesConnector.BuildJobType
 import uk.gov.hmrc.servicecommissioningstatus.connectors._
+import uk.gov.hmrc.servicecommissioningstatus.connectors.model.InternalAuthConfig
+import uk.gov.hmrc.servicecommissioningstatus.model.Check.{Missing, Present}
 import uk.gov.hmrc.servicecommissioningstatus.model.{Check, Environment}
 
 import javax.inject.{Inject, Singleton}
@@ -46,6 +48,8 @@ class StatusCheckService @Inject()(
     }
 
   import Check.{SimpleCheck, EnvCheck}
+
+
   def commissioningStatusChecks(serviceName: String)(implicit hc: HeaderCarrier): Future[List[Check]] =
     for {
       oRepo           <- teamsAndReposConnector.findRepo(serviceName)
@@ -67,6 +71,10 @@ class StatusCheckService @Inject()(
                           .getAdminFrontendRoutes(serviceName)
                           .map(routes => Environment.values.map(env => env -> checkAdminFrontendRouteForEnv(routes, env)).toMap)
                           .map(xs => Option.when(xs.values.exists(_.isRight) || isAdminFrontend)(xs))
+      oInternalAuthConfig <- serviceConfigsConnector
+                          .getInternalAuthConfig(serviceName)
+                          .map(configs => Environment.values.map(env => env -> checkForInternalAuthEnvironment(configs, env)).toMap)
+                          .map(xs => Option.when(xs.values.exists(_.isRight))(xs))
       buildJobs       <- serviceConfigsConnector.getBuildJobs(serviceName)
       pipelineJob     <- checkPipelineJob(serviceName)
       smConfig        <- checkServiceManagerConfigExists(serviceName)
@@ -98,6 +106,14 @@ class StatusCheckService @Inject()(
                            helpText   = "Environment specific configuration.",
                            linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/create-app-config.html")
                          ) ::
+                         oInternalAuthConfig.map { results =>
+                           EnvCheck(
+                              title    = "Internatl Auth Configs",
+                              results  = results,
+                              helpText = "This service is a Grantee or Grantor in internal aut",
+                              linkToDocs = None
+                           )
+                         }.toList :::
                          oMdptFrontend.map { results =>
                            EnvCheck(
                              title      = "Frontend Routes",
@@ -211,6 +227,14 @@ class StatusCheckService @Inject()(
              => Right(Check.Present(e.location))
       case _ => Left(Check.Missing(s"https://github.com/hmrc/admin-frontend-proxy"))
     }
+
+  private def checkForInternalAuthEnvironment(configs: Seq[InternalAuthConfig], env: Environment): Check.Result = {
+      if (configs.exists(cfg => cfg.environment == env)) {
+        Right(Present("Yes"))
+      } else {
+        Left(Missing("No"))
+      }
+  }
 
   private def checkPipelineJob(serviceName: String)(implicit hc: HeaderCarrier): Future[Check.Result] =
     for {
