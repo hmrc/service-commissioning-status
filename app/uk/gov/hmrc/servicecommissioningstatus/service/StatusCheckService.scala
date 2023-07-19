@@ -73,7 +73,7 @@ class StatusCheckService @Inject()(
                           .map(xs => Option.when(xs.values.exists(_.isRight) || isAdminFrontend)(xs))
       oInternalAuthConfig <- serviceConfigsConnector
                           .getInternalAuthConfig(serviceName)
-                          .map(configs => Environment.values.map(env => env -> checkForInternalAuthEnvironment(configs, env)).toMap)
+                          .map(configs => Environment.internalAuthEnvs.map(env => env -> checkForInternalAuthEnvironment(configs, env)).toMap)
                           .map(xs => Option.when(xs.values.exists(_.isRight))(xs))
       buildJobs       <- serviceConfigsConnector.getBuildJobs(serviceName)
       pipelineJob     <- checkPipelineJob(serviceName)
@@ -108,9 +108,9 @@ class StatusCheckService @Inject()(
                          ) ::
                          oInternalAuthConfig.map { results =>
                            EnvCheck(
-                              title    = "Internatl Auth Configs",
+                              title    = "Internal Auth Configs",
                               results  = results,
-                              helpText = "This service is a Grantee or Grantor in internal aut",
+                              helpText = "Indicates if a service is a Grantee or Grantor in Internal Auth",
                               linkToDocs = None
                            )
                          }.toList :::
@@ -229,10 +229,12 @@ class StatusCheckService @Inject()(
     }
 
   private def checkForInternalAuthEnvironment(configs: Seq[InternalAuthConfig], env: Environment): Check.Result = {
+      val internalAuthGithubUrl: String = env.toInternalAuthEnv
+        .foldLeft("https://github.com/hmrc/internal-auth-config/tree/main/")((url, env) => s"$url$env")
       if (configs.exists(cfg => cfg.environment == env)) {
-        Right(Present("Yes"))
+        Right(Present(internalAuthGithubUrl))
       } else {
-        Left(Missing("No"))
+        Left(Missing(internalAuthGithubUrl))
       }
   }
 
