@@ -40,7 +40,7 @@ object ServiceConfigsConnector {
   object FrontendRoute {
     val reads: Reads[FrontendRoute] = {
       implicit val readsRoute: Reads[Routes]    = Routes.reads
-      implicit val envReads: Reads[Environment] = Environment.reads
+      implicit val readsEnv: Reads[Environment] = Environment.reads
       ( (__ \ "environment").read[Environment]
       ~ (__ \ "routes"     ).read[Seq[Routes]]
       )(FrontendRoute.apply _)
