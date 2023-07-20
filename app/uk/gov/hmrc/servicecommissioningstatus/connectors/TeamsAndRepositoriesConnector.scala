@@ -32,8 +32,8 @@ object TeamsAndRepositoriesConnector {
 
   sealed trait ServiceType extends WithAsString
   object ServiceType extends Enum[ServiceType] {
-    case object Frontend extends ServiceType { def asString = "FrontendService" }
-    case object Backend extends ServiceType  { def asString = "BackendService"  }
+    case object Frontend extends ServiceType { def asString = "frontend" }
+    case object Backend extends ServiceType  { def asString = "backend"  }
 
     override val values = List(Frontend, Backend)
   }
@@ -41,9 +41,9 @@ object TeamsAndRepositoriesConnector {
   sealed trait Tag extends WithAsString
 
   object Tag extends Enum[Tag] {
-    case object AdminFrontend extends Tag { def asString = "AdminFrontend" }
-    case object Api           extends Tag { def asString = "Api"           }
-    case object Stub          extends Tag { def asString = "Stub"          }
+    case object AdminFrontend extends Tag { def asString = "admin" }
+    case object Api           extends Tag { def asString = "api"   }
+    case object Stub          extends Tag { def asString = "stub"  }
 
     override val values = List(AdminFrontend, Api, Stub)
   }
