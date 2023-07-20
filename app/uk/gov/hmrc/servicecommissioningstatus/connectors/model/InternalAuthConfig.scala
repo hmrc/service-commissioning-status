@@ -16,29 +16,27 @@
 
 package uk.gov.hmrc.servicecommissioningstatus.connectors.model
 
-import play.api.libs.json.{Format, JsError, JsResult, JsString, JsSuccess, JsValue, __}
 import play.api.libs.functional.syntax._
+import play.api.libs.json.{JsError, JsSuccess, Reads, __}
 import uk.gov.hmrc.servicecommissioningstatus.model.Environment
 
 case class InternalAuthConfig(service: ServiceName, environment: Environment, grantType: GrantType)
 
 object InternalAuthConfig {
-  val format: Format[InternalAuthConfig] = {
-    implicit val snf = ServiceName.format
-    implicit val ef = Environment.format
-    ((__ \ "serviceName").format[ServiceName]
-      ~ (__ \ "environment").format[Environment]
-      ~ (__ \ "grantType").format[GrantType]
-      )(InternalAuthConfig.apply, unlift(InternalAuthConfig.unapply))
+  implicit val reads: Reads[InternalAuthConfig] = {
+    implicit val environmentReads = Environment.reads
+    ((__ \ "serviceName").read[ServiceName]
+      ~ (__ \ "environment").read[Environment]
+      ~ (__ \ "grantType").read[GrantType]
+      )(InternalAuthConfig.apply _)
   }
 }
 
 
-case class ServiceName(asString: String) extends AnyVal
+case class ServiceName(serviceName: String) extends AnyVal
 
 object ServiceName {
-  val format =
-    implicitly[Format[String]].inmap(ServiceName.apply, unlift(ServiceName.unapply))
+  implicit val reads: Reads[ServiceName] = __.read[String].map(ServiceName(_))
 }
 
 sealed trait GrantType{ def asString: String }
@@ -53,36 +51,10 @@ object GrantType {
     val asString = "grantor"
   }
 
-  implicit val format: Format[GrantType] = new Format[GrantType] {
-    override def writes(grantType: GrantType): JsValue = JsString(grantType.asString)
-
-    override def reads(json: JsValue): JsResult[GrantType] = json match {
-      case JsString("grantee") => JsSuccess(Grantee)
-      case JsString("grantor") => JsSuccess(Grantor)
-      case _ => JsError("Invalid grant type")
+  implicit val reads: Reads[GrantType] =
+    _.validate[String].flatMap {
+      case "grantee" => JsSuccess(Grantee)
+      case "grantor" => JsSuccess(Grantor)
+      case _ => JsError("Invalid Grant Type")
     }
-  }
-}
-
-sealed trait InternalAuthEnvironment{ def asString: String }
-
-object InternalAuthEnvironment {
-
-  case object Prod extends InternalAuthEnvironment {
-    val asString = "PROD"
-  }
-
-  case object Qa extends InternalAuthEnvironment {
-    val asString = "QA"
-  }
-
-  implicit val format: Format[InternalAuthEnvironment] = new Format[InternalAuthEnvironment] {
-    override def writes(o: InternalAuthEnvironment): JsValue = JsString(o.asString)
-
-    override def reads(json: JsValue): JsResult[InternalAuthEnvironment] = json match {
-      case JsString("PROD") => JsSuccess(Prod)
-      case JsString("QA") => JsSuccess(Qa)
-      case _ => JsError("Invalid Internal Auth Environment")
-    }
-  }
 }

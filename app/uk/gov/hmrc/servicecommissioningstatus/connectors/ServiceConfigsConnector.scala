@@ -40,7 +40,7 @@ object ServiceConfigsConnector {
   object FrontendRoute {
     val reads: Reads[FrontendRoute] = {
       implicit val readsRoute: Reads[Routes]    = Routes.reads
-      implicit val envFormat: Format[Environment] = Environment.format
+      implicit val envReads: Reads[Environment] = Environment.reads
       ( (__ \ "environment").read[Environment]
       ~ (__ \ "routes"     ).read[Seq[Routes]]
       )(FrontendRoute.apply _)
@@ -77,7 +77,7 @@ class ServiceConfigsConnector @Inject()(
 
   private val url: String = servicesConfig.baseUrl("service-configs")
 
-  private implicit val formatEnv: Format[Environment] = Environment.format
+  private implicit val readsEnv: Reads[Environment] = Environment.reads
 
   private implicit val frontendRoutesReads = FrontendRoute.reads
   def getMDTPFrontendRoutes(serviceName: String)(implicit hc: HeaderCarrier): Future[Seq[FrontendRoute]] =
@@ -91,7 +91,7 @@ class ServiceConfigsConnector @Inject()(
       .get(url"$url/service-configs/admin-frontend-route/$serviceName")
       .execute[Seq[AdminFrontendRoute]]
 
-  private implicit val internalAuthConfigFormat = InternalAuthConfig.format
+  private implicit val internalAuthConfigFormat = InternalAuthConfig.reads
   def getInternalAuthConfig(serviceName: String)(implicit hc: HeaderCarrier): Future[Seq[InternalAuthConfig]] =
     httpClientV2
       .get(url"$url/service-configs/internal-auth-config/$serviceName")

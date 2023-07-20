@@ -16,7 +16,7 @@
 
 package uk.gov.hmrc.servicecommissioningstatus.model
 
-import play.api.libs.json._
+import play.api.libs.json.{Reads, JsError, JsSuccess}
 
 trait WithAsString {def asString: String}
 
@@ -28,14 +28,7 @@ trait Enum[T <: WithAsString] {
       .find(_.asString.equalsIgnoreCase(s))
       .toRight(s"Invalid value: \"$s\" - should be one of: ${values.map(_.asString).mkString(", ")}")
 
-
-
-  val format: Format[T] = new Format[T] {
-    override def writes(o: T): JsValue =  JsString(o.asString)
-
-    override def reads(json: JsValue): JsResult[T] =
-      json.validate[String]
-        .flatMap(parse(_).fold(JsError(_), JsSuccess(_)))
-
-  }
+  val reads: Reads[T] =
+    _.validate[String]
+     .flatMap(parse(_).fold(JsError(_), JsSuccess(_)))
 }

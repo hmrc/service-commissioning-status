@@ -39,7 +39,7 @@ object ServiceMetricsConnector {
 
   object MongoCollectionSize {
     val reads: Reads[MongoCollectionSize] = {
-      implicit val envF = Environment.format
+      implicit val envR = Environment.reads
       ( (__ \ "database"   ).read[String]
       ~ (__ \ "collection" ).read[String]
       ~ (__ \ "sizeBytes"  ).read[BigDecimal]
