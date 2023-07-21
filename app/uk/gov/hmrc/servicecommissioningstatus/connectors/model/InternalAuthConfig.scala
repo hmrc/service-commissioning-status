@@ -20,14 +20,13 @@ import play.api.libs.functional.syntax._
 import play.api.libs.json.{JsError, JsSuccess, Reads, __}
 import uk.gov.hmrc.servicecommissioningstatus.model.Environment
 
-case class InternalAuthConfig(service: ServiceName, environment: Environment, grantType: GrantType)
+case class InternalAuthConfig(service: ServiceName, environment: Environment)
 
 object InternalAuthConfig {
   implicit val reads: Reads[InternalAuthConfig] = {
     implicit val environmentReads = Environment.reads
     ((__ \ "serviceName").read[ServiceName]
       ~ (__ \ "environment").read[Environment]
-      ~ (__ \ "grantType").read[GrantType]
       )(InternalAuthConfig.apply _)
   }
 }
@@ -37,24 +36,4 @@ case class ServiceName(serviceName: String) extends AnyVal
 
 object ServiceName {
   implicit val reads: Reads[ServiceName] = __.read[String].map(ServiceName(_))
-}
-
-sealed trait GrantType{ def asString: String }
-
-object GrantType {
-
-  case object Grantee extends GrantType {
-    val asString = "grantee"
-  }
-
-  case object Grantor extends GrantType {
-    val asString = "grantor"
-  }
-
-  implicit val reads: Reads[GrantType] =
-    _.validate[String].flatMap {
-      case "grantee" => JsSuccess(Grantee)
-      case "grantor" => JsSuccess(Grantor)
-      case _ => JsError("Invalid Grant Type")
-    }
 }

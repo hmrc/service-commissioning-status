@@ -25,10 +25,12 @@ import uk.gov.hmrc.servicecommissioningstatus.connectors.TeamsAndRepositoriesCon
 import uk.gov.hmrc.servicecommissioningstatus.connectors._
 import uk.gov.hmrc.servicecommissioningstatus.connectors.model.InternalAuthConfig
 import uk.gov.hmrc.servicecommissioningstatus.model.Check.{Missing, Present}
+import uk.gov.hmrc.servicecommissioningstatus.model.Environment.{Production, QA}
 import uk.gov.hmrc.servicecommissioningstatus.model.{Check, Environment}
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
+import scala.collection.Map.newBuilder
 
 @Singleton
 class StatusCheckService @Inject()(
@@ -73,7 +75,10 @@ class StatusCheckService @Inject()(
                           .map(xs => Option.when(xs.values.exists(_.isRight) || isAdminFrontend)(xs))
       oInternalAuthConfig <- serviceConfigsConnector
                           .getInternalAuthConfig(serviceName)
-                          .map(configs => Environment.internalAuthEnvs.map(env => env -> checkForInternalAuthEnvironment(configs, env)).toMap)
+                          .map{ configs =>
+                            Map[Environment, Check.Result](
+                              QA         -> checkForInternalAuthEnvironment(configs,"qa", QA),
+                              Production -> checkForInternalAuthEnvironment(configs, "prod", Production))}
                           .map(xs => Option.when(xs.values.exists(_.isRight))(xs))
       buildJobs       <- serviceConfigsConnector.getBuildJobs(serviceName)
       pipelineJob     <- checkPipelineJob(serviceName)
@@ -228,13 +233,12 @@ class StatusCheckService @Inject()(
       case _ => Left(Check.Missing(s"https://github.com/hmrc/admin-frontend-proxy"))
     }
 
-  private def checkForInternalAuthEnvironment(configs: Seq[InternalAuthConfig], env: Environment): Check.Result = {
-      val internalAuthGithubUrl: String = env.toInternalAuthEnv
-        .foldLeft("https://github.com/hmrc/internal-auth-config/tree/main/")((url, env) => s"$url$env")
-      if (configs.exists(cfg => cfg.environment == env)) {
-        Right(Present(internalAuthGithubUrl))
+  private def checkForInternalAuthEnvironment(configs: Seq[InternalAuthConfig], internalAuthEnv: String, environment: Environment): Check.Result = {
+      val url = s"https://github.com/hmrc/internal-auth-config/tree/main/$internalAuthEnv"
+      if (configs.exists(cfg => cfg.environment == environment)) {
+        Right(Present(url))
       } else {
-        Left(Missing(internalAuthGithubUrl))
+        Left(Missing(url))
       }
   }
 

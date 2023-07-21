@@ -18,14 +18,7 @@ package uk.gov.hmrc.servicecommissioningstatus.model
 
 import uk.gov.hmrc.servicecommissioningstatus.model.Environment.{Production, QA}
 
-sealed trait Environment extends WithAsString {
-  def toInternalAuthEnv: Option[String] = this match {
-    case Production => Some("prod")
-    case QA => Some(this.asString)
-    case _ => None
-  }
-
-}
+sealed trait Environment extends WithAsString
 
 object Environment extends Enum[Environment] {
   case object Development  extends Environment { val asString = "development" }
@@ -37,6 +30,4 @@ object Environment extends Enum[Environment] {
 
   override val values: List[Environment] =
     List(Development, Integration, QA, Staging, ExternalTest, Production)
-
-  val internalAuthEnvs: List[Environment] = List(Production, QA)
 }
