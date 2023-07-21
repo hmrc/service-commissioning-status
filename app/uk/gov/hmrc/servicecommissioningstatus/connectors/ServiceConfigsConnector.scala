@@ -20,9 +20,9 @@ import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps}
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
 import uk.gov.hmrc.servicecommissioningstatus.model.{Check, Environment}
-
 import play.api.libs.functional.syntax._
 import play.api.libs.json._
+import uk.gov.hmrc.servicecommissioningstatus.connectors.model.InternalAuthConfig
 
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
@@ -90,6 +90,12 @@ class ServiceConfigsConnector @Inject()(
     httpClientV2
       .get(url"$url/service-configs/admin-frontend-route/$serviceName")
       .execute[Seq[AdminFrontendRoute]]
+
+  private implicit val internalAuthConfigFormat = InternalAuthConfig.reads
+  def getInternalAuthConfig(serviceName: String)(implicit hc: HeaderCarrier): Future[Seq[InternalAuthConfig]] =
+    httpClientV2
+      .get(url"$url/service-configs/internal-auth-config/$serviceName")
+      .execute[Seq[InternalAuthConfig]]
 
   def getGrafanaDashboard(serviceName: String)(implicit hc: HeaderCarrier): Future[Check.Result] =
     httpClientV2
