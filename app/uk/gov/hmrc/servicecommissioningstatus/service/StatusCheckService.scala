@@ -280,7 +280,7 @@ class StatusCheckService @Inject()(
 
 object StatusCheckService {
 
-  import Check.{EnvCheck, SimpleCheck}
+  import Check.{SimpleCheck, EnvCheck}
   def hideUnconfiguredEnvironments(checks: List[Check], environments: Set[Environment]): List[Check] = {
     val configured =
       checks
