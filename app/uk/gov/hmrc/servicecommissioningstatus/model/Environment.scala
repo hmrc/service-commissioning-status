@@ -16,8 +16,6 @@
 
 package uk.gov.hmrc.servicecommissioningstatus.model
 
-import uk.gov.hmrc.servicecommissioningstatus.model.Environment.{Production, QA}
-
 sealed trait Environment extends WithAsString
 
 object Environment extends Enum[Environment] {

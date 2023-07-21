@@ -30,7 +30,6 @@ import uk.gov.hmrc.servicecommissioningstatus.model.{Check, Environment}
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
-import scala.collection.Map.newBuilder
 
 @Singleton
 class StatusCheckService @Inject()(
@@ -49,7 +48,7 @@ class StatusCheckService @Inject()(
       Environment.parse(str).getOrElse(sys.error(s"config 'environmentsToHideWhenUnconfigured' contains an invalid environment: $str"))
     }
 
-  import Check.{SimpleCheck, EnvCheck}
+  import Check.{EnvCheck, SimpleCheck}
 
 
   def commissioningStatusChecks(serviceName: String)(implicit hc: HeaderCarrier): Future[List[Check]] =
@@ -281,7 +280,7 @@ class StatusCheckService @Inject()(
 
 object StatusCheckService {
 
-  import Check.{SimpleCheck, EnvCheck}
+  import Check.{EnvCheck, SimpleCheck}
   def hideUnconfiguredEnvironments(checks: List[Check], environments: Set[Environment]): List[Check] = {
     val configured =
       checks

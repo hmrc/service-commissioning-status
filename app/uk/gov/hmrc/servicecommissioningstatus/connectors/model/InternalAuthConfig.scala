@@ -17,7 +17,7 @@
 package uk.gov.hmrc.servicecommissioningstatus.connectors.model
 
 import play.api.libs.functional.syntax._
-import play.api.libs.json.{JsError, JsSuccess, Reads, __}
+import play.api.libs.json.{Reads, __}
 import uk.gov.hmrc.servicecommissioningstatus.model.Environment
 
 case class InternalAuthConfig(service: ServiceName, environment: Environment)
