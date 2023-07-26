@@ -17,12 +17,11 @@
 package uk.gov.hmrc.servicecommissioningstatus.connectors
 
 import play.api.Logging
-import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, HttpResponse}
 import uk.gov.hmrc.http.client.HttpClientV2
+import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, HttpResponse}
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
 
 import java.net.URL
-
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -45,6 +44,12 @@ class GitHubProxyConnector @Inject()(
   private def get(url: URL)(implicit hc: HeaderCarrier): Future[Option[String]] =
     httpClientV2
       .get(url)
-      .execute[Option[HttpResponse]]
-      .map(response => response.map(_.body))
+      .execute[HttpResponse]
+      .flatMap( res =>
+        res.status match {
+          case 200 => Future.successful(Some(res.body))
+          case 404 => Future.successful(None)
+          case _   => Future.failed(new RuntimeException(s"Call to $url failed with ${res.status}, body: ${res.body}"))
+        }
+      )
 }
