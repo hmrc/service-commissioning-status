@@ -269,7 +269,7 @@ class StatusCheckService @Inject()(
     if (releases.map(_.environment).contains(env.asString))
       Right(Check.Present(s"https://catalogue.tax.service.gov.uk/deployment-timeline?service=$serviceName"))
     else
-      Left(Check.Missing(s"https://orchestrator.tools.${env.asString}.tax.service.gov.uk/job/deploy-microservice"))
+      Left(Check.Missing(s"https://build.tax.service.gov.uk/job/build-and-deploy/job/deploy-microservice/build?delay=0sec"))
 
   private def checkMongoDbExistsInEnv(collections: Seq[MongoCollectionSize], env: Environment): Check.Result =
     if (collections.map(_.environment).contains(env)) {
