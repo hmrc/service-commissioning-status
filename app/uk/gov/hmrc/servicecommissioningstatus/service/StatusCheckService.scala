@@ -20,6 +20,7 @@ import cats.data.OptionT
 import cats.implicits._
 import play.api.Configuration
 import uk.gov.hmrc.http.HeaderCarrier
+import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
 import uk.gov.hmrc.servicecommissioningstatus.connectors.ServiceMetricsConnector.MongoCollectionSize
 import uk.gov.hmrc.servicecommissioningstatus.connectors.TeamsAndRepositoriesConnector.BuildJobType
 import uk.gov.hmrc.servicecommissioningstatus.connectors._
@@ -39,6 +40,7 @@ class StatusCheckService @Inject()(
   releasesConnector       : ReleasesConnector,
   teamsAndReposConnector  : TeamsAndRepositoriesConnector,
   serviceMetricsConnector : ServiceMetricsConnector,
+  servicesConfig          : ServicesConfig,
 )(implicit ec: ExecutionContext){
 
   import scala.jdk.CollectionConverters._
@@ -47,6 +49,7 @@ class StatusCheckService @Inject()(
     config.underlying.getStringList("environmentsToHideWhenUnconfigured").asScala.toSet.map { str: String =>
       Environment.parse(str).getOrElse(sys.error(s"config 'environmentsToHideWhenUnconfigured' contains an invalid environment: $str"))
     }
+  private val catalogueFrontendUrl = servicesConfig.baseUrl("catalogue-frontend")
 
   import Check.{EnvCheck, SimpleCheck}
 
@@ -197,7 +200,7 @@ class StatusCheckService @Inject()(
       .value
       .map {
         case Some(repo) if !repo.isArchived => Right(Check.Present(repo.githubUrl))
-        case _ => Left(Check.Missing("https://build.tax.service.gov.uk/job/PlatOps/job/Tools/job/create-a-repository/build"))
+        case _ => Left(Check.Missing(s"$catalogueFrontendUrl/create-a-repository"))
       }
 
   private def checkAppConfigBaseExists(serviceName: String)(implicit hc: HeaderCarrier): Future[Check.Result] =
@@ -205,7 +208,7 @@ class StatusCheckService @Inject()(
       .getGitHubProxyRaw(s"/app-config-base/main/$serviceName.conf")
       .map {
         case Some(_) => Right(Check.Present(s"https://github.com/hmrc/app-config-base/blob/main/$serviceName.conf"))
-        case None    => Left(Check.Missing("https://build.tax.service.gov.uk/job/PlatOps/job/Tools/job/create-app-configs/build"))
+        case None    => Left(Check.Missing(s"$catalogueFrontendUrl/create-app-configs?serviceName=$serviceName"))
       }
 
   private def checkAppConfigExistsForEnv(serviceName: String, env: Environment)(implicit hc: HeaderCarrier): Future[Check.Result] =
@@ -213,7 +216,7 @@ class StatusCheckService @Inject()(
       .getGitHubProxyRaw(s"/app-config-${env.asString}/main/$serviceName.yaml")
       .map {
         case Some(_) => Right(Check.Present(s"https://github.com/hmrc/app-config-${env.asString}/blob/main/$serviceName.yaml"))
-        case None    => Left(Check.Missing("https://build.tax.service.gov.uk/job/PlatOps/job/Tools/job/create-app-configs/build"))
+        case None    => Left(Check.Missing(s"$catalogueFrontendUrl/create-app-configs?serviceName=$serviceName"))
       }
 
   private def checkFrontendRouteForEnv(frontendRoutes: Seq[ServiceConfigsConnector.FrontendRoute], env: Environment): Check.Result =
