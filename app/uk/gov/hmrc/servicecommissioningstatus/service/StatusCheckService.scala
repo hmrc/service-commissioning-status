@@ -197,7 +197,8 @@ class StatusCheckService @Inject()(
       .value
       .map {
         case Some(repo) if !repo.isArchived => Right(Check.Present(repo.githubUrl))
-        case _ => Left(Check.Missing("https://build.tax.service.gov.uk/job/PlatOps/job/Tools/job/create-a-repository/build"))
+        case _ if Switches.catalogueCreateRepo.isEnabled => Left(Check.Missing("/create-a-repository"))
+        case _                                           => Left(Check.Missing("https://build.tax.service.gov.uk/job/PlatOps/job/Tools/job/create-a-repository/build"))
       }
 
   private def checkAppConfigBaseExists(serviceName: String)(implicit hc: HeaderCarrier): Future[Check.Result] =
@@ -205,7 +206,8 @@ class StatusCheckService @Inject()(
       .getGitHubProxyRaw(s"/app-config-base/main/$serviceName.conf")
       .map {
         case Some(_) => Right(Check.Present(s"https://github.com/hmrc/app-config-base/blob/main/$serviceName.conf"))
-        case None    => Left(Check.Missing("https://build.tax.service.gov.uk/job/PlatOps/job/Tools/job/create-app-configs/build"))
+        case None if Switches.catalogueCreateAppConfig.isEnabled => Left(Check.Missing(s"/create-app-configs?serviceName=$serviceName"))
+        case None                                                => Left(Check.Missing("https://build.tax.service.gov.uk/job/PlatOps/job/Tools/job/create-app-configs/build"))
       }
 
   private def checkAppConfigExistsForEnv(serviceName: String, env: Environment)(implicit hc: HeaderCarrier): Future[Check.Result] =
@@ -213,7 +215,8 @@ class StatusCheckService @Inject()(
       .getGitHubProxyRaw(s"/app-config-${env.asString}/main/$serviceName.yaml")
       .map {
         case Some(_) => Right(Check.Present(s"https://github.com/hmrc/app-config-${env.asString}/blob/main/$serviceName.yaml"))
-        case None    => Left(Check.Missing("https://build.tax.service.gov.uk/job/PlatOps/job/Tools/job/create-app-configs/build"))
+        case None if Switches.catalogueCreateAppConfig.isEnabled => Left(Check.Missing(s"/create-app-configs?serviceName=$serviceName"))
+        case None                                                => Left(Check.Missing("https://build.tax.service.gov.uk/job/PlatOps/job/Tools/job/create-app-configs/build"))
       }
 
   private def checkFrontendRouteForEnv(frontendRoutes: Seq[ServiceConfigsConnector.FrontendRoute], env: Environment): Check.Result =
@@ -268,6 +271,8 @@ class StatusCheckService @Inject()(
   private def checkIsDeployedForEnv(serviceName: String, releases: Seq[ReleasesConnector.Release], env: Environment): Check.Result =
     if (releases.map(_.environment).contains(env.asString))
       Right(Check.Present(s"https://catalogue.tax.service.gov.uk/deployment-timeline?service=$serviceName"))
+    else if (Switches.catalogueDeployService.isEnabled)
+      Left(Check.Missing(s"/deploy-service/1?serviceName=$serviceName"))
     else
       Left(Check.Missing(s"https://build.tax.service.gov.uk/job/build-and-deploy/job/deploy-microservice/build"))
 
@@ -296,4 +301,35 @@ object StatusCheckService {
       case x: EnvCheck    => x.copy(results = x.results.removedAll(environments.removedAll(configured)))
     }
   }
+}
+
+case class FeatureSwitch(name: String, isEnabled: Boolean)
+
+object FeatureSwitch {
+
+  def forName(name: String) = FeatureSwitch(name, java.lang.Boolean.getBoolean(systemPropertyName(name)))
+
+  def enable(switch: FeatureSwitch): FeatureSwitch = setProp(switch.name, true)
+
+  def disable(switch: FeatureSwitch): FeatureSwitch = setProp(switch.name, false)
+
+  private def setProp(name: String, value: Boolean): FeatureSwitch = {
+    sys.props += ((systemPropertyName(name), value.toString))
+    forName(name)
+  }
+
+  private def systemPropertyName(name: String) = s"feature.$name"
+
+}
+
+object Switches {
+
+  def catalogueCreateRepo: FeatureSwitch =
+    FeatureSwitch.forName("catalogue-create-repo")
+
+  def catalogueDeployService: FeatureSwitch =
+    FeatureSwitch.forName("catalogue-deploy-service")
+
+  def catalogueCreateAppConfig: FeatureSwitch =
+    FeatureSwitch.forName("catalogue-create-app-config")
 }
