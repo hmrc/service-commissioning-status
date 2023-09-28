@@ -197,7 +197,7 @@ class StatusCheckService @Inject()(
       .value
       .map {
         case Some(repo) if !repo.isArchived => Right(Check.Present(repo.githubUrl))
-        case _ if Switches.catalogueCreateRepo.isEnabled => Left(Check.Missing("/repositories"))
+        case _ if Switches.catalogueCreateRepo.isEnabled => Left(Check.Missing("/create-service"))
         case _                                           => Left(Check.Missing("https://build.tax.service.gov.uk/job/PlatOps/job/Tools/job/create-a-repository/build"))
       }
 
