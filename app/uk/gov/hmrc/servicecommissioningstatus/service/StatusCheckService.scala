@@ -123,7 +123,7 @@ class StatusCheckService @Inject()(
                              title      = "Frontend Routes",
                              results    = results,
                              helpText   = "Configuration required to expose the service under the tax.service.gov.uk domain.",
-                             linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/allow-user-access.html")
+                             linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/allow-user-access-to-a-frontend-microservice.html")
                            )
                          }.toList :::
                          oAdminFrontend.map { results =>
@@ -131,7 +131,7 @@ class StatusCheckService @Inject()(
                              title      = "Admin Frontend Routes",
                              results    = results,
                              helpText   = "Configuration required to expose the service under the admin.tax.service.gov.uk domain for internal admin users.",
-                             linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/allow-user-access.html")
+                             linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/allow-user-access-to-a-frontend-microservice.html")
                            )
                          }.toList :::
                          SimpleCheck(
@@ -156,13 +156,13 @@ class StatusCheckService @Inject()(
                            title      = "Logging - Kibana",
                            result     = kibana,
                            helpText   = "Creates a convenient dashboard in Kibana for the service.",
-                           linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/add-a-logs-dashboard-using-Kibana.html")
+                           linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/add-a-logs-dashboard-to-Kibana.html")
                          ) ::
                          SimpleCheck(
                            title = "Metrics - Grafana",
                            result  = grafana,
                            helpText = "Creates a dashboard in Grafana for viewing the service's metrics.",
-                           linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/add-a-metrics-dashboard-using-Grafana.html")
+                           linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/add-a-metrics-dashboard-to-Grafana.html")
                          ) ::
                          SimpleCheck(
                            title = "Alerts - PagerDuty",
