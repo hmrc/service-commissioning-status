@@ -20,6 +20,7 @@ import play.api.libs.json.{Reads, __}
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps}
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
+import uk.gov.hmrc.servicecommissioningstatus.ServiceName
 
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
@@ -51,10 +52,10 @@ class ReleasesConnector @Inject()(
 
   private val url: String = servicesConfig.baseUrl("releases-api")
 
-  def getReleases(serviceName: String)(implicit hc: HeaderCarrier): Future[WhatsRunningWhereReleases] = {
+  def getReleases(serviceName: ServiceName)(implicit hc: HeaderCarrier): Future[WhatsRunningWhereReleases] = {
     implicit val r: Reads[WhatsRunningWhereReleases] = WhatsRunningWhereReleases.reads
     httpClientV2
-      .get(url"$url/releases-api/whats-running-where/$serviceName")
+      .get(url"$url/releases-api/whats-running-where/${serviceName.asString}")
       .execute[Option[WhatsRunningWhereReleases]]
       .map(_.getOrElse(WhatsRunningWhereReleases(Seq.empty)))
   }

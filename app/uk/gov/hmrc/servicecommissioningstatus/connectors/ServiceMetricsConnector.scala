@@ -21,7 +21,7 @@ import play.api.libs.json._
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps}
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
-import uk.gov.hmrc.servicecommissioningstatus.model.Environment
+import uk.gov.hmrc.servicecommissioningstatus.{Environment, ServiceName}
 
 import java.time.LocalDate
 import javax.inject.{Inject, Singleton}
@@ -63,11 +63,11 @@ class ServiceMetricsConnector @Inject()(
 
   private val url: String = servicesConfig.baseUrl("service-metrics")
 
-  def getCollections(service: String)(implicit hc: HeaderCarrier): Future[Seq[MongoCollectionSize]] = {
+  def getCollections(serviceName: ServiceName)(implicit hc: HeaderCarrier): Future[Seq[MongoCollectionSize]] = {
     implicit val mcsR = MongoCollectionSize.reads
 
     httpClientV2
-      .get(url"$url/service-metrics/$service/collections")
+      .get(url"$url/service-metrics/${serviceName.asString}/collections")
       .execute[Seq[MongoCollectionSize]]
   }
 }

@@ -17,11 +17,12 @@
 package uk.gov.hmrc.servicecommissioningstatus.controllers
 
 import play.api.Logging
-import play.api.libs.json.{Json, Writes}
+import play.api.libs.json.{Json, JsString, Writes}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 import play.api.mvc.{Action, AnyContent, ControllerComponents}
-import uk.gov.hmrc.servicecommissioningstatus.model.Check
+import uk.gov.hmrc.servicecommissioningstatus.{Check, TeamName, ServiceName, ServiceType}
 import uk.gov.hmrc.servicecommissioningstatus.service.StatusCheckService
+import uk.gov.hmrc.servicecommissioningstatus.persistence.CacheRepository.ServiceCheck
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.ExecutionContext
@@ -35,14 +36,25 @@ class ServiceStatusController @Inject()(
   extends BackendController(cc)
   with Logging {
 
-  def statusChecks(serviceName: String): Action[AnyContent] = Action.async { implicit request =>
-    implicit val apiWrites: Writes[Check] = Check.writes
-    logger.info(s"Commissioning status checks for $serviceName")
-    for {
-      checks <- statusCheckService.commissioningStatusChecks(serviceName)
-    } yield {
-      logger.info(s"Commissioning status checks completed for $serviceName")
-      Ok(Json.toJson(checks))
-    }
+  def listAllChecks(): Action[AnyContent] = Action.apply {
+    Ok(Json.toJson(statusCheckService.listAllChecks().flatMap {
+      case (title, cls) if cls == classOf[Check.EnvCheck]    => Some(Json.obj(title -> JsString("environment")))
+      case (title, cls) if cls == classOf[Check.SimpleCheck] => Some(Json.obj(title -> JsString("simple"     )))
+      case _                                                 => None
+    }))
+  }
+
+  implicit val serviceCheckFormats: Writes[ServiceCheck] = ServiceCheck.format
+  def cachedStatusChecks(teamName: Option[TeamName], serviceType: Option[ServiceType]) = Action.async { implicit request =>
+    statusCheckService
+      .cachedCommissioningStatusChecks(teamName, serviceType)
+      .map(results => Ok(Json.toJson(results)))
+  }
+
+  implicit val checkFormats: Writes[Check] = Check.format
+  def statusChecks(serviceName: ServiceName): Action[AnyContent] = Action.async { implicit request =>
+    statusCheckService
+      .commissioningStatusChecks(serviceName)
+      .map(results => Ok(Json.toJson(results)))
   }
 }

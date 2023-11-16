@@ -14,21 +14,13 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.servicecommissioningstatus.model
+package uk.gov.hmrc.servicecommissioningstatus
 
-import play.api.libs.json.{Reads, JsError, JsSuccess}
+import com.google.inject.AbstractModule
 
-trait WithAsString {def asString: String}
-
-trait Enum[T <: WithAsString] {
-  val values: List[T]
-
-  def parse(s: String): Either[String, T] =
-    values
-      .find(_.asString.equalsIgnoreCase(s))
-      .toRight(s"Invalid value: \"$s\" - should be one of: ${values.map(_.asString).mkString(", ")}")
-
-  val reads: Reads[T] =
-    _.validate[String]
-     .flatMap(parse(_).fold(JsError(_), JsSuccess(_)))
+class Module extends AbstractModule {
+  override def configure(): Unit = {
+    bind(classOf[uk.gov.hmrc.servicecommissioningstatus.config.AppConfig       ]).asEagerSingleton()
+    bind(classOf[uk.gov.hmrc.servicecommissioningstatus.scheduler.CacheScheduler]).asEagerSingleton()
+  }
 }

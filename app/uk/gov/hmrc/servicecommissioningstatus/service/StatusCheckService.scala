@@ -16,54 +16,80 @@
 
 package uk.gov.hmrc.servicecommissioningstatus.service
 
-import cats.data.OptionT
-import cats.implicits._
 import play.api.Configuration
 import uk.gov.hmrc.http.HeaderCarrier
-import uk.gov.hmrc.servicecommissioningstatus.connectors.ServiceMetricsConnector.MongoCollectionSize
-import uk.gov.hmrc.servicecommissioningstatus.connectors.TeamsAndRepositoriesConnector.BuildJobType
 import uk.gov.hmrc.servicecommissioningstatus.connectors._
-import uk.gov.hmrc.servicecommissioningstatus.connectors.model.InternalAuthConfig
-import uk.gov.hmrc.servicecommissioningstatus.model.Check.{Missing, Present}
-import uk.gov.hmrc.servicecommissioningstatus.model.Environment.{Production, QA}
-import uk.gov.hmrc.servicecommissioningstatus.model.{Check, Environment}
+import uk.gov.hmrc.servicecommissioningstatus.{Check, Environment, TeamName, ServiceType, ServiceName}
+import uk.gov.hmrc.servicecommissioningstatus.persistence.CacheRepository
+
+import cats.implicits._
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class StatusCheckService @Inject()(
-  config                  : Configuration,
-  gitHubProxyConnector    : GitHubProxyConnector,
-  serviceConfigsConnector : ServiceConfigsConnector,
-  releasesConnector       : ReleasesConnector,
-  teamsAndReposConnector  : TeamsAndRepositoriesConnector,
-  serviceMetricsConnector : ServiceMetricsConnector,
+  config                 : Configuration
+, serviceConfigsConnector: ServiceConfigsConnector
+, releasesConnector      : ReleasesConnector
+, teamsAndReposConnector : TeamsAndRepositoriesConnector
+, serviceMetricsConnector: ServiceMetricsConnector
+, cachedRepository       : CacheRepository
 )(implicit ec: ExecutionContext){
 
-  import scala.jdk.CollectionConverters._
+  // TODO get from service commissioning status?
+  def listAllChecks(): List[(String, Class[_ <: Check])] =
+    ("Github Repo"             -> classOf[Check.SimpleCheck]) ::
+    ("App Config Base"         -> classOf[Check.SimpleCheck]) ::
+    ("App Config Environment"  -> classOf[Check.EnvCheck   ]) ::
+    ("Internal Auth Configs"   -> classOf[Check.EnvCheck   ]) ::
+    ("Frontend Routes"         -> classOf[Check.EnvCheck   ]) ::
+    ("Admin Frontend Routes"   -> classOf[Check.EnvCheck   ]) ::
+    ("Build Jobs"              -> classOf[Check.SimpleCheck]) ::
+    ("Pipeline Jobs"           -> classOf[Check.SimpleCheck]) ::
+    ("Service Manager Config"  -> classOf[Check.SimpleCheck]) ::
+    ("Logging - Kibana"        -> classOf[Check.SimpleCheck]) ::
+    ("Metrics - Grafana"       -> classOf[Check.SimpleCheck]) ::
+    ("Alerts - PagerDuty"      -> classOf[Check.SimpleCheck]) ::
+    ("Deployed"                -> classOf[Check.EnvCheck   ]) ::
+    ("Mongo Database"          -> classOf[Check.EnvCheck   ]) ::
+    ("Custom Shutter Pages"    -> classOf[Check.EnvCheck   ]) ::
+    Nil
 
-  private val environmentsToHideWhenUnconfigured: Set[Environment] =
+  def updateCache()(implicit hc: HeaderCarrier): Future[Int] =
+    for {
+      services <- teamsAndReposConnector.findServiceRepos()
+      results  <- services.foldLeftM[Future, Seq[CacheRepository.ServiceCheck]](List.empty) { (acc, repo) =>
+                    commissioningStatusChecks(ServiceName(repo.name))
+                      .map(checks => { acc :+ CacheRepository.ServiceCheck(ServiceName(repo.name), checks) })
+                  }
+      _        <- cachedRepository.putAll(results)
+    } yield results.size
+
+  def cachedCommissioningStatusChecks(teamName: Option[TeamName], serviceType: Option[ServiceType])(implicit hc: HeaderCarrier): Future[Seq[CacheRepository.ServiceCheck]] =
+    for {
+      services  <- teamsAndReposConnector.findServiceRepos(
+                     team        = teamName
+                   , serviceType = serviceType
+                   )
+      results   <- cachedRepository.findAll(services.map(repo => ServiceName(repo.name)))
+    } yield results
+
+  private val environmentsToHideWhenUnconfigured: Set[Environment] = {
+    import scala.jdk.CollectionConverters._
     config.underlying.getStringList("environmentsToHideWhenUnconfigured").asScala.toSet.map { str: String =>
       Environment.parse(str).getOrElse(sys.error(s"config 'environmentsToHideWhenUnconfigured' contains an invalid environment: $str"))
     }
+  }
 
   import Check.{EnvCheck, SimpleCheck}
-
-
-  def commissioningStatusChecks(serviceName: String)(implicit hc: HeaderCarrier): Future[List[Check]] =
+  def commissioningStatusChecks(serviceName: ServiceName)(implicit hc: HeaderCarrier): Future[List[Check]] =
     for {
-      oRepo           <- teamsAndReposConnector.findRepo(serviceName)
-      isFrontend      =  oRepo.flatMap(_.serviceType).contains(TeamsAndRepositoriesConnector.ServiceType.Frontend)
+      oRepo           <- teamsAndReposConnector.findServiceRepos(name = Some(serviceName.asString)).map(_.headOption)
+      configLocation  <- serviceConfigsConnector.getConfigLocation(serviceName)
+      isFrontend      =  oRepo.flatMap(_.serviceType).contains(ServiceType.Frontend)
       isAdminFrontend =  oRepo.map(_.tags).exists(_.contains(TeamsAndRepositoriesConnector.Tag.AdminFrontend))
-
-      githubRepo      <- checkRepoExists(serviceName)
-      appConfigBase   <- checkAppConfigBaseExists(serviceName)
-      appConfigEnvs   <- Environment
-                          .values
-                          .foldLeftM(Map.empty[Environment, Check.Result]) {
-                            (acc, env) => checkAppConfigExistsForEnv(serviceName, env).map(r => acc + (env -> r))
-                          }
+      githubRepo      =  checkRepoExists(oRepo)
       oMdptFrontend   <- serviceConfigsConnector
                           .getMDTPFrontendRoutes(serviceName)
                           .map(routes => Environment.values.map(env => env -> checkFrontendRouteForEnv(routes, env)).toMap)
@@ -72,26 +98,20 @@ class StatusCheckService @Inject()(
                           .getAdminFrontendRoutes(serviceName)
                           .map(routes => Environment.values.map(env => env -> checkAdminFrontendRouteForEnv(routes, env)).toMap)
                           .map(xs => Option.when(xs.values.exists(_.isRight) || isAdminFrontend)(xs))
-      oInternalAuthConfig <- serviceConfigsConnector
+      oAuthConfig     <- serviceConfigsConnector
                           .getInternalAuthConfig(serviceName)
                           .map{ configs =>
                             Map[Environment, Check.Result](
-                              QA         -> checkForInternalAuthEnvironment(configs,"qa", QA),
-                              Production -> checkForInternalAuthEnvironment(configs, "prod", Production))}
+                              Environment.QA         -> checkForInternalAuthEnvironment(configs,"qa"   , Environment.QA),
+                              Environment.Production -> checkForInternalAuthEnvironment(configs, "prod", Environment.Production))}
                           .map(xs => Option.when(xs.values.exists(_.isRight))(xs))
-      buildJobs       <- serviceConfigsConnector.getBuildJobs(serviceName)
       pipelineJob     <- checkPipelineJob(serviceName)
-      smConfig        <- checkServiceManagerConfigExists(serviceName)
-      kibana          <- serviceConfigsConnector.getKibanaDashboard(serviceName)
-      grafana         <- serviceConfigsConnector.getGrafanaDashboard(serviceName)
-      alertConfig     <- serviceConfigsConnector.getAlertConfig(serviceName)
       deploymentEnv   <- releasesConnector
                           .getReleases(serviceName)
                           .map(releases => Environment.values.map(env => env -> checkIsDeployedForEnv(serviceName, releases.versions, env)).toMap)
       mongoDb         <- serviceMetricsConnector
                            .getCollections(serviceName)
                            .map(mcss => Environment.values.map(env => env -> checkMongoDbExistsInEnv(mcss, env)).toMap)
-      shutterPageEnvs <- serviceConfigsConnector.getShutterPages(serviceName)
       allChecks        = SimpleCheck(
                            title      = "Github Repo",
                            result     = githubRepo,
@@ -100,17 +120,27 @@ class StatusCheckService @Inject()(
                          ) ::
                          SimpleCheck(
                            title      = "App Config Base",
-                           result     = appConfigBase,
+                           result     = configLocation.get("app-config-base") match {
+                                          case None    => Left(Check.Missing("https://build.tax.service.gov.uk/job/PlatOps/job/Tools/job/create-app-configs/build"))
+                                          case Some(e) => Right(Check.Present(e))
+                                        },
                            helpText   = "Additional configuration included in the build and applied to all environments.",
                            linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/create-app-config.html")
                          ) ::
                          EnvCheck(
                            title      = "App Config Environment",
-                           results    = appConfigEnvs,
+                           results    = Environment.values.map(env =>
+                                          env -> (
+                                            configLocation.get(s"app-config-${env.asString}") match {
+                                              case None    => Left(Check.Missing("https://build.tax.service.gov.uk/job/PlatOps/job/Tools/job/create-app-configs/build"))
+                                              case Some(e) => Right(Check.Present(e))
+                                            }
+                                          )
+                                        ).toMap,
                            helpText   = "Environment specific configuration.",
                            linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/create-app-config.html")
                          ) ::
-                         oInternalAuthConfig.map { results =>
+                         oAuthConfig.map { results =>
                            EnvCheck(
                               title    = "Internal Auth Configs",
                               results  = results,
@@ -136,7 +166,10 @@ class StatusCheckService @Inject()(
                          }.toList :::
                          SimpleCheck(
                            title      = "Build Jobs",
-                           result     = buildJobs,
+                           result     = configLocation.get("build-jobs") match {
+                                          case None    => Left(Check.Missing("https://github.com/hmrc/build-jobs"))
+                                          case Some(e) => Right(Check.Present(e))
+                                        },
                            helpText   = "Configuration required to trigger test runs or deploy to pre-production environments automatically on merge.",
                            linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/create-a-ci-cd-pipeline.html")
                          ) ::
@@ -147,77 +180,76 @@ class StatusCheckService @Inject()(
                            linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/create-a-ci-cd-pipeline.html#add-the-pipelinejobbuilder")
                          ) ::
                          SimpleCheck(
-                           title = "Service Manager Config",
-                           result  = smConfig,
-                           helpText = "Allows the service to be run with service-manager.",
+                           title      = "Service Manager Config",
+                           result     = configLocation.get("https://github.com/hmrc/service-manager-config") match {
+                                          case None    => Left(Check.Missing("https://github.com/hmrc/service-manager-config"))
+                                          case Some(e) => Right(Check.Present(e))
+                                        },
+                           helpText   = "Allows the service to be run with service-manager.",
                            linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/add-a-microservice-to-service-manager.html")
                          ) ::
                          SimpleCheck(
                            title      = "Logging - Kibana",
-                           result     = kibana,
+                           result     = configLocation.get("kibana") match {
+                                          case None    => Left(Check.Missing("https://github.com/hmrc/kibana-dashboards"))
+                                          case Some(e) => Right(Check.Present(e))
+                                        },
                            helpText   = "Creates a convenient dashboard in Kibana for the service.",
                            linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/add-a-logs-dashboard-to-Kibana.html")
                          ) ::
                          SimpleCheck(
-                           title = "Metrics - Grafana",
-                           result  = grafana,
-                           helpText = "Creates a dashboard in Grafana for viewing the service's metrics.",
+                           title      = "Metrics - Grafana",
+                           result     = configLocation.get("grafana") match {
+                                          case None    => Left(Check.Missing("https://github.com/hmrc/grafana-dashboards"))
+                                          case Some(e) => Right(Check.Present(e))
+                                        },
+                           helpText   = "Creates a dashboard in Grafana for viewing the service's metrics.",
                            linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/add-a-metrics-dashboard-to-Grafana.html")
                          ) ::
                          SimpleCheck(
-                           title = "Alerts - PagerDuty",
-                           result  = alertConfig,
-                           helpText = "Enables and configures PagerDuty alerts for the service.",
+                           title      = "Alerts - PagerDuty",
+                           result     = configLocation.get("alerts") match {
+                                          case None    => Left(Check.Missing("https://github.com/hmrc/alert-config"))
+                                          case Some(e) => Right(Check.Present(e))
+                                        },
+                           helpText   = "Enables and configures PagerDuty alerts for the service.",
                            linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/add-service-alerting-using-pagerduty.html")
                          ) ::
                          EnvCheck(
-                           title = "Deployed",
-                           results = deploymentEnv,
-                           helpText = "Which environments the service has been deployed to.",
+                           title      = "Deployed",
+                           results    = deploymentEnv,
+                           helpText   = "Which environments the service has been deployed to.",
                            linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/carry-out-an-early-deployment-to-production.html")
                          ) ::
                          EnvCheck(
-                           title = "Mongo Database",
-                           results = mongoDb,
-                           helpText = "Which environments have stored data in Mongo.",
+                           title      = "Mongo Database",
+                           results    = mongoDb,
+                           helpText   = "Which environments have stored data in Mongo.",
                            linkToDocs = None
                          ) ::
                          EnvCheck(
-                           title = "Custom Shutter Pages",
-                           results = shutterPageEnvs.toMap,
-                           helpText = "Which environments have custom shutter pages. These are optional.",
+                           title      = "Custom Shutter Pages",
+                           results    = Environment.values.map(env =>
+                                          env -> (
+                                            configLocation.get(s"outage-page-${env.asString}") match {
+                                              case None    => Left(Check.Missing(s"https://github.com/hmrc/outage-pages/blob/main/${env.asString}"))
+                                              case Some(e) => Right(Check.Present(e))
+                                            }
+                                          )
+                                        ).toMap,
+                           helpText   = "Which environments have custom shutter pages. These are optional.",
                            linkToDocs = Some("https://confluence.tools.tax.service.gov.uk/display/DTRG/Shuttering+your+service#Shutteringyourservice-Configuringshutteringformyservice")
                          ) ::
                          Nil
       checks           = StatusCheckService.hideUnconfiguredEnvironments(allChecks, environmentsToHideWhenUnconfigured)
     } yield checks
 
-  private def checkRepoExists(serviceName: String)(implicit hc: HeaderCarrier): Future[Check.Result] =
-    OptionT(teamsAndReposConnector.findRepo(serviceName))
-      .value
-      .map {
-        case Some(repo) if !repo.isArchived => Right(Check.Present(repo.githubUrl))
-        case _ if Switches.catalogueCreateRepo.isEnabled => Left(Check.Missing("/create-service"))
-        case _                                           => Left(Check.Missing("https://build.tax.service.gov.uk/job/PlatOps/job/Tools/job/create-a-repository/build"))
-      }
-
-  private def checkAppConfigBaseExists(serviceName: String)(implicit hc: HeaderCarrier): Future[Check.Result] =
-    gitHubProxyConnector
-      .getGitHubProxyRaw(s"/app-config-base/main/$serviceName.conf")
-      .map {
-        case Some(_) => Right(Check.Present(s"https://github.com/hmrc/app-config-base/blob/main/$serviceName.conf"))
-        case None if Switches.catalogueCreateAppConfig.isEnabled => Left(Check.Missing(s"/create-app-configs?serviceName=$serviceName"))
-        case None                                                => Left(Check.Missing("https://build.tax.service.gov.uk/job/PlatOps/job/Tools/job/create-app-configs/build"))
-      }
-
-  private def checkAppConfigExistsForEnv(serviceName: String, env: Environment)(implicit hc: HeaderCarrier): Future[Check.Result] =
-    gitHubProxyConnector
-      .getGitHubProxyRaw(s"/app-config-${env.asString}/main/$serviceName.yaml")
-      .map {
-        case Some(_) => Right(Check.Present(s"https://github.com/hmrc/app-config-${env.asString}/blob/main/$serviceName.yaml"))
-        case None if Switches.catalogueCreateAppConfig.isEnabled => Left(Check.Missing(s"/create-app-configs?serviceName=$serviceName"))
-        case None                                                => Left(Check.Missing("https://build.tax.service.gov.uk/job/PlatOps/job/Tools/job/create-app-configs/build"))
-      }
+  private def checkRepoExists(oRepo: Option[TeamsAndRepositoriesConnector.Repo]): Check.Result =
+    oRepo match {
+      case Some(repo) if !repo.isArchived => Right(Check.Present(repo.githubUrl))
+      case _ if Switches.catalogueCreateRepo.isEnabled => Left(Check.Missing("/create-service"))
+      case _                                           => Left(Check.Missing("https://build.tax.service.gov.uk/job/PlatOps/job/Tools/job/create-a-repository/build"))
+    }
 
   private def checkFrontendRouteForEnv(frontendRoutes: Seq[ServiceConfigsConnector.FrontendRoute], env: Environment): Check.Result =
     frontendRoutes
@@ -235,40 +267,24 @@ class StatusCheckService @Inject()(
       case _ => Left(Check.Missing(s"https://github.com/hmrc/admin-frontend-proxy"))
     }
 
-  private def checkForInternalAuthEnvironment(configs: Seq[InternalAuthConfig], internalAuthEnv: String, environment: Environment): Check.Result = {
-      val url = s"https://github.com/hmrc/internal-auth-config/tree/main/$internalAuthEnv"
-      if (configs.exists(cfg => cfg.environment == environment)) {
-        Right(Present(url))
-      } else {
-        Left(Missing(url))
-      }
+  private def checkForInternalAuthEnvironment(configs: Seq[ServiceConfigsConnector.InternalAuthConfig], internalAuthEnv: String, environment: Environment): Check.Result = {
+    val url = s"https://github.com/hmrc/internal-auth-config/tree/main/$internalAuthEnv"
+    if (configs.exists(cfg => cfg.environment == environment))
+      Right(Check.Present(url))
+    else
+      Left(Check.Missing(url))
   }
 
-  private def checkPipelineJob(serviceName: String)(implicit hc: HeaderCarrier): Future[Check.Result] =
+  private def checkPipelineJob(serviceName: ServiceName)(implicit hc: HeaderCarrier): Future[Check.Result] =
     for {
-      jobs <- teamsAndReposConnector.findBuildJobs(serviceName)
-      check = jobs.find(_.jobType == BuildJobType.Pipeline)
+      jobs <- teamsAndReposConnector.findBuildJobs(serviceName.asString)
+      check = jobs.find(_.jobType == TeamsAndRepositoriesConnector.BuildJobType.Pipeline)
     } yield check match {
       case Some(job) => Right(Check.Present(job.jenkinsUrl))
       case None      => Left(Check.Missing(s"https://github.com/hmrc/build-jobs"))
     }
 
-  private def checkServiceManagerConfigExists(serviceName: String)(implicit hc: HeaderCarrier): Future[Check.Result] =
-    for {
-      optStr  <- gitHubProxyConnector.getGitHubProxyRaw("/service-manager-config/main/services.json")
-      key      = serviceName.toUpperCase.replaceAll("-", "_")
-      evidence = optStr
-                  .getOrElse("")
-                  .linesIterator
-                  .zipWithIndex
-                  .find { case (line, _) => line.contains(s"\"$key\"") }
-                  .map { case (_, idx) => s"https://github.com/hmrc/service-manager-config/blob/main/services.json#L${idx + 1}" }
-    } yield evidence match {
-      case Some(e) => Right(Check.Present(e))
-      case None    => Left(Check.Missing(s"https://github.com/hmrc/service-manager-config"))
-    }
-
-  private def checkIsDeployedForEnv(serviceName: String, releases: Seq[ReleasesConnector.Release], env: Environment): Check.Result =
+  private def checkIsDeployedForEnv(serviceName: ServiceName, releases: Seq[ReleasesConnector.Release], env: Environment): Check.Result =
     if (releases.map(_.environment).contains(env.asString))
       Right(Check.Present(s"https://catalogue.tax.service.gov.uk/deployment-timeline?service=$serviceName"))
     else if (Switches.catalogueDeployService.isEnabled)
@@ -276,7 +292,7 @@ class StatusCheckService @Inject()(
     else
       Left(Check.Missing(s"https://build.tax.service.gov.uk/job/build-and-deploy/job/deploy-microservice/build"))
 
-  private def checkMongoDbExistsInEnv(collections: Seq[MongoCollectionSize], env: Environment): Check.Result =
+  private def checkMongoDbExistsInEnv(collections: Seq[ServiceMetricsConnector.MongoCollectionSize], env: Environment): Check.Result =
     if (collections.map(_.environment).contains(env)) {
       val db = collections.headOption.fold("")(_.database)
       Right(Check.Present(s"https://grafana.tools.${env.asString}.tax.service.gov.uk/d/platops-mongo-collections?var-replica_set=*&var-database=$db&var-collection=All&orgId=1"))

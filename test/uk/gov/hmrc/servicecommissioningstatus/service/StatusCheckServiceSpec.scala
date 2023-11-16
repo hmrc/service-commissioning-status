@@ -19,7 +19,7 @@ package uk.gov.hmrc.servicecommissioningstatus.service
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 
-import uk.gov.hmrc.servicecommissioningstatus.model.{Environment, Check}
+import uk.gov.hmrc.servicecommissioningstatus.{Environment, Check}
 
 class StatusCheckServiceSpec extends AnyWordSpec with Matchers {
   import Check._; import Environment._

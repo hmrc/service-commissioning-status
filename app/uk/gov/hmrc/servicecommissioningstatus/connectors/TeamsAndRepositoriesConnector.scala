@@ -21,7 +21,7 @@ import play.api.libs.json.{Reads, __}
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps}
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
-import uk.gov.hmrc.servicecommissioningstatus.model.{Enum, WithAsString}
+import uk.gov.hmrc.servicecommissioningstatus.{Enum, WithAsString, ServiceType, TeamName}
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
@@ -29,14 +29,6 @@ import scala.concurrent.{ExecutionContext, Future}
 object TeamsAndRepositoriesConnector {
   import play.api.libs.functional.syntax._
   import play.api.libs.json._
-
-  sealed trait ServiceType extends WithAsString
-  object ServiceType extends Enum[ServiceType] {
-    case object Frontend extends ServiceType { def asString = "frontend" }
-    case object Backend extends ServiceType  { def asString = "backend"  }
-
-    override val values = List(Frontend, Backend)
-  }
 
   sealed trait Tag extends WithAsString
 
@@ -118,11 +110,14 @@ class TeamsAndRepositoriesConnector @Inject()(
   private val url = servicesConfig.baseUrl("teams-and-repositories")
 
   private implicit val readRepo = Repo.reads
-  def findRepo(name: String)(implicit hc: HeaderCarrier): Future[Option[Repo]] =
+  def findServiceRepos(
+    name       : Option[String]      = None
+  , team       : Option[TeamName]    = None
+  , serviceType: Option[ServiceType] = None
+  )(implicit hc: HeaderCarrier): Future[Seq[Repo]] =
     httpClientV2
-      .get(url"$url/api/v2/repositories/$name")
-      .execute[Option[Repo]]
-
+      .get(url"$url/api/v2/repositories?repoType=service&name=$name&team=${team.map(_.asString)}&serviceType=${serviceType.map(_.asString)}")
+      .execute[Seq[Repo]]
 
   def findBuildJobs(repoName: String)(implicit hc: HeaderCarrier): Future[Seq[BuildJob]] = {
     implicit val readJobs: Reads[Seq[BuildJob]] =
