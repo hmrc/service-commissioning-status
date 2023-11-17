@@ -1,3 +1,5 @@
 # microservice specific routes
 
-GET        /status/:serviceName             uk.gov.hmrc.servicecommissioningstatus.controllers.ServiceStatusController.statusChecks(serviceName: String)
+GET       /checks                uk.gov.hmrc.servicecommissioningstatus.controllers.ServiceStatusController.listAllChecks()
+GET       /cached-status         uk.gov.hmrc.servicecommissioningstatus.controllers.ServiceStatusController.cachedStatusChecks(teamName: Option[TeamName], serviceType: Option[ServiceType] )
+GET       /status/:serviceName   uk.gov.hmrc.servicecommissioningstatus.controllers.ServiceStatusController.statusChecks(serviceName: ServiceName)

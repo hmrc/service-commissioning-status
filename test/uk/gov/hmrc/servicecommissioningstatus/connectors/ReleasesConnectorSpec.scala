@@ -25,6 +25,7 @@ import play.api.Configuration
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.http.test.{HttpClientV2Support, WireMockSupport}
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
+import uk.gov.hmrc.servicecommissioningstatus.ServiceName
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -77,7 +78,7 @@ class ReleasesConnectorSpec
       )
 
       val response = releasesConnector
-        .getReleases("foo")
+        .getReleases(ServiceName("foo"))
         .futureValue
 
       response shouldBe WhatsRunningWhereReleases(Seq(Release("staging"), Release("qa"), Release("production")))
@@ -89,7 +90,7 @@ class ReleasesConnectorSpec
           .willReturn(aResponse().withStatus(404)))
 
       val response = releasesConnector
-        .getReleases("foo-non-existing")
+        .getReleases(ServiceName("foo-non-existing"))
         .futureValue
 
       response shouldBe WhatsRunningWhereReleases(Seq.empty)

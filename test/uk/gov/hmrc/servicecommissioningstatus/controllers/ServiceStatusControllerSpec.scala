@@ -23,7 +23,7 @@ import play.api.libs.json.Json
 import play.api.test.Helpers._
 import play.api.test.{FakeRequest, Helpers}
 import uk.gov.hmrc.http.HeaderCarrier
-import uk.gov.hmrc.servicecommissioningstatus.model.{Check, Environment}
+import uk.gov.hmrc.servicecommissioningstatus.{Check, Environment, ServiceName}
 import uk.gov.hmrc.servicecommissioningstatus.service.StatusCheckService
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -71,11 +71,11 @@ class ServiceStatusControllerSpec
 
   "ServiceStatusController" should {
     "return all completed Service Commissioning Checks as Json" in {
-      when(mockStatusCheckService.commissioningStatusChecks(eqTo("foo"))(any[HeaderCarrier]))
+      when(mockStatusCheckService.commissioningStatusChecks(eqTo(ServiceName("foo")))(any[HeaderCarrier]))
         .thenReturn(Future.successful(checks))
 
       val controller = new ServiceStatusController(Helpers.stubControllerComponents(), mockStatusCheckService)
-      val result = controller.statusChecks("foo")(FakeRequest())
+      val result = controller.statusChecks(ServiceName("foo"))(FakeRequest())
       val bodyText = contentAsJson(result)
       bodyText mustBe Json.parse(json1)
     }

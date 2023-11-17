@@ -26,7 +26,7 @@ import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.http.test.{HttpClientV2Support, WireMockSupport}
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
 import uk.gov.hmrc.servicecommissioningstatus.connectors.ServiceMetricsConnector.MongoCollectionSize
-import uk.gov.hmrc.servicecommissioningstatus.model.Environment
+import uk.gov.hmrc.servicecommissioningstatus.{Environment, ServiceName}
 
 import java.time.LocalDate
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -120,7 +120,7 @@ class ServiceMetricsConnectorSpec
         )
       )
 
-      connector.getCollections("service-one").futureValue should contain theSameElementsAs expected
+      connector.getCollections(ServiceName("service-one")).futureValue should contain theSameElementsAs expected
     }
   }
 

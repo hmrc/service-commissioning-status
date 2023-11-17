@@ -22,11 +22,10 @@ import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import play.api.Configuration
-import play.api.libs.json.Json
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.http.test.{HttpClientV2Support, WireMockSupport}
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
-import uk.gov.hmrc.servicecommissioningstatus.model.{Check, Environment}
+import uk.gov.hmrc.servicecommissioningstatus.{Environment, ServiceName}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -90,7 +89,7 @@ class ServiceConfigsConnectorSpec
       )
 
       val response = serviceConfigsConnector
-        .getMDTPFrontendRoutes("foo")
+        .getMDTPFrontendRoutes(ServiceName("foo"))
         .futureValue
 
       val expectedOutput = Seq(
@@ -113,7 +112,7 @@ class ServiceConfigsConnectorSpec
       )
 
       val response = serviceConfigsConnector
-        .getMDTPFrontendRoutes("foo-non-existing")
+        .getMDTPFrontendRoutes(ServiceName("foo-non-existing"))
         .futureValue
 
       val expectedOutput = Seq.empty
@@ -122,238 +121,44 @@ class ServiceConfigsConnectorSpec
     }
   }
 
-  "GET getGrafanaDashboard" should {
+  "GET getConfigLocation" should {
     "return Right(Present) for a service with a Grafana Dashboard" in {
-      stubFor(
-        get(urlEqualTo("/service-configs/grafana-dashboards/foo"))
-          .willReturn(
-            aResponse()
-              .withStatus(200)
-              .withBody(
-                """
-                {
-                 "service": "foo",
-                 "location": "https://github.com/hmrc/grafana-dashboards/blob/HEAD/src/main/scala/uk/gov/hmrc/grafanadashboards/dashboards/TeamFoo.scala#L15"
-                }
-              """
-              )
-          )
+      stubFor(get(urlEqualTo("/service-configs/services/foo/config-location"))
+        .willReturn(aResponse().withStatus(200).withBody(
+          """{
+            "app-config-production":   "https://github.com/hmrc/app-config-production/blob/HEAD/foo.yaml",
+            "grafana":                 "https://github.com/hmrc/grafana-dashboards/blob/HEAD/src/main/scala/uk/gov/hmrc/grafanadashboards/dashboards/some-team.scala#L59",
+            "build-jobs":              "https://github.com/hmrc/build-jobs/blob/HEAD/jobs/live/some-team.groovy#L51",
+            "app-config-staging":      "https://github.com/hmrc/app-config-staging/blob/HEAD/foo.yaml",
+            "outage-page-development": "https://github.com/hmrc/outage-pages/blob/main/development",
+            "app-config-development":  "https://github.com/hmrc/app-config-development/blob/HEAD/foo.yaml",
+            "outage-page-staging":     "https://github.com/hmrc/outage-pages/blob/main/staging",
+            "alerts":                  "https://github.com/hmrc/alert-config/blob/HEAD/src/main/scala/uk/gov/hmrc/alertconfig/configs/some-team.scala#L164",
+            "app-config-base":         "https://github.com/hmrc/app-config-base/blob/HEAD/foo.conf",
+            "outage-page-qa":          "https://github.com/hmrc/outage-pages/blob/main/qa",
+            "kibana":                  "https://github.com/hmrc/kibana-dashboards/blob/HEAD/src/main/scala/uk/gov/hmrc/kibanadashboards/digitalservices/some-team.scala#L8",
+            "outage-page-production":  "https://github.com/hmrc/outage-pages/blob/main/production",
+            "app-config-qa":           "https://github.com/hmrc/app-config-qa/blob/HEAD/foo.yaml",
+            "service-manager-config":  "https://github.com/hmrc/service-manager-config/blob/main/services.json#L11428"
+          }"""
+        )))
+
+      serviceConfigsConnector.getConfigLocation(ServiceName("foo")).futureValue shouldBe Map(
+        "app-config-production"   -> "https://github.com/hmrc/app-config-production/blob/HEAD/foo.yaml",
+        "grafana"                 -> "https://github.com/hmrc/grafana-dashboards/blob/HEAD/src/main/scala/uk/gov/hmrc/grafanadashboards/dashboards/some-team.scala#L59",
+        "build-jobs"              -> "https://github.com/hmrc/build-jobs/blob/HEAD/jobs/live/some-team.groovy#L51",
+        "app-config-staging"      -> "https://github.com/hmrc/app-config-staging/blob/HEAD/foo.yaml",
+        "outage-page-development" -> "https://github.com/hmrc/outage-pages/blob/main/development",
+        "app-config-development"  -> "https://github.com/hmrc/app-config-development/blob/HEAD/foo.yaml",
+        "outage-page-staging"     -> "https://github.com/hmrc/outage-pages/blob/main/staging",
+        "alerts"                  -> "https://github.com/hmrc/alert-config/blob/HEAD/src/main/scala/uk/gov/hmrc/alertconfig/configs/some-team.scala#L164",
+        "app-config-base"         -> "https://github.com/hmrc/app-config-base/blob/HEAD/foo.conf",
+        "outage-page-qa"          -> "https://github.com/hmrc/outage-pages/blob/main/qa",
+        "kibana"                  -> "https://github.com/hmrc/kibana-dashboards/blob/HEAD/src/main/scala/uk/gov/hmrc/kibanadashboards/digitalservices/some-team.scala#L8",
+        "outage-page-production"  -> "https://github.com/hmrc/outage-pages/blob/main/production",
+        "app-config-qa"           -> "https://github.com/hmrc/app-config-qa/blob/HEAD/foo.yaml",
+        "service-manager-config"  -> "https://github.com/hmrc/service-manager-config/blob/main/services.json#L11428"
       )
-
-      val response = serviceConfigsConnector
-        .getGrafanaDashboard("foo")
-        .futureValue
-
-      val expectedOutput = Right(Check.Present("https://github.com/hmrc/grafana-dashboards/blob/HEAD/src/main/scala/uk/gov/hmrc/grafanadashboards/dashboards/TeamFoo.scala#L15"))
-
-      response shouldBe expectedOutput
-    }
-
-    "return Left(Missing) when no Grafana Dashboard is Not Found" in {
-      stubFor(
-        get(urlEqualTo("/service-configs/grafana-dashboards/foo-no-grafana"))
-          .willReturn(aResponse().withStatus(404)))
-
-      val response = serviceConfigsConnector
-        .getGrafanaDashboard("foo-no-grafana")
-        .futureValue
-
-      val expectedOutput = Left(Check.Missing("https://github.com/hmrc/grafana-dashboards"))
-
-      response shouldBe expectedOutput
-    }
-  }
-
-  "GET getKibanaDashboard" should {
-    "return Right(Present) for a service with a Kibana Dashboard" in {
-      stubFor(
-        get(urlEqualTo("/service-configs/kibana-dashboards/foo"))
-          .willReturn(
-            aResponse()
-              .withStatus(200)
-              .withBody(
-                """
-                {
-                 "service": "foo",
-                 "location": "https://github.com/hmrc/kibana-dashboards/blob/HEAD/src/main/scala/uk/gov/hmrc/kibanadashboards/digitalservices/TeamFoo.scala#L10"
-                }
-              """
-              )
-          )
-      )
-
-      val response = serviceConfigsConnector
-        .getKibanaDashboard("foo")
-        .futureValue
-
-      val expectedOutput = Right(Check.Present("https://github.com/hmrc/kibana-dashboards/blob/HEAD/src/main/scala/uk/gov/hmrc/kibanadashboards/digitalservices/TeamFoo.scala#L10"))
-
-      response shouldBe expectedOutput
-    }
-
-    "return Left(Missing) when Kibana Dashboard is Not Found" in {
-      stubFor(
-        get(urlEqualTo("/service-configs/kibana-dashboards/foo-no-kibana"))
-          .willReturn(aResponse().withStatus(404)))
-
-      val response = serviceConfigsConnector
-        .getKibanaDashboard("foo-no-kibana")
-        .futureValue
-
-      val expectedOutput = Left(Check.Missing(("https://github.com/hmrc/kibana-dashboards")))
-
-      response shouldBe expectedOutput
-    }
-  }
-
-  "GET getBuildJobs" should {
-    "return Right(Present) for a service with build jobs" in {
-      stubFor(
-        get(urlEqualTo("/service-configs/build-jobs/foo"))
-          .willReturn(
-            aResponse()
-              .withStatus(200)
-              .withBody(
-                """
-                {
-                 "service": "foo",
-                 "location": "https://github.com/hmrc/build-jobs/blob/HEAD/jobs/live/team-foo.groovy#L480"
-                }
-              """
-              )
-          )
-      )
-
-      val response = serviceConfigsConnector
-        .getBuildJobs("foo")
-        .futureValue
-
-      val expectedOutput = Right(Check.Present("https://github.com/hmrc/build-jobs/blob/HEAD/jobs/live/team-foo.groovy#L480"))
-
-      response shouldBe expectedOutput
-    }
-
-    "return Left(Missing) when Build Jobs for service is Not Found" in {
-      stubFor(
-        get(urlEqualTo("/service-configs/build-jobs/foo-no-build-jobs"))
-          .willReturn(aResponse().withStatus(404)))
-
-      val response = serviceConfigsConnector
-        .getBuildJobs("foo-no-build-jobs")
-        .futureValue
-
-      val expectedOutput = Left(Check.Missing("https://github.com/hmrc/build-jobs"))
-
-      response shouldBe expectedOutput
-    }
-  }
-
-  "GET getAlertConfig" should {
-    "return Right(Present) for a service that has AlertConfig" in {
-      stubFor(
-        get(urlEqualTo("/service-configs/alert-configs/foo"))
-          .willReturn(
-            aResponse()
-              .withStatus(200)
-              .withBody(
-                """
-                {
-                 "service": "foo",
-                 "production": "true",
-                 "location": "https://github.com/hmrc/alert-config/blob/HEAD/src/main/scala/uk/gov/hmrc/alertconfig/configs/TeamFoo.scala#L13"
-                }
-              """
-              )
-          )
-      )
-
-      val response = serviceConfigsConnector
-        .getAlertConfig("foo")
-        .futureValue
-
-      val expectedOutput = Right(Check.Present("https://github.com/hmrc/alert-config/blob/HEAD/src/main/scala/uk/gov/hmrc/alertconfig/configs/TeamFoo.scala#L13"))
-
-      response shouldBe expectedOutput
-    }
-
-    "return Left(Missing) when AlertConfig for service is Not Found" in {
-      stubFor(
-        get(urlEqualTo("/service-configs/alert-configs/foo-no-alert-config"))
-          .willReturn(aResponse().withStatus(404)))
-
-      val response = serviceConfigsConnector
-        .getAlertConfig("foo-no-alert-config")
-        .futureValue
-
-      val expectedOutput = Left(Check.Missing("https://github.com/hmrc/alert-config"))
-
-      response shouldBe expectedOutput
-    }
-  }
-
-  "GET getShutterPages" should {
-    "return present checks for service's shutter pages when all environments have them" in {
-      stubFor(
-        get(urlEqualTo("/service-configs/outage-pages/foo"))
-          .willReturn(
-            aResponse()
-              .withStatus(200)
-              .withBody(Json.toJson(Environment.values.map(_.asString)).toString())
-          )
-      )
-
-      val response = serviceConfigsConnector
-        .getShutterPages("foo")
-        .futureValue
-
-      val expectedOutput = Environment.values.map(env =>
-          env -> Right(Check.Present(s"https://github.com/hmrc/outage-pages/blob/main/${env.asString}/foo/index.html")),
-        )
-
-      response shouldBe expectedOutput
-    }
-
-    "return missing checks for service's shutter pages when all environments have them" in {
-      stubFor(
-        get(urlEqualTo("/service-configs/outage-pages/foo-no-alert-config"))
-          .willReturn(aResponse().withStatus(404)))
-
-      val response = serviceConfigsConnector
-        .getShutterPages("foo-no-alert-config")
-        .futureValue
-
-        val expectedOutput = Environment.values.map(env =>
-          env -> Left(Check.Missing(s"https://github.com/hmrc/outage-pages/blob/main/${env.asString}")),
-        )
-
-      response shouldBe expectedOutput
-    }
-
-    "return missing and present checks for service's shutter pages when some environments have them for a service" in {
-      stubFor(
-        get(urlEqualTo("/service-configs/outage-pages/foo"))
-          .willReturn(aResponse()
-              .withStatus(200)
-              .withBody(Json.toJson(Seq(Environment.QA, Environment.Production).map(_.asString)).toString())
-          )
-      )
-
-      val response = serviceConfigsConnector
-        .getShutterPages("foo")
-        .futureValue
-
-        val expectedOutput = Seq(Environment.QA,Environment.Production)
-            .map(env =>
-              env -> Right(Check.Present(s"https://github.com/hmrc/outage-pages/blob/main/${env.asString}/foo/index.html"))
-            ) ++
-            Seq(
-              Environment.Development,
-              Environment.ExternalTest,
-              Environment.Integration,
-              Environment.Staging,
-            ).map(env => env -> Left(Check.Missing(s"https://github.com/hmrc/outage-pages/blob/main/${env.asString}")))
-
-      response should contain theSameElementsAs expectedOutput
     }
   }
 }
