@@ -121,6 +121,7 @@ class StatusCheckService @Inject()(
                          SimpleCheck(
                            title      = "App Config Base",
                            result     = configLocation.get("app-config-base") match {
+                                          case None if Switches.catalogueCreateAppConfig.isEnabled => Left(Check.Missing(s"/create-app-configs?serviceName=${serviceName.asString}"))
                                           case None    => Left(Check.Missing("https://build.tax.service.gov.uk/job/PlatOps/job/Tools/job/create-app-configs/build"))
                                           case Some(e) => Right(Check.Present(e))
                                         },
@@ -132,6 +133,7 @@ class StatusCheckService @Inject()(
                            results    = Environment.values.map(env =>
                                           env -> (
                                             configLocation.get(s"app-config-${env.asString}") match {
+                                              case None if Switches.catalogueCreateAppConfig.isEnabled => Left(Check.Missing(s"/create-app-configs?serviceName=${serviceName.asString}"))
                                               case None    => Left(Check.Missing("https://build.tax.service.gov.uk/job/PlatOps/job/Tools/job/create-app-configs/build"))
                                               case Some(e) => Right(Check.Present(e))
                                             }
@@ -286,9 +288,9 @@ class StatusCheckService @Inject()(
 
   private def checkIsDeployedForEnv(serviceName: ServiceName, releases: Seq[ReleasesConnector.Release], env: Environment): Check.Result =
     if (releases.map(_.environment).contains(env.asString))
-      Right(Check.Present(s"https://catalogue.tax.service.gov.uk/deployment-timeline?service=$serviceName"))
+      Right(Check.Present(s"https://catalogue.tax.service.gov.uk/deployment-timeline?service=${serviceName.asString}"))
     else if (Switches.catalogueDeployService.isEnabled)
-      Left(Check.Missing(s"/deploy-service/1?serviceName=$serviceName"))
+      Left(Check.Missing(s"/deploy-service/1?serviceName=${serviceName.asString}"))
     else
       Left(Check.Missing(s"https://build.tax.service.gov.uk/job/build-and-deploy/job/deploy-microservice/build"))
 
