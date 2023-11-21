@@ -19,7 +19,7 @@ package uk.gov.hmrc.servicecommissioningstatus.scheduler
 import akka.actor.ActorSystem
 import play.api.Logging
 import play.api.inject.ApplicationLifecycle
-import uk.gov.hmrc.servicecommissioningstatus.scheduler.TimePeriodLockService
+import uk.gov.hmrc.mongo.lock.ScheduledLockService
 
 import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.{ExecutionContext, Future}
@@ -53,10 +53,10 @@ trait SchedulerUtils extends Logging {
     } else
       logger.info(s"$label scheduler is DISABLED. to enable, configure configure ${schedulerConfig.enabledKey}=true in config.")
 
-  def scheduleWithTimePeriodLock(
+  def scheduleWithLock(
     label          : String
   , schedulerConfig: SchedulerConfig
-  , lock           : TimePeriodLockService
+  , lock           : ScheduledLockService
   )(f: => Future[Unit]
   )(implicit
     actorSystem         : ActorSystem,
@@ -64,7 +64,7 @@ trait SchedulerUtils extends Logging {
     ec                  : ExecutionContext
   ): Unit =
     schedule(label, schedulerConfig) {
-      lock.withRenewedLock(f).map {
+      lock.withLock(f).map {
         case Some(_) => logger.debug(s"$label finished - releasing lock")
         case None => logger.debug(s"$label cannot run - lock ${lock.lockId} is taken... skipping update")
       }
