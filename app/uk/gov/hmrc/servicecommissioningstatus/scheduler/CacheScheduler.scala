@@ -21,6 +21,7 @@ import play.api.Configuration
 import play.api.inject.ApplicationLifecycle
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.mongo.TimestampSupport
+import uk.gov.hmrc.mongo.lock.{MongoLockRepository, ScheduledLockService}
 import uk.gov.hmrc.servicecommissioningstatus.service.StatusCheckService
 
 import javax.inject.{Inject, Singleton}
@@ -46,16 +47,16 @@ class CacheScheduler @Inject()(
   , initialDelay = configuration.get[FiniteDuration]("cacheScheduler.initialDelay")
   )
 
-  private val lock = TimePeriodLockService(
-    lockRepository   = mongoLockRepository
-  , lockId           = "slack-message-scheduler"
-  , timestampSupport = timestampSupport
-  , ttl              = configuration.get[FiniteDuration]("cacheScheduler.interval").plus(1.second)
+  private val lock = ScheduledLockService(
+    lockRepository    = mongoLockRepository
+  , lockId            = "slack-message-scheduler"
+  , timestampSupport  = timestampSupport
+  , schedulerInterval = schedulerConfig.interval
   )
 
   implicit val hc: HeaderCarrier = HeaderCarrier()
 
-  scheduleWithTimePeriodLock("Cache Scheduler", schedulerConfig, lock) {
+  scheduleWithLock("Cache Scheduler", schedulerConfig, lock) {
     logger.info("Updating cache ...")
     for {
       count <- statusCheckService.updateCache()
