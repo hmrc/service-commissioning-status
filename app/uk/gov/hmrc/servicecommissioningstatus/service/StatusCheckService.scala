@@ -242,21 +242,25 @@ class StatusCheckService @Inject()(
                                         ).toMap,
                            helpText   = "Which environments have custom shutter pages. These are optional.",
                            linkToDocs = Some("https://confluence.tools.tax.service.gov.uk/display/DTRG/Shuttering+your+service#Shutteringyourservice-Configuringshutteringformyservice")
-                         ) ::
-                         EnvCheck(
-                           title      = "Upscan Config",
-                           results    = Environment.values.map(env =>
-                                          env -> (
-                                            configLocation.get(s"upscan-config-${env.asString}") match {
-                                              case None    => Left(Check.Missing(s"https://github.com/hmrc/upscan-app-config/blob/main/${env.asString}"))
-                                              case Some(e) => Right(Check.Present(e))
-                                            }
-                                          )
-                                        ).toMap,
-                           helpText   = "Which environments are configured in Upscan config. These are optional.",
-                           linkToDocs = Some("https://confluence.tools.tax.service.gov.uk/display/PLATOPS/How+to+allowlist+the+service+to+use+Upscan")
-                         ) ::
-                         Nil
+                         ) :: {
+                            val environmentChecks = Environment.values.map(env =>
+                              env -> (
+                                configLocation.get(s"upscan-config-${env.asString}") match {
+                                  case None    => Left(Check.Missing(s"https://github.com/hmrc/upscan-app-config/blob/main/${env.asString}/verify.yaml"))
+                                  case Some(e) => Right(Check.Present(e))
+                                }
+                              )
+                            ).toMap
+
+                            Option.when(environmentChecks.values.exists(_.isRight))(environmentChecks).map(results =>
+                              EnvCheck(
+                                title      = "Upscan Config",
+                                results    = results,
+                                helpText   = "Which environments are configured in Upscan config. These are optional.",
+                                linkToDocs = Some("https://confluence.tools.tax.service.gov.uk/display/PLATOPS/How+to+allowlist+the+service+to+use+Upscan")
+                              )
+                            ).toList
+                         } ::: Nil
       checks           = StatusCheckService.hideUnconfiguredEnvironments(allChecks, environmentsToHideWhenUnconfigured)
     } yield checks
 
