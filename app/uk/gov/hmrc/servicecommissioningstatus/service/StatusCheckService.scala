@@ -184,7 +184,7 @@ class StatusCheckService @Inject()(
                          ) ::
                          SimpleCheck(
                            title      = "Service Manager Config",
-                           result     = configLocation.get("https://github.com/hmrc/service-manager-config") match {
+                           result     = configLocation.get("service-manager-config") match {
                                           case None    => Left(Check.Missing("https://github.com/hmrc/service-manager-config"))
                                           case Some(e) => Right(Check.Present(e))
                                         },
