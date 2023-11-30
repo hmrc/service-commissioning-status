@@ -109,7 +109,7 @@ class TeamsAndRepositoriesConnector @Inject()(
 
   private val url = servicesConfig.baseUrl("teams-and-repositories")
 
-  private implicit val readRepo = Repo.reads
+  private implicit val readRepo: Reads[Repo] = Repo.reads
   def findServiceRepos(
     name       : Option[String]      = None
   , team       : Option[TeamName]    = None

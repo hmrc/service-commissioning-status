@@ -1,12 +1,12 @@
 import play.sbt.routes.RoutesKeys
-import uk.gov.hmrc.DefaultBuildSettings.integrationTestSettings
-import uk.gov.hmrc.sbtdistributables.SbtDistributablesPlugin.publishingSettings
+import uk.gov.hmrc.DefaultBuildSettings
+
+ThisBuild / majorVersion := 0
+ThisBuild / scalaVersion := "2.13.12"
 
 lazy val microservice = Project("service-commissioning-status", file("."))
   .enablePlugins(play.sbt.PlayScala, SbtDistributablesPlugin)
   .settings(
-    majorVersion             :=  0,
-    scalaVersion             :=  "2.13.10",
     PlayKeys.playDefaultPort :=  8858,
     libraryDependencies      ++= AppDependencies.compile ++ AppDependencies.test,
     // https://www.scala-lang.org/2021/01/12/configuring-and-suppressing-warnings.html
@@ -17,7 +17,11 @@ lazy val microservice = Project("service-commissioning-status", file("."))
       "uk.gov.hmrc.servicecommissioningstatus.Binders._",
     )
   )
-  .configs(IntegrationTest)
-  .settings(integrationTestSettings(): _*)
   .settings(resolvers += Resolver.jcenterRepo)
   .settings(CodeCoverageSettings.settings: _*)
+
+lazy val it =
+  (project in file("it"))
+    .enablePlugins(PlayScala)
+    .dependsOn(microservice % "test->test")
+    .settings(DefaultBuildSettings.itSettings)

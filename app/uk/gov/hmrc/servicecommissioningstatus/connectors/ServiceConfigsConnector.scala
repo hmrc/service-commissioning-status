@@ -16,6 +16,7 @@
 
 package uk.gov.hmrc.servicecommissioningstatus.connectors
 
+import play.api.libs.json.Reads
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps}
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
@@ -87,19 +88,19 @@ class ServiceConfigsConnector @Inject()(
 
   private val url: String = servicesConfig.baseUrl("service-configs")
 
-  private implicit val frontendRoutesReads = FrontendRoute.reads
+  private implicit val frontendRoutesReads: Reads[FrontendRoute] = FrontendRoute.reads
   def getMDTPFrontendRoutes(serviceName: ServiceName)(implicit hc: HeaderCarrier): Future[Seq[FrontendRoute]] =
     httpClientV2
       .get(url"$url/service-configs/frontend-route/${serviceName.asString}")
       .execute[Seq[FrontendRoute]]
 
-  private implicit val adminFrontendRoutesReads = AdminFrontendRoute.reads
+  private implicit val adminFrontendRoutesReads: Reads[AdminFrontendRoute] = AdminFrontendRoute.reads
   def getAdminFrontendRoutes(serviceName: ServiceName)(implicit hc: HeaderCarrier): Future[Seq[AdminFrontendRoute]] =
     httpClientV2
       .get(url"$url/service-configs/admin-frontend-route/${serviceName.asString}")
       .execute[Seq[AdminFrontendRoute]]
 
-  private implicit val internalAuthConfigFormat = InternalAuthConfig.reads
+  private implicit val internalAuthConfigFormat: Reads[InternalAuthConfig] = InternalAuthConfig.reads
   def getInternalAuthConfig(serviceName: ServiceName)(implicit hc: HeaderCarrier): Future[Seq[InternalAuthConfig]] =
     httpClientV2
       .get(url"$url/service-configs/internal-auth-config/${serviceName.asString}")
