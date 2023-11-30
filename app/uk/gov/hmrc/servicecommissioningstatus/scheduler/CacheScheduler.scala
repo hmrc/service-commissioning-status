@@ -16,7 +16,7 @@
 
 package uk.gov.hmrc.servicecommissioningstatus.scheduler
 
-import akka.actor.ActorSystem
+import org.apache.pekko.actor.ActorSystem
 import play.api.Configuration
 import play.api.inject.ApplicationLifecycle
 import uk.gov.hmrc.http.HeaderCarrier
@@ -26,7 +26,7 @@ import uk.gov.hmrc.servicecommissioningstatus.service.StatusCheckService
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.ExecutionContext
-import scala.concurrent.duration.{DurationInt, FiniteDuration}
+import scala.concurrent.duration.FiniteDuration
 
 @Singleton
 class CacheScheduler @Inject()(
