@@ -21,6 +21,8 @@ import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.servicecommissioningstatus.connectors._
 import uk.gov.hmrc.servicecommissioningstatus.{Check, Environment, TeamName, ServiceType, ServiceName}
 import uk.gov.hmrc.servicecommissioningstatus.persistence.CacheRepository
+import uk.gov.hmrc.servicecommissioningstatus.persistence.ServiceStatusRepository
+import uk.gov.hmrc.servicecommissioningstatus.persistence.ServiceStatusRepository.ServiceStatusType
 
 import cats.implicits._
 
@@ -35,6 +37,7 @@ class StatusCheckService @Inject()(
 , teamsAndReposConnector : TeamsAndRepositoriesConnector
 , serviceMetricsConnector: ServiceMetricsConnector
 , cachedRepository       : CacheRepository
+, serviceStatusRepository: ServiceStatusRepository
 )(implicit ec: ExecutionContext){
 
   // TODO get from service commissioning status?
@@ -76,7 +79,7 @@ class StatusCheckService @Inject()(
       results   <- cachedRepository.findAll(services.map(repo => ServiceName(repo.name)))
     } yield results
 
-  private val environmentsToHideWhenUnconfigured: Set[Environment] = {
+  private lazy val environmentsToHideWhenUnconfigured: Set[Environment] = {
     import scala.jdk.CollectionConverters._
     config.underlying.getStringList("environmentsToHideWhenUnconfigured").asScala.toSet.map { str: String =>
       Environment.parse(str).getOrElse(sys.error(s"config 'environmentsToHideWhenUnconfigured' contains an invalid environment: $str"))
@@ -263,6 +266,21 @@ class StatusCheckService @Inject()(
                          } ::: Nil
       checks           = StatusCheckService.hideUnconfiguredEnvironments(allChecks, environmentsToHideWhenUnconfigured)
     } yield checks
+
+  def status(serviceName: ServiceName)(implicit hc: HeaderCarrier): Future[Option[ServiceStatusType]] =
+    for {
+      optRepository <- teamsAndReposConnector.findServiceRepos(name = Some(serviceName.asString)).map(_.headOption)
+      optStatus     <- serviceStatusRepository.status(serviceName)
+    } yield (optRepository, optStatus) match {
+      case (Some(r), _) if r.isArchived       => Some(ServiceStatusType.Archived)
+      case (Some(r), Some(s))                 => Some(s.status)
+      case (Some(r), None) if r.isDeprecated  => Some(ServiceStatusType.Deprecated)
+      case (Some(r), None) if !r.isDeprecated => Some(ServiceStatusType.Active)
+      case _                                  => None
+    }
+
+  def setStatus(serviceName: ServiceName, status: ServiceStatusType): Future[Unit] =
+    serviceStatusRepository.setStatus(serviceName, status)
 
   private def checkRepoExists(oRepo: Option[TeamsAndRepositoriesConnector.Repo]): Check.Result =
     oRepo match {
