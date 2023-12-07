@@ -72,7 +72,7 @@ object CacheRepository {
 
   object ServiceCheck {
     val format: Format[ServiceCheck] = {
-      implicit val formatCheck = Check.format
+      implicit val formatCheckFormat   = Check.format
       ( (__ \ "serviceName").format[ServiceName](ServiceName.format)
       ~ (__ \ "checks"     ).format[Seq[Check]]
       )(ServiceCheck.apply, unlift(ServiceCheck.unapply))

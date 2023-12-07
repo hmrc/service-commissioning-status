@@ -14,6 +14,7 @@ lazy val microservice = Project("service-commissioning-status", file("."))
     scalacOptions            += "-Wconf:src=routes/.*:s",
     RoutesKeys.routesImport ++= Seq(
       "uk.gov.hmrc.servicecommissioningstatus.{ServiceName, ServiceType, TeamName}",
+      "uk.gov.hmrc.servicecommissioningstatus.persistence.ServiceStatusRepository.ServiceStatusType",
       "uk.gov.hmrc.servicecommissioningstatus.Binders._",
     )
   )

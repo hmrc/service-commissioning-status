@@ -18,10 +18,19 @@ package uk.gov.hmrc.servicecommissioningstatus.service
 
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
+import org.scalatest.concurrent.ScalaFutures
+import scala.concurrent.Future
 
-import uk.gov.hmrc.servicecommissioningstatus.{Environment, Check}
+import org.mockito.{ArgumentMatchersSugar, MockitoSugar}
+import play.api.Configuration
+import uk.gov.hmrc.servicecommissioningstatus.connectors._
+import uk.gov.hmrc.servicecommissioningstatus.{Check, Environment, ServiceType, TeamName}
+import uk.gov.hmrc.servicecommissioningstatus.persistence._
+import uk.gov.hmrc.servicecommissioningstatus.persistence.ServiceStatusRepository.ServiceStatusType._
+import uk.gov.hmrc.servicecommissioningstatus.ServiceName
+import uk.gov.hmrc.http.HeaderCarrier
 
-class StatusCheckServiceSpec extends AnyWordSpec with Matchers {
+class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures {
   import Check._; import Environment._
 
   private val missing: Result = Left( Missing(""))
@@ -362,5 +371,110 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers {
         Nil
       )
     }
+  }
+
+  "ChecksService" should {
+
+    "return the status Archived" when {
+      "the service is archived" in new StatusCheckServiceFixture(isArchived = true) {
+        val status = service.status(serviceName).futureValue
+
+        status shouldBe Some(Archived)
+      }
+      "the service is archived and marked for decommission" in new StatusCheckServiceFixture(
+        isArchived              = true,
+        isMarkedForDecommission = true
+      ) {
+        val status = service.status(serviceName).futureValue
+
+        status shouldBe Some(Archived)
+      }
+      "the service is archived, marked for decommission and deprecated" in new StatusCheckServiceFixture(
+          isArchived              = true,
+          isMarkedForDecommission = true,
+          isDeprecated            = true,
+        ) {
+        val status = service.status(serviceName).futureValue
+
+        status shouldBe Some(Archived)
+      }
+    }
+
+    "return the status BeingDecommissioned" when {
+      "the service is marked for decommission" in new StatusCheckServiceFixture(isMarkedForDecommission = true) {
+        val status = service.status(serviceName).futureValue
+
+        status shouldBe Some(BeingDecommissioned)
+      }
+
+      "the service is deprecated and marked for decommission" in new StatusCheckServiceFixture(
+        isMarkedForDecommission = true,
+        isDeprecated            = true,
+      ) {
+        val status = service.status(serviceName).futureValue
+
+        status shouldBe Some(BeingDecommissioned)
+      }
+    }
+
+    "return the status Deprecated" when {
+      "the service is deprecated and not archived or marked for decommission" in new StatusCheckServiceFixture(isDeprecated = true) {
+        val status = service.status(serviceName).futureValue
+
+        status shouldBe Some(Deprecated)
+      }
+    }
+
+    "return Active" when {
+      "the service is not archived, deprecated or marked for decommission" in new StatusCheckServiceFixture {
+        val status = service.status(serviceName).futureValue
+
+        status shouldBe Some(Active)
+      }
+    }
+  }
+
+  private abstract class  StatusCheckServiceFixture(
+    isArchived             : Boolean = false,
+    isDeprecated           : Boolean = false,
+    isMarkedForDecommission: Boolean = false,
+  ) extends MockitoSugar with ArgumentMatchersSugar {
+    protected val serviceName             = ServiceName("serviceName")
+    protected val config                  = mock[Configuration]
+    protected val serviceConfigsConnector = mock[ServiceConfigsConnector]
+    protected val releasesConnector       = mock[ReleasesConnector]
+    protected val teamsAndReposConnector  = mock[TeamsAndRepositoriesConnector]
+    protected val serviceMetricsConnector = mock[ServiceMetricsConnector]
+    protected val cachedRepository        = mock[CacheRepository]
+    protected val serviceStatusRepository = mock[ServiceStatusRepository]
+    protected val service = new StatusCheckService(
+      config,
+      serviceConfigsConnector,
+      releasesConnector,
+      teamsAndReposConnector,
+      serviceMetricsConnector,
+      cachedRepository,
+      serviceStatusRepository,
+    )(scala.concurrent.ExecutionContext.global)
+
+    implicit val hc: HeaderCarrier = HeaderCarrier()
+
+    import ServiceStatusRepository._
+
+    when(teamsAndReposConnector.findServiceRepos(any[Option[String]],any[Option[TeamName]],any[Option[ServiceType]])(any[HeaderCarrier]))
+      .thenReturn(Future.successful(Seq(TeamsAndRepositoriesConnector.Repo(
+        name         = serviceName.asString,
+        githubUrl    = "github.url",
+        isArchived   = isArchived, 
+        isDeprecated = isDeprecated, 
+      ))))
+
+    when(serviceStatusRepository.status(any[ServiceName]))
+      .thenReturn(Future.successful(Option.when(isMarkedForDecommission)(ServiceStatus(
+          serviceName,
+          ServiceStatusType.BeingDecommissioned,
+          java.time.Instant.now()
+        )
+      )))
   }
 }

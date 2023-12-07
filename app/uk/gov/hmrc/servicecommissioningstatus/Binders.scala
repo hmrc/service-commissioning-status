@@ -17,6 +17,8 @@
 package uk.gov.hmrc.servicecommissioningstatus
 
 import play.api.mvc.QueryStringBindable
+import uk.gov.hmrc.servicecommissioningstatus.persistence.ServiceStatusRepository.ServiceStatusType
+import play.api.mvc.PathBindable
 
 object Binders {
 
@@ -28,6 +30,14 @@ object Binders {
       override def bind(key: String, params: Map[String, Seq[String]]): Option[Either[String, ServiceType]] =
         strBinder.bind(key, params).map(_.flatMap(s => ServiceType.parse(s)))
       override def unbind(key: String, value: ServiceType): String =
+        strBinder.unbind(key, value.asString)
+    }
+
+  implicit def serviceStatusTypeBindable(implicit strBinder: PathBindable[String]): PathBindable[ServiceStatusType] =
+    new PathBindable[ServiceStatusType] {
+      override def bind(key: String, value: String): Either[String, ServiceStatusType] =
+        strBinder.bind(key, value).flatMap(s => ServiceStatusType.parse(s))
+      override def unbind(key: String, value: ServiceStatusType): String =
         strBinder.unbind(key, value.asString)
     }
 
