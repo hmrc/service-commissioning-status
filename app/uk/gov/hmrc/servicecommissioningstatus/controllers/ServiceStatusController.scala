@@ -23,9 +23,11 @@ import play.api.mvc.{Action, AnyContent, ControllerComponents}
 import uk.gov.hmrc.servicecommissioningstatus.{Check, TeamName, ServiceName, ServiceType}
 import uk.gov.hmrc.servicecommissioningstatus.service.StatusCheckService
 import uk.gov.hmrc.servicecommissioningstatus.persistence.CacheRepository.ServiceCheck
+import uk.gov.hmrc.servicecommissioningstatus.persistence.LifeCycleStatusRepository.LifeCycleStatusType
+import play.api.libs.json.{__, Reads}
 
 import javax.inject.{Inject, Singleton}
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton()
 class ServiceStatusController @Inject()(
@@ -36,6 +38,8 @@ class ServiceStatusController @Inject()(
   extends BackendController(cc)
   with Logging {
 
+  import ServiceStatusController._
+
   def listAllChecks(): Action[AnyContent] = Action.apply {
     Ok(Json.toJson(statusCheckService.listAllChecks().flatMap {
       case (title, cls) if cls == classOf[Check.EnvCheck]    => Some(Json.obj(title -> JsString("environment")))
@@ -44,17 +48,41 @@ class ServiceStatusController @Inject()(
     }))
   }
 
-  implicit val serviceCheckFormats: Writes[ServiceCheck] = ServiceCheck.format
   def cachedStatusChecks(teamName: Option[TeamName], serviceType: Option[ServiceType]) = Action.async { implicit request =>
+    implicit val serviceCheckFormats: Writes[ServiceCheck] = ServiceCheck.format
     statusCheckService
       .cachedCommissioningStatusChecks(teamName, serviceType)
       .map(results => Ok(Json.toJson(results)))
   }
 
-  implicit val checkFormats: Writes[Check] = Check.format
   def statusChecks(serviceName: ServiceName): Action[AnyContent] = Action.async { implicit request =>
+    implicit val checkFormats: Writes[Check] = Check.format
     statusCheckService
       .commissioningStatusChecks(serviceName)
       .map(results => Ok(Json.toJson(results)))
   }
+
+  def lifeCycleStatus(serviceName: ServiceName): Action[AnyContent] = Action.async { implicit request =>
+    statusCheckService
+      .lifeCycleStatus(serviceName)
+      .map(_.fold(NotFound(""))(result => Ok(Json.toJson(result))))
+  }
+
+  def setLifeCycleStatus(serviceName: ServiceName): Action[setLifeCycleStatusRequest] = Action.async(parse.json[setLifeCycleStatusRequest](reads)) { implicit request =>
+    val status = request.body.status
+    if(status == LifeCycleStatusType.DecommissionInProgress)
+      statusCheckService
+        .setLifeCycleStatus(serviceName, status)
+        .map(_ => NoContent)
+    else
+      Future.successful(BadRequest("Unsupported status type. Allowed values: 'DecommissionInProgress'."))
+  }
+}
+
+object ServiceStatusController {
+  case class setLifeCycleStatusRequest(status: LifeCycleStatusType)
+
+  private implicit val lifeCycleStatusTypeFormat: play.api.libs.json.Format[LifeCycleStatusType] = LifeCycleStatusType.format
+  val reads: Reads[setLifeCycleStatusRequest] =
+   (__ \ "status").read[LifeCycleStatusType].map(setLifeCycleStatusRequest.apply)
 }

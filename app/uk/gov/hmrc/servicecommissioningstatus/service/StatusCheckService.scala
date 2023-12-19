@@ -21,6 +21,8 @@ import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.servicecommissioningstatus.connectors._
 import uk.gov.hmrc.servicecommissioningstatus.{Check, Environment, TeamName, ServiceType, ServiceName}
 import uk.gov.hmrc.servicecommissioningstatus.persistence.CacheRepository
+import uk.gov.hmrc.servicecommissioningstatus.persistence.LifeCycleStatusRepository
+import uk.gov.hmrc.servicecommissioningstatus.persistence.LifeCycleStatusRepository.LifeCycleStatusType
 
 import cats.implicits._
 
@@ -29,12 +31,13 @@ import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class StatusCheckService @Inject()(
-  config                 : Configuration
-, serviceConfigsConnector: ServiceConfigsConnector
-, releasesConnector      : ReleasesConnector
-, teamsAndReposConnector : TeamsAndRepositoriesConnector
-, serviceMetricsConnector: ServiceMetricsConnector
-, cachedRepository       : CacheRepository
+  config                   : Configuration
+, serviceConfigsConnector  : ServiceConfigsConnector
+, releasesConnector        : ReleasesConnector
+, teamsAndReposConnector   : TeamsAndRepositoriesConnector
+, serviceMetricsConnector  : ServiceMetricsConnector
+, cachedRepository         : CacheRepository
+, lifeCycleStatusRepository: LifeCycleStatusRepository
 )(implicit ec: ExecutionContext){
 
   // TODO get from service commissioning status?
@@ -76,7 +79,7 @@ class StatusCheckService @Inject()(
       results   <- cachedRepository.findAll(services.map(repo => ServiceName(repo.name)))
     } yield results
 
-  private val environmentsToHideWhenUnconfigured: Set[Environment] = {
+  private lazy val environmentsToHideWhenUnconfigured: Set[Environment] = {
     import scala.jdk.CollectionConverters._
     config.underlying.getStringList("environmentsToHideWhenUnconfigured").asScala.toSet.map { str: String =>
       Environment.parse(str).getOrElse(sys.error(s"config 'environmentsToHideWhenUnconfigured' contains an invalid environment: $str"))
@@ -263,6 +266,21 @@ class StatusCheckService @Inject()(
                          } ::: Nil
       checks           = StatusCheckService.hideUnconfiguredEnvironments(allChecks, environmentsToHideWhenUnconfigured)
     } yield checks
+
+  def lifeCycleStatus(serviceName: ServiceName)(implicit hc: HeaderCarrier): Future[Option[LifeCycleStatusType]] =
+    for {
+      optRepository <- teamsAndReposConnector.findServiceRepos(name = Some(serviceName.asString)).map(_.headOption)
+      optStatus     <- lifeCycleStatusRepository.lifeCycleStatus(serviceName)
+    } yield (optRepository, optStatus) match {
+      case (Some(r), _) if r.isArchived       => Some(LifeCycleStatusType.Archived)
+      case (Some(r), Some(s))                 => Some(s.status)
+      case (Some(r), None) if r.isDeprecated  => Some(LifeCycleStatusType.Deprecated)
+      case (Some(r), None) if !r.isDeprecated => Some(LifeCycleStatusType.Active)
+      case _                                  => None
+    }
+
+  def setLifeCycleStatus(serviceName: ServiceName, status: LifeCycleStatusType): Future[Unit] =
+    lifeCycleStatusRepository.setLifeCycleStatus(serviceName, status)
 
   private def checkRepoExists(oRepo: Option[TeamsAndRepositoriesConnector.Repo]): Check.Result =
     oRepo match {
