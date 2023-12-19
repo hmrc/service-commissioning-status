@@ -29,7 +29,7 @@ import uk.gov.hmrc.servicecommissioningstatus.service.StatusCheckService
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
-class ServiceStatusControllerSpec
+class LifeCycleStatusControllerSpec
   extends AnyWordSpec
     with Matchers
     with MockitoSugar {
@@ -69,7 +69,7 @@ class ServiceStatusControllerSpec
       ) ::
       Nil
 
-  "ServiceStatusController" should {
+  "LifeCycleStatusController" should {
     "return all completed Service Commissioning Checks as Json" in {
       when(mockStatusCheckService.commissioningStatusChecks(eqTo(ServiceName("foo")))(any[HeaderCarrier]))
         .thenReturn(Future.successful(checks))

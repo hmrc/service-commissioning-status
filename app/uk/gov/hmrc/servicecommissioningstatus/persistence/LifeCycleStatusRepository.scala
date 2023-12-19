@@ -26,14 +26,14 @@ import java.time.Instant
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
-class ServiceStatusRepository @Inject()(
+class LifeCycleStatusRepository @Inject()(
   val mongoComponent: MongoComponent
 )(implicit
   ec: ExecutionContext
-) extends PlayMongoRepository[ServiceStatusRepository.ServiceStatus](
+) extends PlayMongoRepository[LifeCycleStatusRepository.LifeCycleStatus](
   mongoComponent = mongoComponent,
-  collectionName = "serviceStatus",
-  domainFormat   = ServiceStatusRepository.ServiceStatus.format,
+  collectionName = "LifeCycleStatus",
+  domainFormat   = LifeCycleStatusRepository.LifeCycleStatus.format,
   indexes        = Seq(
                       IndexModel(Indexes.ascending("serviceName"), IndexOptions().background(true).unique(true).name("serviceNameIdx")),
                       IndexModel(Indexes.descending("date"),IndexOptions().name("date")),
@@ -43,69 +43,69 @@ class ServiceStatusRepository @Inject()(
 
   override lazy val requiresTtlIndex = false
 
-  def setStatus(serviceName: ServiceName, status: ServiceStatusRepository.ServiceStatusType): Future[Unit] =
+  def setLifeCycleStatus(serviceName: ServiceName, status: LifeCycleStatusRepository.LifeCycleStatusType): Future[Unit] =
     collection
       .findOneAndReplace(
         filter      = Filters.equal("serviceName", serviceName),
-        replacement = ServiceStatusRepository.ServiceStatus(serviceName, status, Instant.now),
+        replacement = LifeCycleStatusRepository.LifeCycleStatus(serviceName, status, Instant.now),
         options     = FindOneAndReplaceOptions().upsert(true)
       )
       .toFuture()
       .map(_ => ())
 
-  def status(serviceName: ServiceName): Future[Option[ServiceStatusRepository.ServiceStatus]] =
+  def lifeCycleStatus(serviceName: ServiceName): Future[Option[LifeCycleStatusRepository.LifeCycleStatus]] =
     collection.find(Filters.eq("serviceName", serviceName))
       .sort(Sorts.orderBy(Sorts.descending("date")))
       .limit(1)
       .headOption()
 }
 
-object ServiceStatusRepository {
+object LifeCycleStatusRepository {
   import play.api.libs.functional.syntax._
   import play.api.libs.json._
 
-  sealed trait ServiceStatusType { val asString: String }
+  sealed trait LifeCycleStatusType { val asString: String }
 
-  object ServiceStatusType {
-    object BeingDecommissioned extends ServiceStatusType { val asString: String = "BeingDecommissioned" }
-    object Archived            extends ServiceStatusType { val asString: String = "Archived" }
-    object Deprecated          extends ServiceStatusType { val asString: String = "Deprecated" }
-    object Active              extends ServiceStatusType { val asString: String = "Active" }
+  object LifeCycleStatusType {
+    object DecommissionInProgress extends LifeCycleStatusType { val asString: String = "DecommissionInProgress" }
+    object Archived               extends LifeCycleStatusType { val asString: String = "Archived" }
+    object Deprecated             extends LifeCycleStatusType { val asString: String = "Deprecated" }
+    object Active                 extends LifeCycleStatusType { val asString: String = "Active" }
 
-    val values: List[ServiceStatusType] = List(BeingDecommissioned, Archived, Deprecated, Active)
+    val values: List[LifeCycleStatusType] = List(DecommissionInProgress, Archived, Deprecated, Active)
 
-    def parse(s: String): Either[String, ServiceStatusType] =
+    def parse(s: String): Either[String, LifeCycleStatusType] =
       values
         .find(_.asString == s)
         .toRight(s"Invalid service status - should be one of: ${values.map(_.asString).mkString(", ")}")
 
-    val format: Format[ServiceStatusType] =
-      new Format[ServiceStatusType] {
-        override def reads(json: JsValue): JsResult[ServiceStatusType] =
+    val format: Format[LifeCycleStatusType] =
+      new Format[LifeCycleStatusType] {
+        override def reads(json: JsValue): JsResult[LifeCycleStatusType] =
           json match {
             case JsString(s) => parse(s).fold(msg => JsError(msg), rt => JsSuccess(rt))
             case _           => JsError("String value expected")
           }
 
-        override def writes(rt: ServiceStatusType): JsValue =
+        override def writes(rt: LifeCycleStatusType): JsValue =
           JsString(rt.asString)
       }
   }
 
-  case class ServiceStatus(
+  case class LifeCycleStatus(
     serviceName: ServiceName
-  , status     : ServiceStatusType
+  , status     : LifeCycleStatusType
   , date       : Instant
   )
 
-  object ServiceStatus {
+  object LifeCycleStatus {
 
-    private implicit val serviceStatusTypeFormat: Format[ServiceStatusType] = ServiceStatusType.format
-    val format: Format[ServiceStatus] =
+    private implicit val LifeCycleStatusTypeFormat: Format[LifeCycleStatusType] = LifeCycleStatusType.format
+    val format: Format[LifeCycleStatus] =
       ( (__ \ "serviceName").format[ServiceName](ServiceName.format)
-      ~ (__ \ "status"     ).format[ServiceStatusType]
+      ~ (__ \ "status"     ).format[LifeCycleStatusType]
       ~ (__ \ "date"       ).format[Instant]
-      )(ServiceStatus.apply, unlift(ServiceStatus.unapply))
+      )(LifeCycleStatus.apply, unlift(LifeCycleStatus.unapply))
 
   }
 }

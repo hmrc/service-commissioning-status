@@ -17,8 +17,6 @@
 package uk.gov.hmrc.servicecommissioningstatus
 
 import play.api.mvc.QueryStringBindable
-import uk.gov.hmrc.servicecommissioningstatus.persistence.ServiceStatusRepository.ServiceStatusType
-import play.api.mvc.PathBindable
 
 object Binders {
 

@@ -3,5 +3,5 @@
 GET       /checks                         uk.gov.hmrc.servicecommissioningstatus.controllers.ServiceStatusController.listAllChecks()
 GET       /cached-status                  uk.gov.hmrc.servicecommissioningstatus.controllers.ServiceStatusController.cachedStatusChecks(teamName: Option[TeamName], serviceType: Option[ServiceType] )
 GET       /status/:serviceName            uk.gov.hmrc.servicecommissioningstatus.controllers.ServiceStatusController.statusChecks(serviceName: ServiceName)
-GET       /lifecycle/:serviceName/status  uk.gov.hmrc.servicecommissioningstatus.controllers.ServiceStatusController.status(serviceName: ServiceName)
-POST      /lifecycle/:serviceName/status  uk.gov.hmrc.servicecommissioningstatus.controllers.ServiceStatusController.setStatus(serviceName: ServiceName)
+GET       /lifecycle/:serviceName/status  uk.gov.hmrc.servicecommissioningstatus.controllers.ServiceStatusController.lifeCycleStatus(serviceName: ServiceName)
+POST      /lifecycle/:serviceName/status  uk.gov.hmrc.servicecommissioningstatus.controllers.ServiceStatusController.setLifeCycleStatus(serviceName: ServiceName)

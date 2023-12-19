@@ -23,7 +23,7 @@ import play.api.mvc.{Action, AnyContent, ControllerComponents}
 import uk.gov.hmrc.servicecommissioningstatus.{Check, TeamName, ServiceName, ServiceType}
 import uk.gov.hmrc.servicecommissioningstatus.service.StatusCheckService
 import uk.gov.hmrc.servicecommissioningstatus.persistence.CacheRepository.ServiceCheck
-import uk.gov.hmrc.servicecommissioningstatus.persistence.ServiceStatusRepository.ServiceStatusType
+import uk.gov.hmrc.servicecommissioningstatus.persistence.LifeCycleStatusRepository.LifeCycleStatusType
 import play.api.libs.json.{__, Reads}
 
 import javax.inject.{Inject, Singleton}
@@ -32,7 +32,7 @@ import scala.concurrent.{ExecutionContext, Future}
 @Singleton()
 class ServiceStatusController @Inject()(
  cc: ControllerComponents,
- statusCheckService: StatusCheckService,
+ statusCheckService: StatusCheckService
 )(implicit
   ec: ExecutionContext)
   extends BackendController(cc)
@@ -62,27 +62,27 @@ class ServiceStatusController @Inject()(
       .map(results => Ok(Json.toJson(results)))
   }
 
-  def status(serviceName: ServiceName): Action[AnyContent] = Action.async { implicit request =>
+  def lifeCycleStatus(serviceName: ServiceName): Action[AnyContent] = Action.async { implicit request =>
     statusCheckService
-      .status(serviceName)
+      .lifeCycleStatus(serviceName)
       .map(_.fold(NotFound(""))(result => Ok(Json.toJson(result))))
   }
 
-  def setStatus(serviceName: ServiceName): Action[SetStatusRequest] = Action.async(parse.json[SetStatusRequest](reads)) { implicit request =>
+  def setLifeCycleStatus(serviceName: ServiceName): Action[setLifeCycleStatusRequest] = Action.async(parse.json[setLifeCycleStatusRequest](reads)) { implicit request =>
     val status = request.body.status
-    if(status == ServiceStatusType.BeingDecommissioned)
+    if(status == LifeCycleStatusType.DecommissionInProgress)
       statusCheckService
-        .setStatus(serviceName, status)
+        .setLifeCycleStatus(serviceName, status)
         .map(_ => NoContent)
     else
-      Future.successful(BadRequest("Unsupported status type. Allowed values: 'BeingDecommissioned'."))
+      Future.successful(BadRequest("Unsupported status type. Allowed values: 'DecommissionInProgress'."))
   }
 }
 
 object ServiceStatusController {
-  case class SetStatusRequest(status: ServiceStatusType)
+  case class setLifeCycleStatusRequest(status: LifeCycleStatusType)
 
-  private implicit val serviceStatusType: play.api.libs.json.Format[ServiceStatusType] = ServiceStatusType.format
-  val reads: Reads[SetStatusRequest] =
-   (__ \ "status").read[ServiceStatusType].map(SetStatusRequest.apply)
+  private implicit val lifeCycleStatusTypeFormat: play.api.libs.json.Format[LifeCycleStatusType] = LifeCycleStatusType.format
+  val reads: Reads[setLifeCycleStatusRequest] =
+   (__ \ "status").read[LifeCycleStatusType].map(setLifeCycleStatusRequest.apply)
 }

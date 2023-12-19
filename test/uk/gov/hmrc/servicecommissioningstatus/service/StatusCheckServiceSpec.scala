@@ -26,7 +26,7 @@ import play.api.Configuration
 import uk.gov.hmrc.servicecommissioningstatus.connectors._
 import uk.gov.hmrc.servicecommissioningstatus.{Check, Environment, ServiceType, TeamName}
 import uk.gov.hmrc.servicecommissioningstatus.persistence._
-import uk.gov.hmrc.servicecommissioningstatus.persistence.ServiceStatusRepository.ServiceStatusType._
+import uk.gov.hmrc.servicecommissioningstatus.persistence.LifeCycleStatusRepository.LifeCycleStatusType._
 import uk.gov.hmrc.servicecommissioningstatus.ServiceName
 import uk.gov.hmrc.http.HeaderCarrier
 
@@ -377,7 +377,7 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
 
     "return the status Archived" when {
       "the service is archived" in new StatusCheckServiceFixture(isArchived = true) {
-        val status = service.status(serviceName).futureValue
+        val status = service.lifeCycleStatus(serviceName).futureValue
 
         status shouldBe Some(Archived)
       }
@@ -385,7 +385,7 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
         isArchived              = true,
         isMarkedForDecommission = true
       ) {
-        val status = service.status(serviceName).futureValue
+        val status = service.lifeCycleStatus(serviceName).futureValue
 
         status shouldBe Some(Archived)
       }
@@ -394,32 +394,32 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
           isMarkedForDecommission = true,
           isDeprecated            = true,
         ) {
-        val status = service.status(serviceName).futureValue
+        val status = service.lifeCycleStatus(serviceName).futureValue
 
         status shouldBe Some(Archived)
       }
     }
 
-    "return the status BeingDecommissioned" when {
+    "return the status DecommissionInProgress" when {
       "the service is marked for decommission" in new StatusCheckServiceFixture(isMarkedForDecommission = true) {
-        val status = service.status(serviceName).futureValue
+        val status = service.lifeCycleStatus(serviceName).futureValue
 
-        status shouldBe Some(BeingDecommissioned)
+        status shouldBe Some(DecommissionInProgress)
       }
 
       "the service is deprecated and marked for decommission" in new StatusCheckServiceFixture(
         isMarkedForDecommission = true,
         isDeprecated            = true,
       ) {
-        val status = service.status(serviceName).futureValue
+        val status = service.lifeCycleStatus(serviceName).futureValue
 
-        status shouldBe Some(BeingDecommissioned)
+        status shouldBe Some(DecommissionInProgress)
       }
     }
 
     "return the status Deprecated" when {
       "the service is deprecated and not archived or marked for decommission" in new StatusCheckServiceFixture(isDeprecated = true) {
-        val status = service.status(serviceName).futureValue
+        val status = service.lifeCycleStatus(serviceName).futureValue
 
         status shouldBe Some(Deprecated)
       }
@@ -427,7 +427,7 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
 
     "return Active" when {
       "the service is not archived, deprecated or marked for decommission" in new StatusCheckServiceFixture {
-        val status = service.status(serviceName).futureValue
+        val status = service.lifeCycleStatus(serviceName).futureValue
 
         status shouldBe Some(Active)
       }
@@ -446,7 +446,7 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
     protected val teamsAndReposConnector  = mock[TeamsAndRepositoriesConnector]
     protected val serviceMetricsConnector = mock[ServiceMetricsConnector]
     protected val cachedRepository        = mock[CacheRepository]
-    protected val serviceStatusRepository = mock[ServiceStatusRepository]
+    protected val lifeCycleStatusRepository = mock[LifeCycleStatusRepository]
     protected val service = new StatusCheckService(
       config,
       serviceConfigsConnector,
@@ -454,12 +454,12 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
       teamsAndReposConnector,
       serviceMetricsConnector,
       cachedRepository,
-      serviceStatusRepository,
+      lifeCycleStatusRepository,
     )(scala.concurrent.ExecutionContext.global)
 
     implicit val hc: HeaderCarrier = HeaderCarrier()
 
-    import ServiceStatusRepository._
+    import LifeCycleStatusRepository._
 
     when(teamsAndReposConnector.findServiceRepos(any[Option[String]],any[Option[TeamName]],any[Option[ServiceType]])(any[HeaderCarrier]))
       .thenReturn(Future.successful(Seq(TeamsAndRepositoriesConnector.Repo(
@@ -469,10 +469,10 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
         isDeprecated = isDeprecated, 
       ))))
 
-    when(serviceStatusRepository.status(any[ServiceName]))
-      .thenReturn(Future.successful(Option.when(isMarkedForDecommission)(ServiceStatus(
+    when(lifeCycleStatusRepository.lifeCycleStatus(any[ServiceName]))
+      .thenReturn(Future.successful(Option.when(isMarkedForDecommission)(LifeCycleStatus(
           serviceName,
-          ServiceStatusType.BeingDecommissioned,
+          LifeCycleStatusType.DecommissionInProgress,
           java.time.Instant.now()
         )
       )))

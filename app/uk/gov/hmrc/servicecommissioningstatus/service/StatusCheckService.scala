@@ -21,8 +21,8 @@ import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.servicecommissioningstatus.connectors._
 import uk.gov.hmrc.servicecommissioningstatus.{Check, Environment, TeamName, ServiceType, ServiceName}
 import uk.gov.hmrc.servicecommissioningstatus.persistence.CacheRepository
-import uk.gov.hmrc.servicecommissioningstatus.persistence.ServiceStatusRepository
-import uk.gov.hmrc.servicecommissioningstatus.persistence.ServiceStatusRepository.ServiceStatusType
+import uk.gov.hmrc.servicecommissioningstatus.persistence.LifeCycleStatusRepository
+import uk.gov.hmrc.servicecommissioningstatus.persistence.LifeCycleStatusRepository.LifeCycleStatusType
 
 import cats.implicits._
 
@@ -31,13 +31,13 @@ import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class StatusCheckService @Inject()(
-  config                 : Configuration
-, serviceConfigsConnector: ServiceConfigsConnector
-, releasesConnector      : ReleasesConnector
-, teamsAndReposConnector : TeamsAndRepositoriesConnector
-, serviceMetricsConnector: ServiceMetricsConnector
-, cachedRepository       : CacheRepository
-, serviceStatusRepository: ServiceStatusRepository
+  config                   : Configuration
+, serviceConfigsConnector  : ServiceConfigsConnector
+, releasesConnector        : ReleasesConnector
+, teamsAndReposConnector   : TeamsAndRepositoriesConnector
+, serviceMetricsConnector  : ServiceMetricsConnector
+, cachedRepository         : CacheRepository
+, lifeCycleStatusRepository: LifeCycleStatusRepository
 )(implicit ec: ExecutionContext){
 
   // TODO get from service commissioning status?
@@ -267,20 +267,20 @@ class StatusCheckService @Inject()(
       checks           = StatusCheckService.hideUnconfiguredEnvironments(allChecks, environmentsToHideWhenUnconfigured)
     } yield checks
 
-  def status(serviceName: ServiceName)(implicit hc: HeaderCarrier): Future[Option[ServiceStatusType]] =
+  def lifeCycleStatus(serviceName: ServiceName)(implicit hc: HeaderCarrier): Future[Option[LifeCycleStatusType]] =
     for {
       optRepository <- teamsAndReposConnector.findServiceRepos(name = Some(serviceName.asString)).map(_.headOption)
-      optStatus     <- serviceStatusRepository.status(serviceName)
+      optStatus     <- lifeCycleStatusRepository.lifeCycleStatus(serviceName)
     } yield (optRepository, optStatus) match {
-      case (Some(r), _) if r.isArchived       => Some(ServiceStatusType.Archived)
+      case (Some(r), _) if r.isArchived       => Some(LifeCycleStatusType.Archived)
       case (Some(r), Some(s))                 => Some(s.status)
-      case (Some(r), None) if r.isDeprecated  => Some(ServiceStatusType.Deprecated)
-      case (Some(r), None) if !r.isDeprecated => Some(ServiceStatusType.Active)
+      case (Some(r), None) if r.isDeprecated  => Some(LifeCycleStatusType.Deprecated)
+      case (Some(r), None) if !r.isDeprecated => Some(LifeCycleStatusType.Active)
       case _                                  => None
     }
 
-  def setStatus(serviceName: ServiceName, status: ServiceStatusType): Future[Unit] =
-    serviceStatusRepository.setStatus(serviceName, status)
+  def setLifeCycleStatus(serviceName: ServiceName, status: LifeCycleStatusType): Future[Unit] =
+    lifeCycleStatusRepository.setLifeCycleStatus(serviceName, status)
 
   private def checkRepoExists(oRepo: Option[TeamsAndRepositoriesConnector.Repo]): Check.Result =
     oRepo match {
