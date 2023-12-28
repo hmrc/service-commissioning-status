@@ -125,8 +125,7 @@ class StatusCheckService @Inject()(
                          SimpleCheck(
                            title      = "App Config Base",
                            result     = configLocation.get("app-config-base") match {
-                                          case None if Switches.catalogueCreateAppConfig.isEnabled => Left(Check.Missing(s"/create-app-configs?serviceName=${serviceName.asString}"))
-                                          case None    => Left(Check.Missing("https://build.tax.service.gov.uk/job/PlatOps/job/Tools/job/create-app-configs/build"))
+                                          case None    => Left(Check.Missing(s"/create-app-configs?serviceName=${serviceName.asString}"))
                                           case Some(e) => Right(Check.Present(e))
                                         },
                            helpText   = "Additional configuration included in the build and applied to all environments.",
@@ -137,8 +136,7 @@ class StatusCheckService @Inject()(
                            results    = Environment.values.map(env =>
                                           env -> (
                                             configLocation.get(s"app-config-${env.asString}") match {
-                                              case None if Switches.catalogueCreateAppConfig.isEnabled => Left(Check.Missing(s"/create-app-configs?serviceName=${serviceName.asString}"))
-                                              case None    => Left(Check.Missing("https://build.tax.service.gov.uk/job/PlatOps/job/Tools/job/create-app-configs/build"))
+                                              case None    => Left(Check.Missing(s"/create-app-configs?serviceName=${serviceName.asString}"))
                                               case Some(e) => Right(Check.Present(e))
                                             }
                                           )
@@ -285,8 +283,7 @@ class StatusCheckService @Inject()(
   private def checkRepoExists(oRepo: Option[TeamsAndRepositoriesConnector.Repo]): Check.Result =
     oRepo match {
       case Some(repo) if !repo.isArchived => Right(Check.Present(repo.githubUrl))
-      case _ if Switches.catalogueCreateRepo.isEnabled => Left(Check.Missing("/create-service"))
-      case _                                           => Left(Check.Missing("https://build.tax.service.gov.uk/job/PlatOps/job/Tools/job/create-a-repository/build"))
+      case _                              => Left(Check.Missing("/create-service"))
     }
 
   private def checkFrontendRouteForEnv(frontendRoutes: Seq[ServiceConfigsConnector.FrontendRoute], env: Environment): Check.Result =
@@ -325,10 +322,8 @@ class StatusCheckService @Inject()(
   private def checkIsDeployedForEnv(serviceName: ServiceName, releases: Seq[ReleasesConnector.Release], env: Environment): Check.Result =
     if (releases.map(_.environment).contains(env.asString))
       Right(Check.Present(s"https://catalogue.tax.service.gov.uk/deployment-timeline?service=${serviceName.asString}"))
-    else if (Switches.catalogueDeployService.isEnabled)
-      Left(Check.Missing(s"/deploy-service/1?serviceName=${serviceName.asString}"))
     else
-      Left(Check.Missing(s"https://build.tax.service.gov.uk/job/build-and-deploy/job/deploy-microservice/build"))
+      Left(Check.Missing(s"/deploy-service/1?serviceName=${serviceName.asString}"))
 
   private def checkMongoDbExistsInEnv(collections: Seq[ServiceMetricsConnector.MongoCollectionSize], env: Environment): Check.Result =
     if (collections.map(_.environment).contains(env)) {
@@ -355,35 +350,4 @@ object StatusCheckService {
       case x: EnvCheck    => x.copy(results = x.results.removedAll(environments.removedAll(configured)))
     }
   }
-}
-
-case class FeatureSwitch(name: String, isEnabled: Boolean)
-
-object FeatureSwitch {
-
-  def forName(name: String) = FeatureSwitch(name, java.lang.Boolean.getBoolean(systemPropertyName(name)))
-
-  def enable(switch: FeatureSwitch): FeatureSwitch = setProp(switch.name, true)
-
-  def disable(switch: FeatureSwitch): FeatureSwitch = setProp(switch.name, false)
-
-  private def setProp(name: String, value: Boolean): FeatureSwitch = {
-    sys.props += ((systemPropertyName(name), value.toString))
-    forName(name)
-  }
-
-  private def systemPropertyName(name: String) = s"feature.$name"
-
-}
-
-object Switches {
-
-  def catalogueCreateRepo: FeatureSwitch =
-    FeatureSwitch.forName("catalogue-create-repo")
-
-  def catalogueDeployService: FeatureSwitch =
-    FeatureSwitch.forName("catalogue-deploy-service")
-
-  def catalogueCreateAppConfig: FeatureSwitch =
-    FeatureSwitch.forName("catalogue-create-app-config")
 }

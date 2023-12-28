@@ -24,7 +24,7 @@ import uk.gov.hmrc.servicecommissioningstatus.{Check, TeamName, ServiceName, Ser
 import uk.gov.hmrc.servicecommissioningstatus.service.StatusCheckService
 import uk.gov.hmrc.servicecommissioningstatus.persistence.CacheRepository.ServiceCheck
 import uk.gov.hmrc.servicecommissioningstatus.persistence.LifeCycleStatusRepository.LifeCycleStatusType
-import play.api.libs.json.{__, Reads}
+import play.api.libs.json.{__, Format, Reads}
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
@@ -68,7 +68,7 @@ class ServiceStatusController @Inject()(
       .map(_.fold(NotFound(""))(result => Ok(Json.toJson(result))))
   }
 
-  def setLifeCycleStatus(serviceName: ServiceName): Action[setLifeCycleStatusRequest] = Action.async(parse.json[setLifeCycleStatusRequest](reads)) { implicit request =>
+  def setLifeCycleStatus(serviceName: ServiceName): Action[LifeCycleStatusRequest] = Action.async(parse.json[LifeCycleStatusRequest](reads)) { implicit request =>
     val status = request.body.status
     if(status == LifeCycleStatusType.DecommissionInProgress)
       statusCheckService
@@ -80,9 +80,10 @@ class ServiceStatusController @Inject()(
 }
 
 object ServiceStatusController {
-  case class setLifeCycleStatusRequest(status: LifeCycleStatusType)
+  case class LifeCycleStatusRequest(status: LifeCycleStatusType)
 
-  private implicit val lifeCycleStatusTypeFormat: play.api.libs.json.Format[LifeCycleStatusType] = LifeCycleStatusType.format
-  val reads: Reads[setLifeCycleStatusRequest] =
-   (__ \ "status").read[LifeCycleStatusType].map(setLifeCycleStatusRequest.apply)
+  private implicit val lifeCycleStatusTypeFormat: Format[LifeCycleStatusType] = LifeCycleStatusType.format
+
+  val reads: Reads[LifeCycleStatusRequest] =
+   (__ \ "status").read[LifeCycleStatusType].map(LifeCycleStatusRequest.apply)
 }
