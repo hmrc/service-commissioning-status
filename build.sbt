@@ -13,7 +13,7 @@ lazy val microservice = Project("service-commissioning-status", file("."))
     // suppress warnings in generated routes files
     scalacOptions            += "-Wconf:src=routes/.*:s",
     RoutesKeys.routesImport ++= Seq(
-      "uk.gov.hmrc.servicecommissioningstatus.{ServiceName, ServiceType, TeamName}",
+      "uk.gov.hmrc.servicecommissioningstatus.{LifecycleStatus, ServiceName, ServiceType, TeamName}",
       "uk.gov.hmrc.servicecommissioningstatus.Binders._",
     )
   )

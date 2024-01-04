@@ -19,10 +19,9 @@ package uk.gov.hmrc.servicecommissioningstatus.service
 import play.api.Configuration
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.servicecommissioningstatus.connectors._
-import uk.gov.hmrc.servicecommissioningstatus.{Check, Environment, TeamName, ServiceType, ServiceName}
+import uk.gov.hmrc.servicecommissioningstatus.{Check, Environment, LifecycleStatus, ServiceName, ServiceType, TeamName}
 import uk.gov.hmrc.servicecommissioningstatus.persistence.CacheRepository
-import uk.gov.hmrc.servicecommissioningstatus.persistence.LifeCycleStatusRepository
-import uk.gov.hmrc.servicecommissioningstatus.persistence.LifeCycleStatusRepository.LifeCycleStatusType
+import uk.gov.hmrc.servicecommissioningstatus.persistence.LifecycleStatusRepository
 
 import cats.implicits._
 
@@ -37,7 +36,7 @@ class StatusCheckService @Inject()(
 , teamsAndReposConnector   : TeamsAndRepositoriesConnector
 , serviceMetricsConnector  : ServiceMetricsConnector
 , cachedRepository         : CacheRepository
-, lifeCycleStatusRepository: LifeCycleStatusRepository
+, lifecycleStatusRepository: LifecycleStatusRepository
 )(implicit ec: ExecutionContext){
 
   // TODO get from service commissioning status?
@@ -64,19 +63,22 @@ class StatusCheckService @Inject()(
     for {
       services <- teamsAndReposConnector.findServiceRepos()
       results  <- services.foldLeftM[Future, Seq[CacheRepository.ServiceCheck]](List.empty) { (acc, repo) =>
-                    commissioningStatusChecks(ServiceName(repo.name))
-                      .map(checks => { acc :+ CacheRepository.ServiceCheck(ServiceName(repo.name), checks) })
+                    for {
+                      lifecycleStatus <- lifecycleStatus(repo)
+                      checks          <- commissioningStatusChecks(ServiceName(repo.name))
+                    } yield acc :+ CacheRepository.ServiceCheck(ServiceName(repo.name), lifecycleStatus, checks)
                   }
       _        <- cachedRepository.putAll(results)
     } yield results.size
 
-  def cachedCommissioningStatusChecks(teamName: Option[TeamName], serviceType: Option[ServiceType])(implicit hc: HeaderCarrier): Future[Seq[CacheRepository.ServiceCheck]] =
+  def cachedCommissioningStatusChecks(teamName: Option[TeamName], serviceType: Option[ServiceType], lifecycleStatus: List[LifecycleStatus])
+      (implicit hc: HeaderCarrier): Future[Seq[CacheRepository.ServiceCheck]] =
     for {
       services  <- teamsAndReposConnector.findServiceRepos(
                      team        = teamName
                    , serviceType = serviceType
                    )
-      results   <- cachedRepository.findAll(services.map(repo => ServiceName(repo.name)))
+      results   <- cachedRepository.findAll(services.map(repo => ServiceName(repo.name)), lifecycleStatus)
     } yield results
 
   private lazy val environmentsToHideWhenUnconfigured: Set[Environment] = {
@@ -89,8 +91,9 @@ class StatusCheckService @Inject()(
   import Check.{EnvCheck, SimpleCheck}
   def commissioningStatusChecks(serviceName: ServiceName)(implicit hc: HeaderCarrier): Future[List[Check]] =
     for {
-      oRepo           <- teamsAndReposConnector.findServiceRepos(name = Some(serviceName.asString)).map(_.headOption)
+      oRepo           <- teamsAndReposConnector.findServiceRepos(serviceName = Some(serviceName)).map(_.headOption)
       configLocation  <- serviceConfigsConnector.getConfigLocation(serviceName)
+      isDecommission  <- oRepo.fold(Future.successful(false))(repo => lifecycleStatus(repo).map(x => x == LifecycleStatus.DecommissionInProgress || x == LifecycleStatus.Archived))
       isFrontend      =  oRepo.flatMap(_.serviceType).contains(ServiceType.Frontend)
       isAdminFrontend =  oRepo.map(_.tags).exists(_.contains(TeamsAndRepositoriesConnector.Tag.AdminFrontend))
       githubRepo      =  checkRepoExists(oRepo)
@@ -120,7 +123,8 @@ class StatusCheckService @Inject()(
                            title      = "Github Repo",
                            result     = githubRepo,
                            helpText   = "Has the Github repository for the service been created? This is where the source code for the service is stored and managed.",
-                           linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/create-github-repository.html")
+                           linkToDocs = if (isDecommission) Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/decommission-a-microservice/raise-a-decommissioning-request.html#content")
+                                        else                Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/create-github-repository.html")
                          ) ::
                          SimpleCheck(
                            title      = "App Config Base",
@@ -129,7 +133,8 @@ class StatusCheckService @Inject()(
                                           case Some(e) => Right(Check.Present(e))
                                         },
                            helpText   = "Additional configuration included in the build and applied to all environments.",
-                           linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/create-app-config.html")
+                           linkToDocs = if (isDecommission) Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/decommission-a-microservice/remove-service-configuration.html")
+                                        else                Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/create-app-config.html")
                          ) ::
                          EnvCheck(
                            title      = "App Config Environment",
@@ -142,7 +147,8 @@ class StatusCheckService @Inject()(
                                           )
                                         ).toMap,
                            helpText   = "Environment specific configuration.",
-                           linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/create-app-config.html")
+                           linkToDocs = if (isDecommission) Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/decommission-a-microservice/remove-service-configuration.html")
+                                        else                Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/create-app-config.html")
                          ) ::
                          oAuthConfig.map { results =>
                            EnvCheck(
@@ -157,7 +163,8 @@ class StatusCheckService @Inject()(
                              title      = "Frontend Routes",
                              results    = results,
                              helpText   = "Configuration required to expose the service under the tax.service.gov.uk domain.",
-                             linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/allow-user-access-to-a-frontend-microservice.html")
+                             linkToDocs = if (isDecommission) Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/decommission-a-microservice/remove-public-access-configuration.html")
+                                          else                Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/allow-user-access-to-a-frontend-microservice.html")
                            )
                          }.toList :::
                          oAdminFrontend.map { results =>
@@ -165,7 +172,8 @@ class StatusCheckService @Inject()(
                              title      = "Admin Frontend Routes",
                              results    = results,
                              helpText   = "Configuration required to expose the service under the admin.tax.service.gov.uk domain for internal admin users.",
-                             linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/allow-user-access-to-a-frontend-microservice.html")
+                             linkToDocs = if (isDecommission) Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/decommission-a-microservice/remove-public-access-configuration.html")
+                                          else                Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/allow-user-access-to-a-frontend-microservice.html")
                            )
                          }.toList :::
                          SimpleCheck(
@@ -175,13 +183,15 @@ class StatusCheckService @Inject()(
                                           case Some(e) => Right(Check.Present(e))
                                         },
                            helpText   = "Configuration required to trigger test runs or deploy to pre-production environments automatically on merge.",
-                           linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/create-a-ci-cd-pipeline.html")
+                           linkToDocs = if (isDecommission) Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/decommission-a-microservice/remove-ci-cd-jobs-and-pipeline.html")
+                                        else                Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/create-a-ci-cd-pipeline.html")
                          ) ::
                          SimpleCheck(
                            title      = "Pipeline Jobs",
                            result     = pipelineJob,
                            helpText   = "Configuration to automatically deploy to lower environments when a build completes",
-                           linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/create-a-ci-cd-pipeline.html#add-the-pipelinejobbuilder")
+                           linkToDocs = if (isDecommission) Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/decommission-a-microservice/remove-ci-cd-jobs-and-pipeline.html")
+                                        else                Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/create-a-ci-cd-pipeline.html#add-the-pipelinejobbuilder")
                          ) ::
                          SimpleCheck(
                            title      = "Service Manager Config",
@@ -190,7 +200,8 @@ class StatusCheckService @Inject()(
                                           case Some(e) => Right(Check.Present(e))
                                         },
                            helpText   = "Allows the service to be run with service-manager.",
-                           linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/add-a-microservice-to-service-manager.html")
+                           linkToDocs = if (isDecommission) Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/decommission-a-microservice/remove-microservice-from-service-manager.html")
+                                        else                Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/add-a-microservice-to-service-manager.html")
                          ) ::
                          SimpleCheck(
                            title      = "Logging - Kibana",
@@ -199,7 +210,8 @@ class StatusCheckService @Inject()(
                                           case Some(e) => Right(Check.Present(e))
                                         },
                            helpText   = "Creates a convenient dashboard in Kibana for the service.",
-                           linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/add-a-logs-dashboard-to-Kibana.html")
+                           linkToDocs = if (isDecommission) Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/decommission-a-microservice/remove-a-kibana-logs-dashboard.html")
+                                        else                Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/add-a-logs-dashboard-to-Kibana.html")
                          ) ::
                          SimpleCheck(
                            title      = "Metrics - Grafana",
@@ -208,7 +220,8 @@ class StatusCheckService @Inject()(
                                           case Some(e) => Right(Check.Present(e))
                                         },
                            helpText   = "Creates a dashboard in Grafana for viewing the service's metrics.",
-                           linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/add-a-metrics-dashboard-to-Grafana.html")
+                           linkToDocs = if (isDecommission) Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/decommission-a-microservice/remove-a-grafana-metrics-dashboard.html")
+                                        else                Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/add-a-metrics-dashboard-to-Grafana.html")
                          ) ::
                          SimpleCheck(
                            title      = "Alerts - PagerDuty",
@@ -217,19 +230,22 @@ class StatusCheckService @Inject()(
                                           case Some(e) => Right(Check.Present(e))
                                         },
                            helpText   = "Enables and configures PagerDuty alerts for the service.",
-                           linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/add-service-alerting-using-pagerduty.html")
+                           linkToDocs = if (isDecommission) Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/add-service-alerting-using-pagerduty.html")
+                                        else                Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/decommission-a-microservice/remove-pagerduty-alerting-configuration.html")
                          ) ::
                          EnvCheck(
                            title      = "Deployed",
                            results    = deploymentEnv,
                            helpText   = "Which environments the service has been deployed to.",
-                           linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/carry-out-an-early-deployment-to-production.html")
+                           linkToDocs = if (isDecommission) Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/decommission-a-microservice/remove-microservice-from-non-prod-environments.html#get-the-latest-versions-of-all-non-production-app-config-repositories")
+                                        else                Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/carry-out-an-early-deployment-to-production.html")
                          ) ::
                          EnvCheck(
                            title      = "Mongo Database",
                            results    = mongoDb,
                            helpText   = "Which environments have stored data in Mongo.",
-                           linkToDocs = None
+                           linkToDocs = if (isDecommission) Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/decommission-a-microservice/drop-a-non-production-mongodb-collection.html")
+                                        else                None
                          ) ::
                          EnvCheck(
                            title      = "Custom Shutter Pages",
@@ -258,27 +274,32 @@ class StatusCheckService @Inject()(
                                 title      = "Upscan Config",
                                 results    = results,
                                 helpText   = "Which environments are configured in Upscan config. These are optional.",
-                                linkToDocs = Some("https://confluence.tools.tax.service.gov.uk/display/PLATOPS/How+to+allowlist+the+service+to+use+Upscan")
+                                linkToDocs = if (isDecommission) Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/decommission-a-microservice/remove-upscan-configuration.html")
+                                             else                Some("https://confluence.tools.tax.service.gov.uk/display/PLATOPS/How+to+allowlist+the+service+to+use+Upscan")
                               )
                             ).toList
                          } ::: Nil
       checks           = StatusCheckService.hideUnconfiguredEnvironments(allChecks, environmentsToHideWhenUnconfigured)
     } yield checks
 
-  def lifeCycleStatus(serviceName: ServiceName)(implicit hc: HeaderCarrier): Future[Option[LifeCycleStatusType]] =
-    for {
-      optRepository <- teamsAndReposConnector.findServiceRepos(name = Some(serviceName.asString)).map(_.headOption)
-      optStatus     <- lifeCycleStatusRepository.lifeCycleStatus(serviceName)
-    } yield (optRepository, optStatus) match {
-      case (Some(r), _) if r.isArchived       => Some(LifeCycleStatusType.Archived)
-      case (Some(r), Some(s))                 => Some(s.status)
-      case (Some(r), None) if r.isDeprecated  => Some(LifeCycleStatusType.Deprecated)
-      case (Some(r), None) if !r.isDeprecated => Some(LifeCycleStatusType.Active)
-      case _                                  => None
-    }
+  private def lifecycleStatus(repo: TeamsAndRepositoriesConnector.Repo): Future[LifecycleStatus] =
+    lifecycleStatusRepository
+      .lastLifecycleStatus(ServiceName(repo.name))
+      .map {
+        case _       if repo.isArchived   => LifecycleStatus.Archived
+        case Some(lifecycleStatus)        => lifecycleStatus
+        case None    if repo.isDeprecated => LifecycleStatus.Deprecated
+        case None                         => LifecycleStatus.Active
+      }
 
-  def setLifeCycleStatus(serviceName: ServiceName, status: LifeCycleStatusType): Future[Unit] =
-    lifeCycleStatusRepository.setLifeCycleStatus(serviceName, status)
+  def getLifecycleStatus(serviceName: ServiceName)(implicit hc: HeaderCarrier): Future[Option[LifecycleStatus]] =
+    for {
+      oRepo           <- teamsAndReposConnector.findServiceRepos(serviceName = Some(serviceName)).map(_.headOption)
+      lifecycleStatus <- oRepo.fold(Future.successful(Option.empty[LifecycleStatus]))(repo => lifecycleStatus(repo).map(Option.apply))
+    } yield lifecycleStatus
+
+  def setLifecycleStatus(serviceName: ServiceName, lifecycleStatus: LifecycleStatus): Future[Unit] =
+    lifecycleStatusRepository.setLifecycleStatus(serviceName, lifecycleStatus)
 
   private def checkRepoExists(oRepo: Option[TeamsAndRepositoriesConnector.Repo]): Check.Result =
     oRepo match {
