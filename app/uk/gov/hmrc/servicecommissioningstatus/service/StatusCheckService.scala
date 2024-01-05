@@ -298,8 +298,8 @@ class StatusCheckService @Inject()(
       lifecycleStatus <- oRepo.fold(Future.successful(Option.empty[LifecycleStatus]))(repo => lifecycleStatus(repo).map(Option.apply))
     } yield lifecycleStatus
 
-  def setLifecycleStatus(serviceName: ServiceName, lifecycleStatus: LifecycleStatus): Future[Unit] =
-    lifecycleStatusRepository.setLifecycleStatus(serviceName, lifecycleStatus)
+  def setLifecycleStatus(serviceName: ServiceName, lifecycleStatus: LifecycleStatus, username: String): Future[Unit] =
+    lifecycleStatusRepository.setLifecycleStatus(serviceName, lifecycleStatus, username)
 
   private def checkRepoExists(oRepo: Option[TeamsAndRepositoriesConnector.Repo]): Check.Result =
     oRepo match {

@@ -70,7 +70,7 @@ class LifecycleStatusController @Inject()(
   def setLifecycleStatus(serviceName: ServiceName): Action[LifecycleStatusRequest] = Action.async(parse.json[LifecycleStatusRequest](reads)) { implicit request =>
     if(request.body.lifecycleStatus == LifecycleStatus.DecommissionInProgress)
       statusCheckService
-        .setLifecycleStatus(serviceName, request.body.lifecycleStatus)
+        .setLifecycleStatus(serviceName, request.body.lifecycleStatus, request.body.username)
         .map(_ => NoContent)
     else
       Future.successful(BadRequest("Unsupported service status - must be: 'DecommissionInProgress'."))
@@ -78,10 +78,14 @@ class LifecycleStatusController @Inject()(
 }
 
 object LifecycleStatusController {
-  case class LifecycleStatusRequest(lifecycleStatus: LifecycleStatus)
+  import play.api.libs.functional.syntax._
+
+  case class LifecycleStatusRequest(lifecycleStatus: LifecycleStatus, username: String)
 
   private implicit val lifecycleStatusTypeFormat: Format[LifecycleStatus] = LifecycleStatus.format
 
   val reads: Reads[LifecycleStatusRequest] =
-   (__ \ "lifecycleStatus").read[LifecycleStatus].map(LifecycleStatusRequest.apply)
+   ( (__ \ "lifecycleStatus").read[LifecycleStatus]
+   ~ (__ \ "username"       ).read[String]
+   )(LifecycleStatusRequest.apply _)
 }

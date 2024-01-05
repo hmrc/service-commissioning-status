@@ -43,11 +43,11 @@ class LifecycleStatusRepository @Inject()(
 
   override lazy val requiresTtlIndex = false
 
-  def setLifecycleStatus(serviceName: ServiceName, lifecycleStatus: LifecycleStatus): Future[Unit] =
+  def setLifecycleStatus(serviceName: ServiceName, lifecycleStatus: LifecycleStatus, username: String): Future[Unit] =
     collection
       .findOneAndReplace(
         filter      = Filters.equal("serviceName", serviceName),
-        replacement = LifecycleStatusRepository.Row(serviceName, lifecycleStatus, Instant.now),
+        replacement = LifecycleStatusRepository.Row(serviceName, lifecycleStatus, username, Instant.now),
         options     = FindOneAndReplaceOptions().upsert(true)
       )
       .toFuture()
@@ -69,6 +69,7 @@ object LifecycleStatusRepository {
   case class Row(
     serviceName    : ServiceName
   , lifecycleStatus: LifecycleStatus
+  , username       : String
   , createdDate    : Instant
   )
 
@@ -77,6 +78,7 @@ object LifecycleStatusRepository {
     val format: Format[Row] =
       ( (__ \ "serviceName"    ).format[ServiceName](ServiceName.format)
       ~ (__ \ "lifecycleStatus").format[LifecycleStatus](LifecycleStatus.format)
+      ~ (__ \ "username"       ).format[String]
       ~ (__ \ "createDate"     ).format[Instant]
       )(Row.apply, unlift(Row.unapply))
   }
