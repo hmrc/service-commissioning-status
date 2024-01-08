@@ -20,17 +20,16 @@ import play.api.Logging
 import play.api.libs.json.{Json, JsString, Writes}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 import play.api.mvc.{Action, AnyContent, ControllerComponents}
-import uk.gov.hmrc.servicecommissioningstatus.{Check, TeamName, ServiceName, ServiceType}
+import uk.gov.hmrc.servicecommissioningstatus.{Check, LifecycleStatus, ServiceName, ServiceType, TeamName}
 import uk.gov.hmrc.servicecommissioningstatus.service.StatusCheckService
 import uk.gov.hmrc.servicecommissioningstatus.persistence.CacheRepository.ServiceCheck
-import uk.gov.hmrc.servicecommissioningstatus.persistence.LifeCycleStatusRepository.LifeCycleStatusType
 import play.api.libs.json.{__, Format, Reads}
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton()
-class ServiceStatusController @Inject()(
+class LifecycleStatusController @Inject()(
  cc: ControllerComponents,
  statusCheckService: StatusCheckService
 )(implicit
@@ -38,7 +37,7 @@ class ServiceStatusController @Inject()(
   extends BackendController(cc)
   with Logging {
 
-  import ServiceStatusController._
+  import LifecycleStatusController._
 
   def listAllChecks(): Action[AnyContent] = Action.apply {
     Ok(Json.toJson(statusCheckService.listAllChecks().flatMap {
@@ -48,10 +47,10 @@ class ServiceStatusController @Inject()(
     }))
   }
 
-  def cachedStatusChecks(teamName: Option[TeamName], serviceType: Option[ServiceType]) = Action.async { implicit request =>
+  def cachedStatusChecks(teamName: Option[TeamName], serviceType: Option[ServiceType], lifecycleStatus: List[LifecycleStatus]) = Action.async { implicit request =>
     implicit val serviceCheckFormats: Writes[ServiceCheck] = ServiceCheck.format
     statusCheckService
-      .cachedCommissioningStatusChecks(teamName, serviceType)
+      .cachedCommissioningStatusChecks(teamName, serviceType, lifecycleStatus)
       .map(results => Ok(Json.toJson(results)))
   }
 
@@ -62,28 +61,31 @@ class ServiceStatusController @Inject()(
       .map(results => Ok(Json.toJson(results)))
   }
 
-  def lifeCycleStatus(serviceName: ServiceName): Action[AnyContent] = Action.async { implicit request =>
+  def getLifecycleStatus(serviceName: ServiceName): Action[AnyContent] = Action.async { implicit request =>
     statusCheckService
-      .lifeCycleStatus(serviceName)
+      .getLifecycleStatus(serviceName)
       .map(_.fold(NotFound(""))(result => Ok(Json.toJson(result))))
   }
 
-  def setLifeCycleStatus(serviceName: ServiceName): Action[LifeCycleStatusRequest] = Action.async(parse.json[LifeCycleStatusRequest](reads)) { implicit request =>
-    val status = request.body.status
-    if(status == LifeCycleStatusType.DecommissionInProgress)
+  def setLifecycleStatus(serviceName: ServiceName): Action[LifecycleStatusRequest] = Action.async(parse.json[LifecycleStatusRequest](reads)) { implicit request =>
+    if(request.body.lifecycleStatus == LifecycleStatus.DecommissionInProgress)
       statusCheckService
-        .setLifeCycleStatus(serviceName, status)
+        .setLifecycleStatus(serviceName, request.body.lifecycleStatus, request.body.username)
         .map(_ => NoContent)
     else
-      Future.successful(BadRequest("Unsupported status type. Allowed values: 'DecommissionInProgress'."))
+      Future.successful(BadRequest("Unsupported service status - must be: 'DecommissionInProgress'."))
   }
 }
 
-object ServiceStatusController {
-  case class LifeCycleStatusRequest(status: LifeCycleStatusType)
+object LifecycleStatusController {
+  import play.api.libs.functional.syntax._
 
-  private implicit val lifeCycleStatusTypeFormat: Format[LifeCycleStatusType] = LifeCycleStatusType.format
+  case class LifecycleStatusRequest(lifecycleStatus: LifecycleStatus, username: String)
 
-  val reads: Reads[LifeCycleStatusRequest] =
-   (__ \ "status").read[LifeCycleStatusType].map(LifeCycleStatusRequest.apply)
+  private implicit val lifecycleStatusTypeFormat: Format[LifecycleStatus] = LifecycleStatus.format
+
+  val reads: Reads[LifecycleStatusRequest] =
+   ( (__ \ "lifecycleStatus").read[LifecycleStatus]
+   ~ (__ \ "username"       ).read[String]
+   )(LifecycleStatusRequest.apply _)
 }

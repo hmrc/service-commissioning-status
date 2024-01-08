@@ -21,7 +21,7 @@ import play.api.libs.json.{Reads, __}
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps}
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
-import uk.gov.hmrc.servicecommissioningstatus.{Enum, WithAsString, ServiceType, TeamName}
+import uk.gov.hmrc.servicecommissioningstatus.{Enum, WithAsString, ServiceType, ServiceName, TeamName}
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
@@ -113,12 +113,12 @@ class TeamsAndRepositoriesConnector @Inject()(
 
   private implicit val readRepo: Reads[Repo] = Repo.reads
   def findServiceRepos(
-    name       : Option[String]      = None
+    serviceName: Option[ServiceName] = None
   , team       : Option[TeamName]    = None
   , serviceType: Option[ServiceType] = None
   )(implicit hc: HeaderCarrier): Future[Seq[Repo]] =
     httpClientV2
-      .get(url"$url/api/v2/repositories?repoType=service&name=$name&team=${team.map(_.asString)}&serviceType=${serviceType.map(_.asString)}")
+      .get(url"$url/api/v2/repositories?repoType=service&name=${serviceName.map(_.asString)}&team=${team.map(_.asString)}&serviceType=${serviceType.map(_.asString)}")
       .execute[Seq[Repo]]
 
   def findBuildJobs(repoName: String)(implicit hc: HeaderCarrier): Future[Seq[BuildJob]] = {

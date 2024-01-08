@@ -21,7 +21,7 @@ import org.mongodb.scala.model.{Filters, Indexes, IndexModel, IndexOptions}
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.{Codecs, PlayMongoRepository}
 import uk.gov.hmrc.mongo.transaction.{TransactionConfiguration, Transactions}
-import uk.gov.hmrc.servicecommissioningstatus.{Check, ServiceName}
+import uk.gov.hmrc.servicecommissioningstatus.{Check, ServiceName, LifecycleStatus}
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
@@ -36,9 +36,13 @@ class CacheRepository @Inject()(
   collectionName = "cachedServiceCheck",
   domainFormat   = CacheRepository.ServiceCheck.format,
   indexes        = Seq(
-                     IndexModel(Indexes.ascending("serviceName"), IndexOptions().background(true).name("serviceNameIdx"))
+                     IndexModel(Indexes.ascending("serviceName"  ), IndexOptions().background(true).name("serviceNameIdx"))
+                   , IndexModel(Indexes.ascending("lifecycleStatus"), IndexOptions().background(true).name("lifecycleStatusIdx"))
                    ),
-  extraCodecs    = Seq(Codecs.playFormatCodec(ServiceName.format))
+  extraCodecs    = Seq(
+                     Codecs.playFormatCodec(ServiceName.format)
+                   , Codecs.playFormatCodec(LifecycleStatus.format)
+                   )
 ) with Transactions {
 
   // we replace all the data for each call to putAll
@@ -54,11 +58,16 @@ class CacheRepository @Inject()(
       } yield ()
     }
 
-  def findAll(serviceNames: Seq[ServiceName]): Future[Seq[CacheRepository.ServiceCheck]] =
+  def findAll(serviceNames: Seq[ServiceName], lifecycleStatus: List[LifecycleStatus]): Future[Seq[CacheRepository.ServiceCheck]] =
     collection
-      .find(Filters.in("serviceName", serviceNames: _*))
+      .find(
+        Filters.and(
+          Filters.in("serviceName", serviceNames: _*)
+        , if (lifecycleStatus.nonEmpty) Filters.in("lifecycleStatus", lifecycleStatus.map(_.asString): _*)
+          else                          Filters.empty()
+        )
+      )
       .toFuture()
-
 }
 
 object CacheRepository {
@@ -66,15 +75,17 @@ object CacheRepository {
   import play.api.libs.json._
 
   case class ServiceCheck(
-    serviceName: ServiceName
-  , checks     : Seq[Check]
+    serviceName    : ServiceName
+  , lifecycleStatus: LifecycleStatus
+  , checks         : Seq[Check]
   )
 
   object ServiceCheck {
     val format: Format[ServiceCheck] = {
       implicit val formatCheck   = Check.format
-      ( (__ \ "serviceName").format[ServiceName](ServiceName.format)
-      ~ (__ \ "checks"     ).format[Seq[Check]]
+      ( (__ \ "serviceName"    ).format[ServiceName](ServiceName.format)
+      ~ (__ \ "lifecycleStatus").format[LifecycleStatus](LifecycleStatus.format)
+      ~ (__ \ "checks"         ).format[Seq[Check]]
       )(ServiceCheck.apply, unlift(ServiceCheck.unapply))
     }
   }

@@ -21,12 +21,50 @@ import play.api.libs.json._
 
 case class TeamName(asString: String) extends AnyVal
 
-
 case class ServiceName(asString: String) extends AnyVal
 
 object ServiceName {
   val format: Format[ServiceName] =
     Format.of[String].inmap(ServiceName.apply, unlift(ServiceName.unapply))
+}
+
+
+sealed trait ServiceType extends WithAsString
+
+
+object ServiceType extends Enum[ServiceType] {
+  case object Frontend extends ServiceType { val asString = "frontend" }
+  case object Backend  extends ServiceType { val asString = "backend"  }
+
+  override val values: List[ServiceType] = List(Frontend, Backend)
+}
+
+sealed trait LifecycleStatus { val asString: String }
+
+object LifecycleStatus {
+  object Active                 extends LifecycleStatus { val asString: String = "Active" }
+  object Archived               extends LifecycleStatus { val asString: String = "Archived" }
+  object DecommissionInProgress extends LifecycleStatus { val asString: String = "DecommissionInProgress" }
+  object Deprecated             extends LifecycleStatus { val asString: String = "Deprecated" }
+
+  val values: List[LifecycleStatus] = List(Active, Archived, DecommissionInProgress, Deprecated)
+
+  def parse(s: String): Either[String, LifecycleStatus] =
+    values
+      .find(_.asString == s)
+      .toRight(s"Invalid service status - should be one of: ${values.map(_.asString).mkString(", ")}")
+
+  val format: Format[LifecycleStatus] =
+    new Format[LifecycleStatus] {
+      override def reads(json: JsValue): JsResult[LifecycleStatus] =
+        json match {
+          case JsString(s) => parse(s).fold(msg => JsError(msg), rt => JsSuccess(rt))
+          case _           => JsError("String value expected")
+        }
+
+      override def writes(rt: LifecycleStatus): JsValue =
+        JsString(rt.asString)
+    }
 }
 
 
@@ -41,16 +79,6 @@ object Environment extends Enum[Environment] {
 
   override val values: List[Environment] =
     List(Development, Integration, QA, Staging, ExternalTest, Production)
-}
-
-
-sealed trait ServiceType extends WithAsString
-
-object ServiceType extends Enum[ServiceType] {
-  case object Frontend extends ServiceType { val asString = "frontend" }
-  case object Backend  extends ServiceType { val asString = "backend"  }
-
-  override val values: List[ServiceType] = List(Frontend, Backend)
 }
 
 
