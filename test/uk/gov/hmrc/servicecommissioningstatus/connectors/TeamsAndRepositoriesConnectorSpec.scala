@@ -61,7 +61,7 @@ class TeamsAndRepositoriesConnectorSpec
   "findBuildJobs" should {
     "return build jobs for a service" in {
       stubFor(
-        get(urlEqualTo("/api/jenkins-jobs/service-one"))
+        get(urlEqualTo("/api/v2/repositories/service-one/jenkins-jobs"))
           .willReturn(
             aResponse()
               .withBody(
