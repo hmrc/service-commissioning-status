@@ -119,7 +119,7 @@ class TeamsAndRepositoriesConnector @Inject()(
   , serviceType: Option[ServiceType] = None
   )(implicit hc: HeaderCarrier): Future[Seq[Repo]] =
     httpClientV2
-      .get(url"$url/api/v2/repositories?repoType=service&name=${serviceName.map(_.asString)}&team=${team.map(_.asString)}&serviceType=${serviceType.map(_.asString)}")
+      .get(url"$url/api/v2/repositories?repoType=service&name=${serviceName.map(sn => s"\"${sn.asString}\"")}&team=${team.map(_.asString)}&serviceType=${serviceType.map(_.asString)}")
       .execute[Seq[Repo]]
 
   def findBuildJobs(repoName: String)(implicit hc: HeaderCarrier): Future[Seq[BuildJob]] = {
