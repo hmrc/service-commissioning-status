@@ -30,13 +30,14 @@ import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class StatusCheckService @Inject()(
-  config                   : Configuration
-, serviceConfigsConnector  : ServiceConfigsConnector
-, releasesConnector        : ReleasesConnector
-, teamsAndReposConnector   : TeamsAndRepositoriesConnector
-, serviceMetricsConnector  : ServiceMetricsConnector
-, cachedRepository         : CacheRepository
-, lifecycleStatusRepository: LifecycleStatusRepository
+  config                     : Configuration
+, serviceConfigsConnector    : ServiceConfigsConnector
+, releasesConnector          : ReleasesConnector
+, teamsAndReposConnector     : TeamsAndRepositoriesConnector
+, serviceMetricsConnector    : ServiceMetricsConnector
+, slackNotificationsConnector: SlackNotificationsConnector
+, cachedRepository           : CacheRepository
+, lifecycleStatusRepository  : LifecycleStatusRepository
 )(implicit ec: ExecutionContext){
 
   // TODO get from service commissioning status?
@@ -298,8 +299,16 @@ class StatusCheckService @Inject()(
       lifecycleStatus <- oRepo.fold(Future.successful(Option.empty[LifecycleStatus]))(repo => lifecycleStatus(repo).map(Option.apply))
     } yield lifecycleStatus
 
-  def setLifecycleStatus(serviceName: ServiceName, lifecycleStatus: LifecycleStatus, username: String): Future[Unit] =
-    lifecycleStatusRepository.setLifecycleStatus(serviceName, lifecycleStatus, username)
+  def setLifecycleStatus(
+    serviceName    : ServiceName,
+    lifecycleStatus: LifecycleStatus,
+    username       : String
+  )(implicit hc: HeaderCarrier): Future[Unit] =
+    for {
+      _   <- lifecycleStatusRepository.setLifecycleStatus(serviceName, lifecycleStatus, username)
+      msg =  SlackNotificationRequest.markedForDecommissioning(serviceName.asString, username)
+      _   <- slackNotificationsConnector.send(msg)
+    } yield ()
 
   private def checkRepoExists(oRepo: Option[TeamsAndRepositoriesConnector.Repo]): Check.Result =
     oRepo match {
