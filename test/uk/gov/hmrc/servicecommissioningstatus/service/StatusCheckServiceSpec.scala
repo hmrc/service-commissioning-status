@@ -440,20 +440,22 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
     isDeprecated           : Boolean = false,
     isMarkedForDecommission: Boolean = false,
   ) extends MockitoSugar with ArgumentMatchersSugar {
-    protected val serviceName               = ServiceName("serviceName")
-    protected val config                    = mock[Configuration]
-    protected val serviceConfigsConnector   = mock[ServiceConfigsConnector]
-    protected val releasesConnector         = mock[ReleasesConnector]
-    protected val teamsAndReposConnector    = mock[TeamsAndRepositoriesConnector]
-    protected val serviceMetricsConnector   = mock[ServiceMetricsConnector]
-    protected val cachedRepository          = mock[CacheRepository]
-    protected val lifecycleStatusRepository = mock[LifecycleStatusRepository]
+    protected val serviceName                 = ServiceName("serviceName")
+    protected val config                      = mock[Configuration]
+    protected val serviceConfigsConnector     = mock[ServiceConfigsConnector]
+    protected val releasesConnector           = mock[ReleasesConnector]
+    protected val teamsAndReposConnector      = mock[TeamsAndRepositoriesConnector]
+    protected val serviceMetricsConnector     = mock[ServiceMetricsConnector]
+    protected val slackNotificationsConnector = mock[SlackNotificationsConnector]
+    protected val cachedRepository            = mock[CacheRepository]
+    protected val lifecycleStatusRepository   = mock[LifecycleStatusRepository]
     protected val service = new StatusCheckService(
       config,
       serviceConfigsConnector,
       releasesConnector,
       teamsAndReposConnector,
       serviceMetricsConnector,
+      slackNotificationsConnector,
       cachedRepository,
       lifecycleStatusRepository,
     )(scala.concurrent.ExecutionContext.global)
