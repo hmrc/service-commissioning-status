@@ -305,9 +305,12 @@ class StatusCheckService @Inject()(
     username       : String
   )(implicit hc: HeaderCarrier): Future[Unit] =
     for {
-      _   <- lifecycleStatusRepository.setLifecycleStatus(serviceName, lifecycleStatus, username)
-      msg =  SlackNotificationRequest.markedForDecommissioning(serviceName.asString, username)
-      _   <- slackNotificationsConnector.send(msg)
+      current <- lifecycleStatusRepository.lastLifecycleStatus(serviceName)
+      _       <- lifecycleStatusRepository.setLifecycleStatus(serviceName, lifecycleStatus, username)
+      _       <- if (lifecycleStatus == LifecycleStatus.DecommissionInProgress && !current.contains(LifecycleStatus.DecommissionInProgress)) {
+                   val msg = SlackNotificationRequest.markedForDecommissioning(serviceName.asString, username)
+                   slackNotificationsConnector.send(msg)
+                 } else Future.unit
     } yield ()
 
   private def checkRepoExists(oRepo: Option[TeamsAndRepositoriesConnector.Repo]): Check.Result =
