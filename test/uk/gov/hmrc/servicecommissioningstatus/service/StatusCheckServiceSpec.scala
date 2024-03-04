@@ -372,7 +372,7 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
     }
   }
 
-  "ChecksService" should {
+  "lifecycleStatus" should {
 
     "return the status Archived" when {
       "the service is archived" in new StatusCheckServiceFixture(isArchived = true) {
@@ -433,6 +433,28 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
         status shouldBe Some(LifecycleStatus.Active)
       }
     }
+
+    "send a slack message" when {
+      "the service is marked for decommissioning" in new StatusCheckServiceFixture() {
+        service.setLifecycleStatus(serviceName, LifecycleStatus.DecommissionInProgress, "timmy.test").futureValue
+
+        verify(slackNotificationsConnector, times(1)).send(any[SlackNotificationRequest])(any[HeaderCarrier])
+      }
+    }
+
+    "not send a slack message" when {
+      "the status isn't decommissioning" in new StatusCheckServiceFixture() {
+        service.setLifecycleStatus(serviceName, LifecycleStatus.Archived, "timmy.test").futureValue
+
+        verify(slackNotificationsConnector, times(0)).send(any[SlackNotificationRequest])(any[HeaderCarrier])
+      }
+
+      "the service has already been marked for decommissioning" in new StatusCheckServiceFixture(isMarkedForDecommission = true) {
+        service.setLifecycleStatus(serviceName, LifecycleStatus.DecommissionInProgress, "timmy.test").futureValue
+
+        verify(slackNotificationsConnector, times(0)).send(any[SlackNotificationRequest])(any[HeaderCarrier])
+      }
+    }
   }
 
   private abstract class  StatusCheckServiceFixture(
@@ -472,5 +494,11 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
 
     when(lifecycleStatusRepository.lastLifecycleStatus(any[ServiceName]))
       .thenReturn(Future.successful(Option.when(isMarkedForDecommission)(LifecycleStatus.DecommissionInProgress)))
+
+    when(lifecycleStatusRepository.setLifecycleStatus(any[ServiceName], any[LifecycleStatus], any[String]))
+      .thenReturn(Future.unit)
+
+    when(slackNotificationsConnector.send(any[SlackNotificationRequest])(any[HeaderCarrier]))
+      .thenReturn(Future.successful(SlackNotificationResponse(errors = List.empty)))
   }
 }
