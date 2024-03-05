@@ -29,7 +29,6 @@ import play.api.test.FakeRequest
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.http.test.WireMockSupport
 import uk.gov.hmrc.play.http.HeaderCarrierConverter
-import uk.gov.hmrc.servicecommissioningstatus.connectors.TeamsAndRepositoriesConnector.{BuildJob, BuildJobType}
 
 class TeamsAndRepositoriesConnectorSpec
   extends AnyWordSpec
@@ -85,12 +84,12 @@ class TeamsAndRepositoriesConnectorSpec
       )
 
       val response = teamsAndRepositoriesConnector
-        .findBuildJobs("service-one")(HeaderCarrierConverter.fromRequest(FakeRequest()))
+        .findJenkinsJobs("service-one")(HeaderCarrierConverter.fromRequest(FakeRequest()))
         .futureValue
 
       response shouldBe Seq(
-        BuildJob(repoName= "service-one", jenkinsUrl = "http.jenkins/service-one",           jobType = BuildJobType.Job),
-        BuildJob(repoName= "service-one", jenkinsUrl = "http.jenkins/service-one-pipeline",  jobType = BuildJobType.Pipeline)
+        TeamsAndRepositoriesConnector.JenkinsJob(repoName= "service-one", jenkinsUrl = "http.jenkins/service-one",           jobType = TeamsAndRepositoriesConnector.JobType.Job),
+        TeamsAndRepositoriesConnector.JenkinsJob(repoName= "service-one", jenkinsUrl = "http.jenkins/service-one-pipeline",  jobType = TeamsAndRepositoriesConnector.JobType.Pipeline)
       )
     }
   }

@@ -63,41 +63,41 @@ object TeamsAndRepositoriesConnector {
     }
   }
 
-  sealed trait BuildJobType { def asString: String }
+  sealed trait JobType { def asString: String }
 
-  object BuildJobType {
-    case object Job         extends BuildJobType { override val asString = "job"         }
-    case object Pipeline    extends BuildJobType { override val asString = "pipeline"    }
-    case object Performance extends BuildJobType { override val asString = "performance" }
+  object JobType {
+    case object Job         extends JobType { override val asString = "job"         }
+    case object Pipeline    extends JobType { override val asString = "pipeline"    }
+    case object PullRequest extends JobType { override val asString = "pull-request"}
 
     private val logger = Logger(this.getClass)
 
-    val values: List[BuildJobType] =
-      List(Job, Pipeline, Performance)
+    val values: List[JobType] =
+      List(Job, Pipeline, PullRequest)
 
-    def parse(s: String): BuildJobType =
+    def parse(s: String): JobType =
       values
         .find(_.asString.equalsIgnoreCase(s)).getOrElse {
         logger.info(s"Unable to find job type: $s, defaulted to: job")
         Job
       }
 
-    implicit val reads: Reads[BuildJobType] =
+    implicit val reads: Reads[JobType] =
       Reads.of[String].map(parse)
   }
 
-  case class BuildJob(
+  case class JenkinsJob(
     repoName   : String,
     jenkinsUrl : String,
-    jobType    : BuildJobType
+    jobType    : JobType
   )
 
-  object BuildJob {
-    implicit val reads: Reads[BuildJob] =
+  object JenkinsJob {
+    implicit val reads: Reads[JenkinsJob] =
       ( (__ \ "repoName"  ).read[String]
       ~ (__ \ "jenkinsURL").read[String]
-      ~ (__ \ "jobType"   ).read[BuildJobType]
-      )(BuildJob.apply _)
+      ~ (__ \ "jobType"   ).read[JobType]
+      )(JenkinsJob.apply _)
   }
 }
 
@@ -122,12 +122,12 @@ class TeamsAndRepositoriesConnector @Inject()(
       .get(url"$url/api/v2/repositories?repoType=service&name=${serviceName.map(sn => s"\"${sn.asString}\"")}&team=${team.map(_.asString)}&serviceType=${serviceType.map(_.asString)}")
       .execute[Seq[Repo]]
 
-  def findBuildJobs(repoName: String)(implicit hc: HeaderCarrier): Future[Seq[BuildJob]] = {
-    implicit val readJobs: Reads[Seq[BuildJob]] =
-      Reads.at(__ \ "jobs")(Reads.seq(BuildJob.reads))
+  def findJenkinsJobs(repoName: String)(implicit hc: HeaderCarrier): Future[Seq[JenkinsJob]] = {
+    implicit val readJobs: Reads[Seq[JenkinsJob]] =
+      Reads.at(__ \ "jobs")(Reads.seq(JenkinsJob.reads))
 
     httpClientV2
       .get(url"$url/api/v2/repositories/$repoName/jenkins-jobs")
-      .execute[Seq[BuildJob]]
+      .execute[Seq[JenkinsJob]]
   }
 }

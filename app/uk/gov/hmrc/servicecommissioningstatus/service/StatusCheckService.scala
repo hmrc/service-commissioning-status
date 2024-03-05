@@ -75,10 +75,7 @@ class StatusCheckService @Inject()(
   def cachedCommissioningStatusChecks(teamName: Option[TeamName], serviceType: Option[ServiceType], lifecycleStatus: List[LifecycleStatus])
       (implicit hc: HeaderCarrier): Future[Seq[CacheRepository.ServiceCheck]] =
     for {
-      services  <- teamsAndReposConnector.findServiceRepos(
-                     team        = teamName
-                   , serviceType = serviceType
-                   )
+      services  <- teamsAndReposConnector.findServiceRepos(team = teamName, serviceType = serviceType)
       results   <- cachedRepository.findAll(services.map(repo => ServiceName(repo.name)), lifecycleStatus)
     } yield results
 
@@ -342,8 +339,8 @@ class StatusCheckService @Inject()(
 
   private def checkPipelineJob(serviceName: ServiceName)(implicit hc: HeaderCarrier): Future[Check.Result] =
     for {
-      jobs <- teamsAndReposConnector.findBuildJobs(serviceName.asString)
-      check = jobs.find(_.jobType == TeamsAndRepositoriesConnector.BuildJobType.Pipeline)
+      jobs <- teamsAndReposConnector.findJenkinsJobs(serviceName.asString)
+      check = jobs.find(_.jobType == TeamsAndRepositoriesConnector.JobType.Pipeline)
     } yield check match {
       case Some(job) => Right(Check.Present(job.jenkinsUrl))
       case None      => Left(Check.Missing(s"https://github.com/hmrc/build-jobs"))
