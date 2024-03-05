@@ -27,7 +27,7 @@ import uk.gov.hmrc.servicecommissioningstatus.{Check, Environment, ServiceName}
 import uk.gov.hmrc.servicecommissioningstatus.service.StatusCheckService
 
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 
 class LifecycleStatusControllerSpec
   extends AnyWordSpec
@@ -71,7 +71,7 @@ class LifecycleStatusControllerSpec
 
   "LifecycleStatusController" should {
     "return all completed Service Commissioning Checks as Json" in {
-      when(mockStatusCheckService.commissioningStatusChecks(eqTo(ServiceName("foo")))(any[HeaderCarrier]))
+      when(mockStatusCheckService.commissioningStatusChecks(eqTo(ServiceName("foo")))(any[HeaderCarrier], any[ExecutionContext]))
         .thenReturn(Future.successful(checks))
 
       val controller = new LifecycleStatusController(Helpers.stubControllerComponents(), mockStatusCheckService)

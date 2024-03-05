@@ -35,8 +35,7 @@ class CacheScheduler @Inject()(
 , statusCheckService  : StatusCheckService
 , timestampSupport    : TimestampSupport
 )(implicit
-  ec                  : ExecutionContext
-, actorSystem         : ActorSystem
+  actorSystem         : ActorSystem
 , applicationLifecycle: ApplicationLifecycle
 ) extends SchedulerUtils {
 
@@ -55,6 +54,7 @@ class CacheScheduler @Inject()(
   )
 
   implicit val hc: HeaderCarrier = HeaderCarrier()
+  implicit val ec: ExecutionContext = actorSystem.dispatchers.lookup("scheduler-dispatcher")
 
   scheduleWithLock("Cache Scheduler", schedulerConfig, lock) {
     logger.info("Updating cache ...")
