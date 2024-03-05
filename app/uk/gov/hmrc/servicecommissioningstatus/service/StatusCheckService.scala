@@ -38,7 +38,7 @@ class StatusCheckService @Inject()(
 , slackNotificationsConnector: SlackNotificationsConnector
 , cachedRepository           : CacheRepository
 , lifecycleStatusRepository  : LifecycleStatusRepository
-)(implicit ec: ExecutionContext){
+){
 
   // TODO get from service commissioning status?
   def listAllChecks(): List[(String, Class[_ <: Check])] =
@@ -60,7 +60,7 @@ class StatusCheckService @Inject()(
     ("Upscan Config"           -> classOf[Check.EnvCheck   ]) ::
     Nil
 
-  def updateCache()(implicit hc: HeaderCarrier): Future[Int] =
+  def updateCache()(implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Int] =
     for {
       services <- teamsAndReposConnector.findServiceRepos()
       results  <- services.foldLeftM[Future, Seq[CacheRepository.ServiceCheck]](List.empty) { (acc, repo) =>
@@ -73,7 +73,7 @@ class StatusCheckService @Inject()(
     } yield results.size
 
   def cachedCommissioningStatusChecks(teamName: Option[TeamName], serviceType: Option[ServiceType], lifecycleStatus: List[LifecycleStatus])
-      (implicit hc: HeaderCarrier): Future[Seq[CacheRepository.ServiceCheck]] =
+      (implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Seq[CacheRepository.ServiceCheck]] =
     for {
       services  <- teamsAndReposConnector.findServiceRepos(
                      team        = teamName
@@ -90,7 +90,7 @@ class StatusCheckService @Inject()(
   }
 
   import Check.{EnvCheck, SimpleCheck}
-  def commissioningStatusChecks(serviceName: ServiceName)(implicit hc: HeaderCarrier): Future[List[Check]] =
+  def commissioningStatusChecks(serviceName: ServiceName)(implicit hc: HeaderCarrier, ec: ExecutionContext): Future[List[Check]] =
     for {
       oRepo           <- teamsAndReposConnector.findServiceRepos(serviceName = Some(serviceName)).map(_.headOption)
       configLocation  <- serviceConfigsConnector.getConfigLocation(serviceName)
@@ -283,7 +283,7 @@ class StatusCheckService @Inject()(
       checks           = StatusCheckService.hideUnconfiguredEnvironments(allChecks, environmentsToHideWhenUnconfigured)
     } yield checks
 
-  private def lifecycleStatus(repo: TeamsAndRepositoriesConnector.Repo): Future[LifecycleStatus] =
+  private def lifecycleStatus(repo: TeamsAndRepositoriesConnector.Repo)(implicit ec: ExecutionContext): Future[LifecycleStatus] =
     lifecycleStatusRepository
       .lastLifecycleStatus(ServiceName(repo.name))
       .map {
@@ -293,7 +293,7 @@ class StatusCheckService @Inject()(
         case None                         => LifecycleStatus.Active
       }
 
-  def getLifecycleStatus(serviceName: ServiceName)(implicit hc: HeaderCarrier): Future[Option[LifecycleStatus]] =
+  def getLifecycleStatus(serviceName: ServiceName)(implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Option[LifecycleStatus]] =
     for {
       oRepo           <- teamsAndReposConnector.findServiceRepos(serviceName = Some(serviceName)).map(_.headOption)
       lifecycleStatus <- oRepo.fold(Future.successful(Option.empty[LifecycleStatus]))(repo => lifecycleStatus(repo).map(Option.apply))
@@ -303,7 +303,7 @@ class StatusCheckService @Inject()(
     serviceName    : ServiceName,
     lifecycleStatus: LifecycleStatus,
     username       : String
-  )(implicit hc: HeaderCarrier): Future[Unit] =
+  )(implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Unit] =
     for {
       current <- lifecycleStatusRepository.lastLifecycleStatus(serviceName)
       _       <- lifecycleStatusRepository.setLifecycleStatus(serviceName, lifecycleStatus, username)
@@ -343,7 +343,7 @@ class StatusCheckService @Inject()(
       Left(Check.Missing(url))
   }
 
-  private def checkPipelineJob(serviceName: ServiceName)(implicit hc: HeaderCarrier): Future[Check.Result] =
+  private def checkPipelineJob(serviceName: ServiceName)(implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Check.Result] =
     for {
       jobs <- teamsAndReposConnector.findBuildJobs(serviceName.asString)
       check = jobs.find(_.jobType == TeamsAndRepositoriesConnector.BuildJobType.Pipeline)

@@ -19,8 +19,8 @@ package uk.gov.hmrc.servicecommissioningstatus.service
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatest.concurrent.ScalaFutures
-import scala.concurrent.Future
 
+import scala.concurrent.{ExecutionContext, Future}
 import org.mockito.{ArgumentMatchersSugar, MockitoSugar}
 import play.api.Configuration
 import uk.gov.hmrc.servicecommissioningstatus.connectors._
@@ -480,9 +480,10 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
       slackNotificationsConnector,
       cachedRepository,
       lifecycleStatusRepository,
-    )(scala.concurrent.ExecutionContext.global)
+    )
 
     implicit val hc: HeaderCarrier = HeaderCarrier()
+    implicit val ec: ExecutionContext = scala.concurrent.ExecutionContext.global
 
     when(teamsAndReposConnector.findServiceRepos(any[Option[ServiceName]],any[Option[TeamName]],any[Option[ServiceType]])(any[HeaderCarrier]))
       .thenReturn(Future.successful(Seq(TeamsAndRepositoriesConnector.Repo(
