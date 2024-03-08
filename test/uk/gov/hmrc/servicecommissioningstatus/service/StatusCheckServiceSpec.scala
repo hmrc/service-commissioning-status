@@ -461,6 +461,7 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
     isArchived             : Boolean = false,
     isDeprecated           : Boolean = false,
     isMarkedForDecommission: Boolean = false,
+    isDeleted              : Boolean = false
   ) extends MockitoSugar with ArgumentMatchersSugar {
     protected val serviceName                 = ServiceName("serviceName")
     protected val config                      = mock[Configuration]
@@ -491,7 +492,11 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
         githubUrl    = "github.url",
         isArchived   = isArchived,
         isDeprecated = isDeprecated,
+        isDeleted    = isDeleted,
       ))))
+
+    when(teamsAndReposConnector.findDeletedServiceRepos(any[Option[ServiceName]],any[Option[TeamName]],any[Option[ServiceType]])(any[HeaderCarrier]))
+      .thenReturn(Future.successful(Nil))
 
     when(lifecycleStatusRepository.lastLifecycleStatus(any[ServiceName]))
       .thenReturn(Future.successful(Option.when(isMarkedForDecommission)(LifecycleStatus.DecommissionInProgress)))

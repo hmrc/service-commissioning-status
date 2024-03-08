@@ -46,8 +46,10 @@ object LifecycleStatus {
   object Archived               extends LifecycleStatus { val asString: String = "Archived" }
   object DecommissionInProgress extends LifecycleStatus { val asString: String = "DecommissionInProgress" }
   object Deprecated             extends LifecycleStatus { val asString: String = "Deprecated" }
+  object Deleted                extends LifecycleStatus { val asString: String = "Deleted" }
 
-  val values: List[LifecycleStatus] = List(Active, Archived, DecommissionInProgress, Deprecated)
+
+  val values: List[LifecycleStatus] = List(Active, Archived, DecommissionInProgress, Deprecated, Deleted)
 
   def parse(s: String): Either[String, LifecycleStatus] =
     values
