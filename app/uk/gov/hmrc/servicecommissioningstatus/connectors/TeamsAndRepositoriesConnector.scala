@@ -47,10 +47,11 @@ object TeamsAndRepositoriesConnector {
   , isArchived  : Boolean
   , isDeprecated: Boolean
   , githubUrl   : String
+  , isDeleted   : Boolean
   )
 
   object Repo {
-    val reads: Reads[Repo] = {
+    val readsActive: Reads[Repo] = {
       implicit val readServiceType = ServiceType.reads
       implicit val readTag         = Tag.reads
       ( (__ \ "name"        ).read[String]
@@ -59,6 +60,20 @@ object TeamsAndRepositoriesConnector {
       ~ (__ \ "isArchived"  ).readWithDefault[Boolean](false)
       ~ (__ \ "isDeprecated").readWithDefault[Boolean](false)
       ~ (__ \ "url"         ).read[String]
+      ~ Reads.pure(false)
+      ) (apply _)
+    }
+
+    val readsDeleted: Reads[Repo] = {
+      implicit val readServiceType = ServiceType.reads
+      implicit val readTag         = Tag.reads
+      ( (__ \ "name"        ).read[String]
+      ~ (__ \ "serviceType" ).readNullable[ServiceType]
+      ~ (__ \ "tags"        ).readWithDefault[Seq[Tag]](Seq.empty)
+      ~ Reads.pure(false)
+      ~ Reads.pure(false)
+      ~ Reads.pure("")
+      ~ Reads.pure(true)
       ) (apply _)
     }
   }
@@ -111,16 +126,29 @@ class TeamsAndRepositoriesConnector @Inject()(
 
   private val url = servicesConfig.baseUrl("teams-and-repositories")
 
-  private implicit val readRepo: Reads[Repo] = Repo.reads
-
   def findServiceRepos(
     serviceName: Option[ServiceName] = None
-  , team       : Option[TeamName]    = None
-  , serviceType: Option[ServiceType] = None
-  )(implicit hc: HeaderCarrier): Future[Seq[Repo]] =
+    , team       : Option[TeamName]    = None
+    , serviceType: Option[ServiceType] = None
+    )(implicit hc: HeaderCarrier): Future[Seq[Repo]] = {
+    implicit val readRepo: Reads[Repo] = Repo.readsActive
+
     httpClientV2
       .get(url"$url/api/v2/repositories?repoType=service&name=${serviceName.map(sn => s"\"${sn.asString}\"")}&team=${team.map(_.asString)}&serviceType=${serviceType.map(_.asString)}")
       .execute[Seq[Repo]]
+  }
+
+  def findDeletedServiceRepos(
+    serviceName: Option[ServiceName] = None
+  , team       : Option[TeamName]    = None
+  , serviceType: Option[ServiceType] = None
+  )(implicit hc: HeaderCarrier): Future[Seq[Repo]] = {
+    implicit val readRepo: Reads[Repo] = Repo.readsDeleted
+
+    httpClientV2
+      .get(url"$url/api/deleted-repositories?repoType=service&name=${serviceName.map(sn => s"\"${sn.asString}\"")}&team=${team.map(_.asString)}&serviceType=${serviceType.map(_.asString)}")
+      .execute[Seq[Repo]]
+  }
 
   def findJenkinsJobs(repoName: String)(implicit hc: HeaderCarrier): Future[Seq[JenkinsJob]] = {
     implicit val readJobs: Reads[Seq[JenkinsJob]] =
