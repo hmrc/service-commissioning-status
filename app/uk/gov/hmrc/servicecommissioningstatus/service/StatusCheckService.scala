@@ -62,9 +62,9 @@ class StatusCheckService @Inject()(
 
   def updateCache()(implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Int] =
     for {
-      existing <- teamsAndReposConnector.findServiceRepos()
-      deleted  <- teamsAndReposConnector.findDeletedServiceRepos()
-      services  = (existing ++ deleted)
+      services <- ( teamsAndReposConnector.findServiceRepos()
+                  , teamsAndReposConnector.findDeletedServiceRepos()
+                  ).mapN(_ ++ _)
       results  <- services.foldLeftM[Future, Seq[CacheRepository.ServiceCheck]](List.empty) { (acc, repo) =>
                     for {
                       lifecycleStatus <- lifecycleStatus(repo)
@@ -77,9 +77,9 @@ class StatusCheckService @Inject()(
   def cachedCommissioningStatusChecks(teamName: Option[TeamName], serviceType: Option[ServiceType], lifecycleStatus: List[LifecycleStatus])
       (implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Seq[CacheRepository.ServiceCheck]] =
     for {
-      existing  <- teamsAndReposConnector.findServiceRepos(team = teamName, serviceType = serviceType)
-      deleted   <- teamsAndReposConnector.findDeletedServiceRepos(team = teamName, serviceType = serviceType)
-      services   = (existing ++ deleted)
+      services  <- ( teamsAndReposConnector.findServiceRepos()
+                   , teamsAndReposConnector.findDeletedServiceRepos()
+                   ).mapN(_ ++ _)
       results   <- cachedRepository.findAll(services.map(repo => ServiceName(repo.name)), lifecycleStatus)
     } yield results
 
@@ -93,9 +93,10 @@ class StatusCheckService @Inject()(
   import Check.{EnvCheck, SimpleCheck}
   def commissioningStatusChecks(serviceName: ServiceName)(implicit hc: HeaderCarrier, ec: ExecutionContext): Future[List[Check]] =
     for {
-      active          <- teamsAndReposConnector.findServiceRepos(serviceName = Some(serviceName))
-      deleted         <- teamsAndReposConnector.findDeletedServiceRepos(serviceName = Some(serviceName))
-      oRepo            = (active ++ deleted).headOption
+      oRepo           <- ( teamsAndReposConnector.findServiceRepos(serviceName = Some(serviceName))
+                         , teamsAndReposConnector.findDeletedServiceRepos(serviceName = Some(serviceName))
+                         ).mapN(_ ++ _)
+                          .map(_.headOption)
       configLocation  <- serviceConfigsConnector.getConfigLocation(serviceName)
       isDecommission  <- oRepo.fold(Future.successful(false))(repo => lifecycleStatus(repo).map(Seq(LifecycleStatus.DecommissionInProgress, LifecycleStatus.Archived,LifecycleStatus.Deleted).contains))
       isFrontend      =  oRepo.flatMap(_.serviceType).contains(ServiceType.Frontend)
@@ -299,9 +300,10 @@ class StatusCheckService @Inject()(
 
   def getLifecycleStatus(serviceName: ServiceName)(implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Option[LifecycleStatus]] =
     for {
-      active          <- teamsAndReposConnector.findServiceRepos(serviceName = Some(serviceName))
-      deleted         <- teamsAndReposConnector.findDeletedServiceRepos(serviceName = Some(serviceName))
-      oRepo            = (active ++ deleted).headOption
+      oRepo           <- ( teamsAndReposConnector.findServiceRepos(serviceName = Some(serviceName))
+                         , teamsAndReposConnector.findDeletedServiceRepos(serviceName = Some(serviceName))
+                         ).mapN(_ ++ _)
+                          .map(_.headOption)
       lifecycleStatus <- oRepo.fold(Future.successful(Option.empty[LifecycleStatus]))(repo => lifecycleStatus(repo).map(Option.apply))
     } yield lifecycleStatus
 
