@@ -128,9 +128,9 @@ class TeamsAndRepositoriesConnector @Inject()(
 
   def findServiceRepos(
     serviceName: Option[ServiceName] = None
-    , team       : Option[TeamName]    = None
-    , serviceType: Option[ServiceType] = None
-    )(implicit hc: HeaderCarrier): Future[Seq[Repo]] = {
+  , team       : Option[TeamName]    = None
+  , serviceType: Option[ServiceType] = None
+  )(implicit hc: HeaderCarrier): Future[Seq[Repo]] = {
     implicit val readRepo: Reads[Repo] = Repo.readsActive
 
     httpClientV2
