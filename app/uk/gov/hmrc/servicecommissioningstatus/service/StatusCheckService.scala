@@ -77,8 +77,8 @@ class StatusCheckService @Inject()(
   def cachedCommissioningStatusChecks(teamName: Option[TeamName], serviceType: Option[ServiceType], lifecycleStatus: List[LifecycleStatus])
       (implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Seq[CacheRepository.ServiceCheck]] =
     for {
-      services  <- ( teamsAndReposConnector.findServiceRepos()
-                   , teamsAndReposConnector.findDeletedServiceRepos()
+      services  <- ( teamsAndReposConnector.findServiceRepos(team = teamName, serviceType = serviceType)
+                   , teamsAndReposConnector.findDeletedServiceRepos(team = teamName, serviceType = serviceType)
                    ).mapN(_ ++ _)
       results   <- cachedRepository.findAll(services.map(repo => ServiceName(repo.name)), lifecycleStatus)
     } yield results
