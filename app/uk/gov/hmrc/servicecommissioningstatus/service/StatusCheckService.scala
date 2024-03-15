@@ -65,6 +65,7 @@ class StatusCheckService @Inject()(
       services <- ( teamsAndReposConnector.findServiceRepos()
                   , teamsAndReposConnector.findDeletedServiceRepos()
                   ).mapN(_ ++ _)
+                   .map(_.sortBy(_.name))
       results  <- services.foldLeftM[Future, Seq[CacheRepository.ServiceCheck]](List.empty) { (acc, repo) =>
                     for {
                       lifecycleStatus <- lifecycleStatus(repo)
@@ -80,6 +81,7 @@ class StatusCheckService @Inject()(
       services  <- ( teamsAndReposConnector.findServiceRepos(team = teamName, serviceType = serviceType)
                    , teamsAndReposConnector.findDeletedServiceRepos(team = teamName, serviceType = serviceType)
                    ).mapN(_ ++ _)
+                    .map(_.sortBy(_.name))
       results   <- cachedRepository.findAll(services.map(repo => ServiceName(repo.name)), lifecycleStatus)
     } yield results
 
