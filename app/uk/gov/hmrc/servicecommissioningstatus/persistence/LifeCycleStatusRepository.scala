@@ -53,13 +53,12 @@ class LifecycleStatusRepository @Inject()(
       .toFuture()
       .map(_ => ())
 
-  def lastLifecycleStatus(serviceName: ServiceName): Future[Option[LifecycleStatus]] =
+  def lastLifecycleStatus(serviceName: ServiceName): Future[Option[LifecycleStatusRepository.Row]] =
     collection
       .find(Filters.eq("serviceName", serviceName))
       .sort(Sorts.orderBy(Sorts.descending("createDate")))
       .limit(1)
       .headOption()
-      .map(_.map(_.lifecycleStatus))
 }
 
 object LifecycleStatusRepository {

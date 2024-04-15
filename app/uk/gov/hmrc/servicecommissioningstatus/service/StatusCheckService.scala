@@ -19,10 +19,9 @@ package uk.gov.hmrc.servicecommissioningstatus.service
 import play.api.Configuration
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.servicecommissioningstatus.connectors._
-import uk.gov.hmrc.servicecommissioningstatus.{Check, Environment, LifecycleStatus, ServiceName, ServiceType, TeamName}
+import uk.gov.hmrc.servicecommissioningstatus.{Check, Environment, Lifecycle, LifecycleStatus, LifecycleWithMetaData, LifecycleWithoutMetaData, ServiceName, ServiceType, TeamName}
 import uk.gov.hmrc.servicecommissioningstatus.persistence.CacheRepository
 import uk.gov.hmrc.servicecommissioningstatus.persistence.LifecycleStatusRepository
-
 import cats.implicits._
 
 import javax.inject.{Inject, Singleton}
@@ -70,7 +69,7 @@ class StatusCheckService @Inject()(
                     for {
                       lifecycleStatus <- lifecycleStatus(repo)
                       checks          <- commissioningStatusChecks(ServiceName(repo.name))
-                    } yield acc :+ CacheRepository.ServiceCheck(ServiceName(repo.name), lifecycleStatus, checks)
+                    } yield acc :+ CacheRepository.ServiceCheck(ServiceName(repo.name), lifecycleStatus.status, checks)
                   }
       _        <- cachedRepository.putAll(results)
     } yield results.size
@@ -289,24 +288,24 @@ class StatusCheckService @Inject()(
       checks           = StatusCheckService.hideUnconfiguredEnvironments(allChecks, environmentsToHideWhenUnconfigured)
     } yield checks
 
-  private def lifecycleStatus(repo: TeamsAndRepositoriesConnector.Repo)(implicit ec: ExecutionContext): Future[LifecycleStatus] =
+  private def lifecycleStatus(repo: TeamsAndRepositoriesConnector.Repo)(implicit ec: ExecutionContext): Future[Lifecycle] =
     lifecycleStatusRepository
       .lastLifecycleStatus(ServiceName(repo.name))
       .map {
-        case _    if repo.isArchived   => LifecycleStatus.Archived
-        case _    if repo.isDeleted    => LifecycleStatus.Deleted
-        case None if repo.isDeprecated => LifecycleStatus.Deprecated
-        case None                      => LifecycleStatus.Active
-        case Some(lifecycleStatus)     => lifecycleStatus
+        case _    if repo.isArchived   => LifecycleWithoutMetaData(LifecycleStatus.Archived)
+        case _    if repo.isDeleted    => LifecycleWithoutMetaData(LifecycleStatus.Deleted)
+        case None if repo.isDeprecated => LifecycleWithoutMetaData(LifecycleStatus.Deprecated)
+        case None                      => LifecycleWithoutMetaData(LifecycleStatus.Active)
+        case Some(row)                 => LifecycleWithMetaData(row.lifecycleStatus, row.createdDate, row.username)
       }
 
-  def getLifecycleStatus(serviceName: ServiceName)(implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Option[LifecycleStatus]] =
+  def getLifecycleStatus(serviceName: ServiceName)(implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Option[Lifecycle]] =
     for {
       oRepo           <- ( teamsAndReposConnector.findServiceRepos(serviceName = Some(serviceName))
                          , teamsAndReposConnector.findDeletedServiceRepos(serviceName = Some(serviceName))
                          ).mapN(_ ++ _)
                           .map(_.headOption)
-      lifecycleStatus <- oRepo.fold(Future.successful(Option.empty[LifecycleStatus]))(repo => lifecycleStatus(repo).map(Option.apply))
+      lifecycleStatus <- oRepo.fold(Future.successful(Option.empty[Lifecycle]))(repo => lifecycleStatus(repo).map(Option.apply))
     } yield lifecycleStatus
 
   def setLifecycleStatus(
@@ -317,7 +316,7 @@ class StatusCheckService @Inject()(
     for {
       current <- lifecycleStatusRepository.lastLifecycleStatus(serviceName)
       _       <- lifecycleStatusRepository.setLifecycleStatus(serviceName, lifecycleStatus, username)
-      _       <- if (lifecycleStatus == LifecycleStatus.DecommissionInProgress && !current.contains(LifecycleStatus.DecommissionInProgress)) {
+      _       <- if (lifecycleStatus == LifecycleStatus.DecommissionInProgress && current.forall(_.lifecycleStatus != LifecycleStatus.DecommissionInProgress)) {
                    val msg = SlackNotificationRequest.markedForDecommissioning(serviceName.asString, username)
                    slackNotificationsConnector.send(msg)
                  } else Future.unit

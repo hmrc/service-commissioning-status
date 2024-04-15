@@ -39,37 +39,6 @@ object ServiceType extends Enum[ServiceType] {
   override val values: List[ServiceType] = List(Frontend, Backend)
 }
 
-sealed trait LifecycleStatus { val asString: String }
-
-object LifecycleStatus {
-  object Active                 extends LifecycleStatus { val asString: String = "Active" }
-  object Archived               extends LifecycleStatus { val asString: String = "Archived" }
-  object DecommissionInProgress extends LifecycleStatus { val asString: String = "DecommissionInProgress" }
-  object Deprecated             extends LifecycleStatus { val asString: String = "Deprecated" }
-  object Deleted                extends LifecycleStatus { val asString: String = "Deleted" }
-
-
-  val values: List[LifecycleStatus] = List(Active, Archived, DecommissionInProgress, Deprecated, Deleted)
-
-  def parse(s: String): Either[String, LifecycleStatus] =
-    values
-      .find(_.asString == s)
-      .toRight(s"Invalid service status - should be one of: ${values.map(_.asString).mkString(", ")}")
-
-  val format: Format[LifecycleStatus] =
-    new Format[LifecycleStatus] {
-      override def reads(json: JsValue): JsResult[LifecycleStatus] =
-        json match {
-          case JsString(s) => parse(s).fold(msg => JsError(msg), rt => JsSuccess(rt))
-          case _           => JsError("String value expected")
-        }
-
-      override def writes(rt: LifecycleStatus): JsValue =
-        JsString(rt.asString)
-    }
-}
-
-
 sealed trait Environment extends WithAsString
 object Environment extends Enum[Environment] {
   case object Development  extends Environment { val asString = "development" }
@@ -112,19 +81,15 @@ object Check {
 
   val format: Format[Check] = {
     implicit val formatResult: Format[Result] = Format(
-      new Reads[Result] {
-        def reads(json: JsValue) =
-          ( (json \ "evidence").asOpt[String], (json \ "add").asOpt[String] ) match {
-            case (Some(str), _) => JsSuccess(Right(Present(str)): Result)
-            case (_, Some(str)) => JsSuccess(Left( Missing(str)): Result)
-            case _              => JsError("Could not find either field 'evidence' or 'add'")
-          }
+      (json: JsValue) =>
+        ((json \ "evidence").asOpt[String], (json \ "add").asOpt[String]) match {
+          case (Some(str), _) => JsSuccess(Right(Present(str)): Result)
+          case (_, Some(str)) => JsSuccess(Left(Missing(str)): Result)
+          case _ => JsError("Could not find either field 'evidence' or 'add'")
       }
-    , new Writes[Result] {
-        def writes(result: Result) = result match {
-          case Left(Missing(v))  => Json.obj("add" -> v)
-          case Right(Present(v)) => Json.obj("evidence" -> v)
-        }
+    , {
+        case Left(Missing(v)) => Json.obj("add" -> v)
+        case Right(Present(v)) => Json.obj("evidence" -> v)
       }
     )
 
@@ -151,17 +116,12 @@ object Check {
       )(EnvCheck.apply, unlift(EnvCheck.unapply))
 
     Format(
-      new Reads[Check] {
-        def reads(json: JsValue) =
-          json
-            .validate[SimpleCheck]
-            .orElse(json.validate[EnvCheck])
-        }
-    , new Writes[Check] {
-        def writes(check: Check) = check match {
-          case a: SimpleCheck => Json.toJson(a)
-          case b: EnvCheck    => Json.toJson(b)
-        }
+      (json: JsValue) => json
+        .validate[SimpleCheck]
+        .orElse(json.validate[EnvCheck])
+    , {
+        case a: SimpleCheck => Json.toJson(a)
+        case b: EnvCheck => Json.toJson(b)
       }
     )
   }

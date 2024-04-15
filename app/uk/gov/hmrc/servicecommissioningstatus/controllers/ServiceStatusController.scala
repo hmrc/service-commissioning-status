@@ -17,13 +17,12 @@
 package uk.gov.hmrc.servicecommissioningstatus.controllers
 
 import play.api.Logging
-import play.api.libs.json.{Json, JsString, Writes}
-import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
+import play.api.libs.json._
 import play.api.mvc.{Action, AnyContent, ControllerComponents}
-import uk.gov.hmrc.servicecommissioningstatus.{Check, LifecycleStatus, ServiceName, ServiceType, TeamName}
-import uk.gov.hmrc.servicecommissioningstatus.service.StatusCheckService
+import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 import uk.gov.hmrc.servicecommissioningstatus.persistence.CacheRepository.ServiceCheck
-import play.api.libs.json.{__, Format, Reads}
+import uk.gov.hmrc.servicecommissioningstatus.service.StatusCheckService
+import uk.gov.hmrc.servicecommissioningstatus._
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
@@ -64,7 +63,7 @@ class LifecycleStatusController @Inject()(
   def getLifecycleStatus(serviceName: ServiceName): Action[AnyContent] = Action.async { implicit request =>
     statusCheckService
       .getLifecycleStatus(serviceName)
-      .map(_.fold(NotFound(""))(result => Ok(Json.toJson(result))))
+      .map(_.fold(NotFound(""))(result => Ok(Json.toJson(result)(Lifecycle.writes))))
   }
 
   def setLifecycleStatus(serviceName: ServiceName): Action[LifecycleStatusRequest] = Action.async(parse.json[LifecycleStatusRequest](reads)) { implicit request =>
