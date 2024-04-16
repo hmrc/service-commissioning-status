@@ -16,21 +16,23 @@
 
 package uk.gov.hmrc.servicecommissioningstatus.service
 
+import org.mockito.{ArgumentMatchersSugar, MockitoSugar}
+import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
-import org.scalatest.concurrent.ScalaFutures
-
-import scala.concurrent.{ExecutionContext, Future}
-import org.mockito.{ArgumentMatchersSugar, MockitoSugar}
 import play.api.Configuration
-import uk.gov.hmrc.servicecommissioningstatus.connectors._
-import uk.gov.hmrc.servicecommissioningstatus.{Check, Environment, LifecycleStatus, ServiceType, TeamName}
-import uk.gov.hmrc.servicecommissioningstatus.persistence._
-import uk.gov.hmrc.servicecommissioningstatus.ServiceName
 import uk.gov.hmrc.http.HeaderCarrier
+import uk.gov.hmrc.servicecommissioningstatus.connectors._
+import uk.gov.hmrc.servicecommissioningstatus.persistence._
+import uk.gov.hmrc.servicecommissioningstatus._
+import uk.gov.hmrc.servicecommissioningstatus.persistence.LifecycleStatusRepository.Lifecycle
+
+import java.time.Instant
+import scala.concurrent.{ExecutionContext, Future}
 
 class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures {
-  import Check._; import Environment._
+  import Check._
+  import Environment._
 
   private val missing: Result = Left( Missing(""))
   private val present: Result = Right(Present(""))
@@ -378,7 +380,7 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
       "the service is archived" in new StatusCheckServiceFixture(isArchived = true) {
         val status = service.getLifecycleStatus(serviceName).futureValue
 
-        status shouldBe Some(LifecycleStatus.Archived)
+        status shouldBe Some(Lifecycle(ServiceName("serviceName"), LifecycleStatus.Archived))
       }
 
       "the service is archived and marked for decommission" in new StatusCheckServiceFixture(
@@ -387,7 +389,7 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
       ) {
         val status = service.getLifecycleStatus(serviceName).futureValue
 
-        status shouldBe Some(LifecycleStatus.Archived)
+        status shouldBe Some(Lifecycle(ServiceName("serviceName"), LifecycleStatus.Archived))
       }
 
       "the service is archived, marked for decommission and deprecated" in new StatusCheckServiceFixture(
@@ -397,24 +399,28 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
         ) {
         val status = service.getLifecycleStatus(serviceName).futureValue
 
-        status shouldBe Some(LifecycleStatus.Archived)
+        status shouldBe Some(Lifecycle(ServiceName("serviceName"), LifecycleStatus.Archived))
       }
     }
 
     "return the status DecommissionInProgress" when {
-      "the service is marked for decommission" in new StatusCheckServiceFixture(isMarkedForDecommission = true) {
+
+      val now: Instant = Instant.now()
+
+      "the service is marked for decommission" in new StatusCheckServiceFixture(isMarkedForDecommission = true, dateTime = now) {
         val status = service.getLifecycleStatus(serviceName).futureValue
 
-        status shouldBe Some(LifecycleStatus.DecommissionInProgress)
+        status shouldBe Some(Lifecycle(ServiceName("serviceName"), LifecycleStatus.DecommissionInProgress, Some("bar"), Some(now)))
       }
 
       "the service is deprecated and marked for decommission" in new StatusCheckServiceFixture(
         isMarkedForDecommission = true,
         isDeprecated            = true,
+        dateTime                = now
       ) {
         val status = service.getLifecycleStatus(serviceName).futureValue
 
-        status shouldBe Some(LifecycleStatus.DecommissionInProgress)
+        status shouldBe Some(Lifecycle(ServiceName("serviceName"), LifecycleStatus.DecommissionInProgress , Some("bar"), Some(now)))
       }
     }
 
@@ -422,7 +428,7 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
       "the service is deprecated and not archived or marked for decommission" in new StatusCheckServiceFixture(isDeprecated = true) {
         val status = service.getLifecycleStatus(serviceName).futureValue
 
-        status shouldBe Some(LifecycleStatus.Deprecated)
+        status shouldBe Some(Lifecycle(ServiceName("serviceName"), LifecycleStatus.Deprecated))
       }
     }
 
@@ -430,7 +436,7 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
       "the service is not archived, deprecated or marked for decommission" in new StatusCheckServiceFixture {
         val status = service.getLifecycleStatus(serviceName).futureValue
 
-        status shouldBe Some(LifecycleStatus.Active)
+        status shouldBe Some(Lifecycle(ServiceName("serviceName"), LifecycleStatus.Active))
       }
     }
 
@@ -461,7 +467,8 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
     isArchived             : Boolean = false,
     isDeprecated           : Boolean = false,
     isMarkedForDecommission: Boolean = false,
-    isDeleted              : Boolean = false
+    isDeleted              : Boolean = false,
+    dateTime               : Instant = Instant.now()
   ) extends MockitoSugar with ArgumentMatchersSugar {
     protected val serviceName                 = ServiceName("serviceName")
     protected val config                      = mock[Configuration]
@@ -499,7 +506,7 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
       .thenReturn(Future.successful(Nil))
 
     when(lifecycleStatusRepository.lastLifecycleStatus(any[ServiceName]))
-      .thenReturn(Future.successful(Option.when(isMarkedForDecommission)(LifecycleStatus.DecommissionInProgress)))
+      .thenReturn(Future.successful(Option.when(isMarkedForDecommission)(LifecycleStatusRepository.Lifecycle(serviceName, LifecycleStatus.DecommissionInProgress, Some("bar"),  Some(dateTime)))))
 
     when(lifecycleStatusRepository.setLifecycleStatus(any[ServiceName], any[LifecycleStatus], any[String]))
       .thenReturn(Future.unit)

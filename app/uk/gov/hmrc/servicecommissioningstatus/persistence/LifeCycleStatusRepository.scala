@@ -30,10 +30,10 @@ class LifecycleStatusRepository @Inject()(
   val mongoComponent: MongoComponent
 )(implicit
   ec: ExecutionContext
-) extends PlayMongoRepository[LifecycleStatusRepository.Row](
+) extends PlayMongoRepository[LifecycleStatusRepository.Lifecycle](
   mongoComponent = mongoComponent,
   collectionName = "lifecycleStatus",
-  domainFormat   = LifecycleStatusRepository.LifecycleStatusRow.format,
+  domainFormat   = LifecycleStatusRepository.Lifecycle.format,
   indexes        = Seq(
                       IndexModel(Indexes.ascending("serviceName") , IndexOptions().background(true).unique(true).name("serviceNameIdx")),
                       IndexModel(Indexes.descending("createdDate"), IndexOptions().name("createdDateIdx")),
@@ -47,39 +47,38 @@ class LifecycleStatusRepository @Inject()(
     collection
       .findOneAndReplace(
         filter      = Filters.equal("serviceName", serviceName),
-        replacement = LifecycleStatusRepository.Row(serviceName, lifecycleStatus, username, Instant.now),
+        replacement = LifecycleStatusRepository.Lifecycle(serviceName, lifecycleStatus, Some(username), Some(Instant.now)),
         options     = FindOneAndReplaceOptions().upsert(true)
       )
       .toFuture()
       .map(_ => ())
 
-  def lastLifecycleStatus(serviceName: ServiceName): Future[Option[LifecycleStatus]] =
+  def lastLifecycleStatus(serviceName: ServiceName): Future[Option[LifecycleStatusRepository.Lifecycle]] =
     collection
       .find(Filters.eq("serviceName", serviceName))
       .sort(Sorts.orderBy(Sorts.descending("createDate")))
       .limit(1)
       .headOption()
-      .map(_.map(_.lifecycleStatus))
 }
 
 object LifecycleStatusRepository {
   import play.api.libs.functional.syntax._
   import play.api.libs.json._
 
-  case class Row(
+  case class Lifecycle(
     serviceName    : ServiceName
   , lifecycleStatus: LifecycleStatus
-  , username       : String
-  , createdDate    : Instant
+  , username       : Option[String]  = None
+  , createdDate    : Option[Instant] = None
   )
 
-  object LifecycleStatusRow {
+  object Lifecycle {
 
-    val format: Format[Row] =
-      ( (__ \ "serviceName"    ).format[ServiceName](ServiceName.format)
-      ~ (__ \ "lifecycleStatus").format[LifecycleStatus](LifecycleStatus.format)
-      ~ (__ \ "username"       ).format[String]
-      ~ (__ \ "createDate"     ).format[Instant]
-      )(Row.apply, unlift(Row.unapply))
+    val format: Format[Lifecycle] =
+      ((__ \ "serviceName").format[ServiceName](ServiceName.format)
+        ~ (__ \ "lifecycleStatus").format[LifecycleStatus](LifecycleStatus.format)
+        ~ (__ \ "username").formatNullable[String]
+        ~ (__ \ "createDate").formatNullable[Instant]
+        )(Lifecycle.apply, unlift(Lifecycle.unapply))
   }
 }
