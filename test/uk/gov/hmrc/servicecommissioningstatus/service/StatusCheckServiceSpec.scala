@@ -25,6 +25,7 @@ import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.servicecommissioningstatus.connectors._
 import uk.gov.hmrc.servicecommissioningstatus.persistence._
 import uk.gov.hmrc.servicecommissioningstatus._
+import uk.gov.hmrc.servicecommissioningstatus.persistence.LifecycleStatusRepository.Lifecycle
 
 import java.time.Instant
 import scala.concurrent.{ExecutionContext, Future}
@@ -379,7 +380,7 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
       "the service is archived" in new StatusCheckServiceFixture(isArchived = true) {
         val status = service.getLifecycleStatus(serviceName).futureValue
 
-        status shouldBe Some(LifecycleWithoutMetaData(LifecycleStatus.Archived))
+        status shouldBe Some(Lifecycle(ServiceName("serviceName"), LifecycleStatus.Archived))
       }
 
       "the service is archived and marked for decommission" in new StatusCheckServiceFixture(
@@ -388,7 +389,7 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
       ) {
         val status = service.getLifecycleStatus(serviceName).futureValue
 
-        status shouldBe Some(LifecycleWithoutMetaData(LifecycleStatus.Archived))
+        status shouldBe Some(Lifecycle(ServiceName("serviceName"), LifecycleStatus.Archived))
       }
 
       "the service is archived, marked for decommission and deprecated" in new StatusCheckServiceFixture(
@@ -398,7 +399,7 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
         ) {
         val status = service.getLifecycleStatus(serviceName).futureValue
 
-        status shouldBe Some(LifecycleWithoutMetaData(LifecycleStatus.Archived))
+        status shouldBe Some(Lifecycle(ServiceName("serviceName"), LifecycleStatus.Archived))
       }
     }
 
@@ -409,7 +410,7 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
       "the service is marked for decommission" in new StatusCheckServiceFixture(isMarkedForDecommission = true, dateTime = now) {
         val status = service.getLifecycleStatus(serviceName).futureValue
 
-        status shouldBe Some(LifecycleWithMetaData(LifecycleStatus.DecommissionInProgress, now, "bar"))
+        status shouldBe Some(Lifecycle(ServiceName("serviceName"), LifecycleStatus.DecommissionInProgress, Some("bar"), Some(now)))
       }
 
       "the service is deprecated and marked for decommission" in new StatusCheckServiceFixture(
@@ -419,7 +420,7 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
       ) {
         val status = service.getLifecycleStatus(serviceName).futureValue
 
-        status shouldBe Some(LifecycleWithMetaData(LifecycleStatus.DecommissionInProgress, now, "bar"))
+        status shouldBe Some(Lifecycle(ServiceName("serviceName"), LifecycleStatus.DecommissionInProgress , Some("bar"), Some(now)))
       }
     }
 
@@ -427,7 +428,7 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
       "the service is deprecated and not archived or marked for decommission" in new StatusCheckServiceFixture(isDeprecated = true) {
         val status = service.getLifecycleStatus(serviceName).futureValue
 
-        status shouldBe Some(LifecycleWithoutMetaData(LifecycleStatus.Deprecated))
+        status shouldBe Some(Lifecycle(ServiceName("serviceName"), LifecycleStatus.Deprecated))
       }
     }
 
@@ -435,7 +436,7 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
       "the service is not archived, deprecated or marked for decommission" in new StatusCheckServiceFixture {
         val status = service.getLifecycleStatus(serviceName).futureValue
 
-        status shouldBe Some(LifecycleWithoutMetaData(LifecycleStatus.Active))
+        status shouldBe Some(Lifecycle(ServiceName("serviceName"), LifecycleStatus.Active))
       }
     }
 
@@ -505,7 +506,7 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
       .thenReturn(Future.successful(Nil))
 
     when(lifecycleStatusRepository.lastLifecycleStatus(any[ServiceName]))
-      .thenReturn(Future.successful(Option.when(isMarkedForDecommission)(LifecycleStatusRepository.Row(ServiceName("foo"), LifecycleStatus.DecommissionInProgress, "bar",  dateTime))))
+      .thenReturn(Future.successful(Option.when(isMarkedForDecommission)(LifecycleStatusRepository.Lifecycle(serviceName, LifecycleStatus.DecommissionInProgress, Some("bar"),  Some(dateTime)))))
 
     when(lifecycleStatusRepository.setLifecycleStatus(any[ServiceName], any[LifecycleStatus], any[String]))
       .thenReturn(Future.unit)

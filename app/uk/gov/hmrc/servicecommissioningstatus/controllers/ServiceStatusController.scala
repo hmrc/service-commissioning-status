@@ -20,9 +20,10 @@ import play.api.Logging
 import play.api.libs.json._
 import play.api.mvc.{Action, AnyContent, ControllerComponents}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
-import uk.gov.hmrc.servicecommissioningstatus.persistence.CacheRepository.ServiceCheck
-import uk.gov.hmrc.servicecommissioningstatus.service.StatusCheckService
 import uk.gov.hmrc.servicecommissioningstatus._
+import uk.gov.hmrc.servicecommissioningstatus.persistence.CacheRepository.ServiceCheck
+import uk.gov.hmrc.servicecommissioningstatus.persistence.LifecycleStatusRepository.Lifecycle
+import uk.gov.hmrc.servicecommissioningstatus.service.StatusCheckService
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
@@ -63,7 +64,7 @@ class LifecycleStatusController @Inject()(
   def getLifecycleStatus(serviceName: ServiceName): Action[AnyContent] = Action.async { implicit request =>
     statusCheckService
       .getLifecycleStatus(serviceName)
-      .map(_.fold(NotFound(""))(result => Ok(Json.toJson(result)(Lifecycle.writes))))
+      .map(_.fold(NotFound(""))(result => Ok(Json.toJson(result)(Lifecycle.format))))
   }
 
   def setLifecycleStatus(serviceName: ServiceName): Action[LifecycleStatusRequest] = Action.async(parse.json[LifecycleStatusRequest](reads)) { implicit request =>

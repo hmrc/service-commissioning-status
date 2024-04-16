@@ -16,13 +16,13 @@
 
 package uk.gov.hmrc.servicecommissioningstatus.service
 
+import cats.implicits._
 import play.api.Configuration
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.servicecommissioningstatus.connectors._
-import uk.gov.hmrc.servicecommissioningstatus.{Check, Environment, Lifecycle, LifecycleStatus, LifecycleWithMetaData, LifecycleWithoutMetaData, ServiceName, ServiceType, TeamName}
-import uk.gov.hmrc.servicecommissioningstatus.persistence.CacheRepository
-import uk.gov.hmrc.servicecommissioningstatus.persistence.LifecycleStatusRepository
-import cats.implicits._
+import uk.gov.hmrc.servicecommissioningstatus.persistence.{CacheRepository, LifecycleStatusRepository}
+import uk.gov.hmrc.servicecommissioningstatus.persistence.LifecycleStatusRepository.Lifecycle
+import uk.gov.hmrc.servicecommissioningstatus._
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
@@ -67,9 +67,9 @@ class StatusCheckService @Inject()(
                    .map(_.sortBy(_.name))
       results  <- services.foldLeftM[Future, Seq[CacheRepository.ServiceCheck]](List.empty) { (acc, repo) =>
                     for {
-                      lifecycleStatus <- lifecycleStatus(repo)
-                      checks          <- commissioningStatusChecks(ServiceName(repo.name))
-                    } yield acc :+ CacheRepository.ServiceCheck(ServiceName(repo.name), lifecycleStatus.status, checks)
+                      lifecycle <- lifecycleStatus(repo)
+                      checks    <- commissioningStatusChecks(ServiceName(repo.name))
+                    } yield acc :+ CacheRepository.ServiceCheck(ServiceName(repo.name), lifecycle.lifecycleStatus, checks)
                   }
       _        <- cachedRepository.putAll(results)
     } yield results.size
@@ -288,16 +288,18 @@ class StatusCheckService @Inject()(
       checks           = StatusCheckService.hideUnconfiguredEnvironments(allChecks, environmentsToHideWhenUnconfigured)
     } yield checks
 
-  private def lifecycleStatus(repo: TeamsAndRepositoriesConnector.Repo)(implicit ec: ExecutionContext): Future[Lifecycle] =
+  private def lifecycleStatus(repo: TeamsAndRepositoriesConnector.Repo)(implicit ec: ExecutionContext): Future[Lifecycle] = {
+    val serviceName = ServiceName(repo.name)
     lifecycleStatusRepository
-      .lastLifecycleStatus(ServiceName(repo.name))
+      .lastLifecycleStatus(serviceName)
       .map {
-        case _    if repo.isArchived   => LifecycleWithoutMetaData(LifecycleStatus.Archived)
-        case _    if repo.isDeleted    => LifecycleWithoutMetaData(LifecycleStatus.Deleted)
-        case None if repo.isDeprecated => LifecycleWithoutMetaData(LifecycleStatus.Deprecated)
-        case None                      => LifecycleWithoutMetaData(LifecycleStatus.Active)
-        case Some(row)                 => LifecycleWithMetaData(row.lifecycleStatus, row.createdDate, row.username)
+        case _    if repo.isArchived   => Lifecycle(serviceName, LifecycleStatus.Archived)
+        case _    if repo.isDeleted    => Lifecycle(serviceName, LifecycleStatus.Deleted)
+        case None if repo.isDeprecated => Lifecycle(serviceName, LifecycleStatus.Deprecated)
+        case None                      => Lifecycle(serviceName, LifecycleStatus.Active)
+        case Some(lifecycle)           => lifecycle
       }
+  }
 
   def getLifecycleStatus(serviceName: ServiceName)(implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Option[Lifecycle]] =
     for {
@@ -377,7 +379,7 @@ class StatusCheckService @Inject()(
 
 object StatusCheckService {
 
-  import Check.{SimpleCheck, EnvCheck}
+  import Check.{EnvCheck, SimpleCheck}
   def hideUnconfiguredEnvironments(checks: List[Check], environments: Set[Environment]): List[Check] = {
     val configured =
       checks
