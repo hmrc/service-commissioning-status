@@ -120,7 +120,7 @@ object SlackNotificationRequest {
         "type" -> JsString("section"),
         "text" -> Json.obj(
           "type" -> JsString("mrkdwn"),
-          "text" -> JsString(s"@$username has marked `$repositoryName` for decommissioning in the Catalogue.\n\nDecommissioning progress can be tracked <https://catalogue.tax.service.gov.uk/service/$repositoryName/commissioning-state|here>.\n\nIf this was a mistake, please contact #team-platops")
+          "text" -> JsString(s"@$username has marked `$repositoryName` for decommissioning in the MDTP Catalogue.\n\nDecommissioning progress can be tracked <https://catalogue.tax.service.gov.uk/service/$repositoryName/commissioning-state|here>.\n\nIf this was a mistake, please contact #team-platops")
         )
       )
     )
