@@ -34,17 +34,17 @@ class CacheRepositorySpec
   val serviceCheck1 = ServiceCheck(
     serviceName     = ServiceName("service1")
   , lifecycleStatus = LifecycleStatus.Active
-  , checks          = Seq(Check.SimpleCheck(title = "title1", result = Right(Check.Present("link1")), helpText = "help1", linkToDocs = None))
+  , checks          = Seq(Check.SimpleCheck(title = "title1", result = Result.Present("link1"), helpText = "help1", linkToDocs = None))
   )
   val serviceCheck2 = ServiceCheck(
     serviceName     = ServiceName("service2")
   , lifecycleStatus = LifecycleStatus.Archived
-  , checks          = Seq(Check.SimpleCheck(title = "title2", result = Left(Check.Missing("link2")), helpText = "help2", linkToDocs = None))
+  , checks          = Seq(Check.SimpleCheck(title = "title2", result = Result.Missing("link2"), helpText = "help2", linkToDocs = None))
   )
   val serviceCheck3 = ServiceCheck(
     serviceName     = ServiceName("service3")
   , lifecycleStatus = LifecycleStatus.DecommissionInProgress
-  , checks          = Seq(Check.SimpleCheck(title = "title3", result = Right(Check.Present("link3")), helpText = "help3", linkToDocs = None))
+  , checks          = Seq(Check.SimpleCheck(title = "title3", result = Result.Present("link3"), helpText = "help3", linkToDocs = None))
   )
 
   "CacheRepository.putAll" should {

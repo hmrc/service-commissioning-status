@@ -34,8 +34,8 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
   import Check._
   import Environment._
 
-  private val missing: Result = Left( Missing(""))
-  private val present: Result = Right(Present(""))
+  private val missing: Result = Result.Missing("")
+  private val present: Result = Result.Present("")
 
   private val allPresent: Map[Environment, Result] =
     Map(Integration -> present, Development -> present, QA -> present, Staging -> present, ExternalTest -> present, Production -> present)

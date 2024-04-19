@@ -23,7 +23,7 @@ import play.api.libs.json.Json
 import play.api.test.Helpers._
 import play.api.test.{FakeRequest, Helpers}
 import uk.gov.hmrc.http.HeaderCarrier
-import uk.gov.hmrc.servicecommissioningstatus.{Check, Environment, ServiceName}
+import uk.gov.hmrc.servicecommissioningstatus.{Check, Environment, Result, ServiceName}
 import uk.gov.hmrc.servicecommissioningstatus.service.StatusCheckService
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -37,27 +37,27 @@ class LifecycleStatusControllerSpec
   private val mockStatusCheckService: StatusCheckService = mock[StatusCheckService]
 
   import Environment._
-  private val appConfigEnvironment: Map[Environment, Check.Result] =
+  private val appConfigEnvironment: Map[Environment, Result] =
     Map(
-      Integration   -> Left( Check.Missing("https://github.com/hmrc/app-config-development")),
-      Development   -> Right(Check.Present("https://github.com/hmrc/app-config-development/blob/main/foo.yaml")),
-      Production    -> Right(Check.Present("https://github.com/hmrc/app-config-production/blob/main/foo.yaml")),
-      Staging       -> Right(Check.Present("https://github.com/hmrc/app-config-staging/blob/main/foo.yaml")),
-      QA            -> Right(Check.Present("https://github.com/hmrc/app-config-qa/blob/main/foo.yaml")),
-      ExternalTest  -> Right(Check.Present("https://github.com/hmrc/app-config-externaltest/blob/main/foo.yaml"))
+      Integration   -> Result.Missing("https://github.com/hmrc/app-config-development"),
+      Development   -> Result.Present("https://github.com/hmrc/app-config-development/blob/main/foo.yaml"),
+      Production    -> Result.Present("https://github.com/hmrc/app-config-production/blob/main/foo.yaml"),
+      Staging       -> Result.Present("https://github.com/hmrc/app-config-staging/blob/main/foo.yaml"),
+      QA            -> Result.Present("https://github.com/hmrc/app-config-qa/blob/main/foo.yaml"),
+      ExternalTest  -> Result.Present("https://github.com/hmrc/app-config-externaltest/blob/main/foo.yaml")
     )
 
    import Check._
    private val checks =
       SimpleCheck(
         title      = "Github Repo",
-        result     = Right(Check.Present("https://github.com/hmrc/foo")),
+        result     = Result.Present("https://github.com/hmrc/foo"),
         helpText   = "Github help text",
         linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook")
       ) ::
       SimpleCheck(
         title      = "App Config Base",
-        result     = Left( Check.Missing("https://github.com/hmrc/app-config-base/blob/main/foo.conf")),
+        result     = Result.Missing("https://github.com/hmrc/app-config-base/blob/main/foo.conf"),
         helpText   = "Base help text",
         linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook")
       ) ::
