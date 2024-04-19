@@ -35,7 +35,7 @@ class LifecycleStatusRepository @Inject()(
   collectionName = "lifecycleStatus",
   domainFormat   = LifecycleStatusRepository.Lifecycle.format,
   indexes        = Seq(
-                      IndexModel(Indexes.ascending("serviceName") , IndexOptions().background(true).unique(true).name("serviceNameIdx")),
+                      IndexModel(Indexes.ascending("serviceName") , IndexOptions().unique(true).name("serviceNameIdx")),
                       IndexModel(Indexes.descending("createdDate"), IndexOptions().name("createdDateIdx")),
                    ),
   extraCodecs    = Seq(Codecs.playFormatCodec(ServiceName.format))

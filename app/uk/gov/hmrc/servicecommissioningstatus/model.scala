@@ -63,7 +63,7 @@ object Check {
   case class Missing(addLink: String)
   case class Present(evidenceLink: String)
 
-  type Result = Either[Missing, Present]
+  type Result = Either[Missing, Present] // TODO make ADT?
 
   sealed case class SimpleCheck(
     title     : String
