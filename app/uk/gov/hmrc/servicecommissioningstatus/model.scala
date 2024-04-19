@@ -105,7 +105,7 @@ object Check {
         .of[Map[String, Result]]
         .map(_.map { case (k, v) => (Environment.parse(k).getOrElse(sys.error(s"Invalid Environment: $k")), v) })
     , Writes
-        .apply { xs => Json.toJson(xs.map { case (k, v) => k.asString -> v }) }
+        .apply(xs => Json.toJson(xs.map { case (k, v) => k.asString -> v }))
     )
 
     implicit val formatEnvCheck: Format[EnvCheck] =
@@ -116,12 +116,13 @@ object Check {
       )(EnvCheck.apply, unlift(EnvCheck.unapply))
 
     Format(
-      (json: JsValue) => json
-        .validate[SimpleCheck]
-        .orElse(json.validate[EnvCheck])
+      (json: JsValue) =>
+        json
+          .validate[SimpleCheck]
+          .orElse(json.validate[EnvCheck])
     , {
         case a: SimpleCheck => Json.toJson(a)
-        case b: EnvCheck => Json.toJson(b)
+        case b: EnvCheck    => Json.toJson(b)
       }
     )
   }

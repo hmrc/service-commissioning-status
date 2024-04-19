@@ -19,10 +19,10 @@ package uk.gov.hmrc.servicecommissioningstatus.service
 import cats.implicits._
 import play.api.Configuration
 import uk.gov.hmrc.http.HeaderCarrier
+import uk.gov.hmrc.servicecommissioningstatus.{Check, Environment, LifecycleStatus, ServiceName, ServiceType, TeamName}
 import uk.gov.hmrc.servicecommissioningstatus.connectors._
 import uk.gov.hmrc.servicecommissioningstatus.persistence.{CacheRepository, LifecycleStatusRepository}
 import uk.gov.hmrc.servicecommissioningstatus.persistence.LifecycleStatusRepository.Lifecycle
-import uk.gov.hmrc.servicecommissioningstatus._
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
@@ -74,8 +74,14 @@ class StatusCheckService @Inject()(
       _        <- cachedRepository.putAll(results)
     } yield results.size
 
-  def cachedCommissioningStatusChecks(teamName: Option[TeamName], serviceType: Option[ServiceType], lifecycleStatus: List[LifecycleStatus])
-      (implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Seq[CacheRepository.ServiceCheck]] =
+  def cachedCommissioningStatusChecks(
+    teamName       : Option[TeamName],
+    serviceType    : Option[ServiceType],
+    lifecycleStatus: List[LifecycleStatus]
+  )(implicit
+    hc: HeaderCarrier,
+    ec: ExecutionContext
+  ): Future[Seq[CacheRepository.ServiceCheck]] =
     for {
       services  <- ( teamsAndReposConnector.findServiceRepos(team = teamName, serviceType = serviceType)
                    , teamsAndReposConnector.findDeletedServiceRepos(team = teamName, serviceType = serviceType)
@@ -379,20 +385,19 @@ class StatusCheckService @Inject()(
 
 object StatusCheckService {
 
-  import Check.{EnvCheck, SimpleCheck}
   def hideUnconfiguredEnvironments(checks: List[Check], environments: Set[Environment]): List[Check] = {
     val configured =
       checks
         .flatMap {
-          case _: SimpleCheck => Nil
-          case x: EnvCheck    => x.results.toList
+          case _: Check.SimpleCheck => Nil
+          case x: Check.EnvCheck    => x.results.toList
         }
         .collect { case (k, v) if environments.contains(k) && v.isRight => k }
         .toSet
 
     checks.collect {
-      case x: SimpleCheck => x
-      case x: EnvCheck    => x.copy(results = x.results.removedAll(environments.removedAll(configured)))
+      case x: Check.SimpleCheck => x
+      case x: Check.EnvCheck    => x.copy(results = x.results.removedAll(environments.removedAll(configured)))
     }
   }
 }
