@@ -19,10 +19,10 @@ package uk.gov.hmrc.servicecommissioningstatus.service
 import cats.implicits._
 import play.api.Configuration
 import uk.gov.hmrc.http.HeaderCarrier
+import uk.gov.hmrc.servicecommissioningstatus.{Check, Environment, LifecycleStatus, Result, ServiceName, ServiceType, TeamName}
 import uk.gov.hmrc.servicecommissioningstatus.connectors._
 import uk.gov.hmrc.servicecommissioningstatus.persistence.{CacheRepository, LifecycleStatusRepository}
 import uk.gov.hmrc.servicecommissioningstatus.persistence.LifecycleStatusRepository.Lifecycle
-import uk.gov.hmrc.servicecommissioningstatus._
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
@@ -74,8 +74,14 @@ class StatusCheckService @Inject()(
       _        <- cachedRepository.putAll(results)
     } yield results.size
 
-  def cachedCommissioningStatusChecks(teamName: Option[TeamName], serviceType: Option[ServiceType], lifecycleStatus: List[LifecycleStatus])
-      (implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Seq[CacheRepository.ServiceCheck]] =
+  def cachedCommissioningStatusChecks(
+    teamName       : Option[TeamName],
+    serviceType    : Option[ServiceType],
+    lifecycleStatus: List[LifecycleStatus]
+  )(implicit
+    hc: HeaderCarrier,
+    ec: ExecutionContext
+  ): Future[Seq[CacheRepository.ServiceCheck]] =
     for {
       services  <- ( teamsAndReposConnector.findServiceRepos(team = teamName, serviceType = serviceType)
                    , teamsAndReposConnector.findDeletedServiceRepos(team = teamName, serviceType = serviceType)
@@ -106,18 +112,18 @@ class StatusCheckService @Inject()(
       oMdptFrontend   <- serviceConfigsConnector
                           .getMDTPFrontendRoutes(serviceName)
                           .map(routes => Environment.values.map(env => env -> checkFrontendRouteForEnv(routes, env)).toMap)
-                          .map(xs => Option.when(xs.values.exists(_.isRight) || (isFrontend && !isAdminFrontend))(xs))
+                          .map(xs => Option.when(xs.values.exists(_.isPresent) || (isFrontend && !isAdminFrontend))(xs))
       oAdminFrontend  <- serviceConfigsConnector
                           .getAdminFrontendRoutes(serviceName)
                           .map(routes => Environment.values.map(env => env -> checkAdminFrontendRouteForEnv(routes, env)).toMap)
-                          .map(xs => Option.when(xs.values.exists(_.isRight) || isAdminFrontend)(xs))
+                          .map(xs => Option.when(xs.values.exists(_.isPresent) || isAdminFrontend)(xs))
       oAuthConfig     <- serviceConfigsConnector
                           .getInternalAuthConfig(serviceName)
                           .map{ configs =>
-                            Map[Environment, Check.Result](
+                            Map[Environment, Result](
                               Environment.QA         -> checkForInternalAuthEnvironment(configs,"qa"   , Environment.QA),
                               Environment.Production -> checkForInternalAuthEnvironment(configs, "prod", Environment.Production))}
-                          .map(xs => Option.when(xs.values.exists(_.isRight))(xs))
+                          .map(xs => Option.when(xs.values.exists(_.isPresent))(xs))
       pipelineJob     <- checkPipelineJob(serviceName)
       deploymentEnv   <- releasesConnector
                           .getReleases(serviceName)
@@ -135,8 +141,8 @@ class StatusCheckService @Inject()(
                          SimpleCheck(
                            title      = "App Config Base",
                            result     = configLocation.get("app-config-base") match {
-                                          case None    => Left(Check.Missing(s"/create-app-configs?serviceName=${serviceName.asString}"))
-                                          case Some(e) => Right(Check.Present(e))
+                                          case None    => Result.Missing(s"/create-app-configs?serviceName=${serviceName.asString}")
+                                          case Some(e) => Result.Present(e)
                                         },
                            helpText   = "Additional configuration included in the build and applied to all environments.",
                            linkToDocs = if (isDecommission) Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/decommission-a-microservice/remove-service-configuration.html")
@@ -147,8 +153,8 @@ class StatusCheckService @Inject()(
                            results    = Environment.values.map(env =>
                                           env -> (
                                             configLocation.get(s"app-config-${env.asString}") match {
-                                              case None    => Left(Check.Missing(s"/create-app-configs?serviceName=${serviceName.asString}"))
-                                              case Some(e) => Right(Check.Present(e))
+                                              case None    => Result.Missing(s"/create-app-configs?serviceName=${serviceName.asString}")
+                                              case Some(e) => Result.Present(e)
                                             }
                                           )
                                         ).toMap,
@@ -185,8 +191,8 @@ class StatusCheckService @Inject()(
                          SimpleCheck(
                            title      = "Build Jobs",
                            result     = configLocation.get("build-jobs") match {
-                                          case None    => Left(Check.Missing("https://github.com/hmrc/build-jobs"))
-                                          case Some(e) => Right(Check.Present(e))
+                                          case None    => Result.Missing("https://github.com/hmrc/build-jobs")
+                                          case Some(e) => Result.Present(e)
                                         },
                            helpText   = "Configuration required to trigger test runs or deploy to pre-production environments automatically on merge.",
                            linkToDocs = if (isDecommission) Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/decommission-a-microservice/remove-ci-cd-jobs-and-pipeline.html")
@@ -202,8 +208,8 @@ class StatusCheckService @Inject()(
                          SimpleCheck(
                            title      = "Service Manager Config",
                            result     = configLocation.get("service-manager-config") match {
-                                          case None    => Left(Check.Missing("https://github.com/hmrc/service-manager-config"))
-                                          case Some(e) => Right(Check.Present(e))
+                                          case None    => Result.Missing("https://github.com/hmrc/service-manager-config")
+                                          case Some(e) => Result.Present(e)
                                         },
                            helpText   = "Allows the service to be run with service-manager.",
                            linkToDocs = if (isDecommission) Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/decommission-a-microservice/remove-microservice-from-service-manager.html")
@@ -212,8 +218,8 @@ class StatusCheckService @Inject()(
                          SimpleCheck(
                            title      = "Logging - Kibana",
                            result     = configLocation.get("kibana") match {
-                                          case None    => Left(Check.Missing("https://github.com/hmrc/kibana-dashboards"))
-                                          case Some(e) => Right(Check.Present(e))
+                                          case None    => Result.Missing("https://github.com/hmrc/kibana-dashboards")
+                                          case Some(e) => Result.Present(e)
                                         },
                            helpText   = "Creates a convenient dashboard in Kibana for the service.",
                            linkToDocs = if (isDecommission) Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/decommission-a-microservice/remove-a-kibana-logs-dashboard.html")
@@ -222,8 +228,8 @@ class StatusCheckService @Inject()(
                          SimpleCheck(
                            title      = "Metrics - Grafana",
                            result     = configLocation.get("grafana") match {
-                                          case None    => Left(Check.Missing("https://github.com/hmrc/grafana-dashboards"))
-                                          case Some(e) => Right(Check.Present(e))
+                                          case None    => Result.Missing("https://github.com/hmrc/grafana-dashboards")
+                                          case Some(e) => Result.Present(e)
                                         },
                            helpText   = "Creates a dashboard in Grafana for viewing the service's metrics.",
                            linkToDocs = if (isDecommission) Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/decommission-a-microservice/remove-a-grafana-metrics-dashboard.html")
@@ -232,8 +238,8 @@ class StatusCheckService @Inject()(
                          SimpleCheck(
                            title      = "Alerts - PagerDuty",
                            result     = configLocation.get("alerts") match {
-                                          case None    => Left(Check.Missing("https://github.com/hmrc/alert-config"))
-                                          case Some(e) => Right(Check.Present(e))
+                                          case None    => Result.Missing("https://github.com/hmrc/alert-config")
+                                          case Some(e) => Result.Present(e)
                                         },
                            helpText   = "Enables and configures PagerDuty alerts for the service.",
                            linkToDocs = if (isDecommission) Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/add-service-alerting-using-pagerduty.html")
@@ -258,8 +264,8 @@ class StatusCheckService @Inject()(
                            results    = Environment.values.map(env =>
                                           env -> (
                                             configLocation.get(s"outage-page-${env.asString}") match {
-                                              case None    => Left(Check.Missing(s"https://github.com/hmrc/outage-pages/blob/main/${env.asString}"))
-                                              case Some(e) => Right(Check.Present(e))
+                                              case None    => Result.Missing(s"https://github.com/hmrc/outage-pages/blob/main/${env.asString}")
+                                              case Some(e) => Result.Present(e)
                                             }
                                           )
                                         ).toMap,
@@ -269,13 +275,13 @@ class StatusCheckService @Inject()(
                             val environmentChecks = Environment.values.map(env =>
                               env -> (
                                 configLocation.get(s"upscan-config-${env.asString}") match {
-                                  case None    => Left(Check.Missing(s"https://github.com/hmrc/upscan-app-config/blob/main/${env.asString}/verify.yaml"))
-                                  case Some(e) => Right(Check.Present(e))
+                                  case None    => Result.Missing(s"https://github.com/hmrc/upscan-app-config/blob/main/${env.asString}/verify.yaml")
+                                  case Some(e) => Result.Present(e)
                                 }
                               )
                             ).toMap
 
-                            Option.when(environmentChecks.values.exists(_.isRight))(environmentChecks).map(results =>
+                            Option.when(environmentChecks.values.exists(_.isPresent))(environmentChecks).map(results =>
                               EnvCheck(
                                 title      = "Upscan Config",
                                 results    = results,
@@ -324,75 +330,74 @@ class StatusCheckService @Inject()(
                  } else Future.unit
     } yield ()
 
-  private def checkRepoExists(oRepo: Option[TeamsAndRepositoriesConnector.Repo]): Check.Result =
+  private def checkRepoExists(oRepo: Option[TeamsAndRepositoriesConnector.Repo]): Result =
     oRepo match {
       case Some(repo) if !repo.isArchived
-                      && !repo.isDeleted  => Right(Check.Present(repo.githubUrl))
-      case _                              => Left(Check.Missing("/create-service"))
+                      && !repo.isDeleted  => Result.Present(repo.githubUrl)
+      case _                              => Result.Missing("/create-service")
     }
 
-  private def checkFrontendRouteForEnv(frontendRoutes: Seq[ServiceConfigsConnector.FrontendRoute], env: Environment): Check.Result =
+  private def checkFrontendRouteForEnv(frontendRoutes: Seq[ServiceConfigsConnector.FrontendRoute], env: Environment): Result =
     frontendRoutes
       .find(_.environment == env)
       .flatMap(_.routes.map(_.ruleConfigurationUrl).headOption) match {
-        case Some(e) => Right(Check.Present(e))
-        case None    => Left(Check.Missing(s"https://github.com/hmrc/mdtp-frontend-routes/tree/main/${env.asString}"))
+        case Some(e) => Result.Present(e)
+        case None    => Result.Missing(s"https://github.com/hmrc/mdtp-frontend-routes/tree/main/${env.asString}")
       }
 
-  private def checkAdminFrontendRouteForEnv(adminFrontendRoutes: Seq[ServiceConfigsConnector.AdminFrontendRoute], env: Environment): Check.Result =
+  private def checkAdminFrontendRouteForEnv(adminFrontendRoutes: Seq[ServiceConfigsConnector.AdminFrontendRoute], env: Environment): Result =
     adminFrontendRoutes.headOption match {
       case Some(e)
         if e.allow.contains(env)
-             => Right(Check.Present(e.location))
-      case _ => Left(Check.Missing(s"https://github.com/hmrc/admin-frontend-proxy"))
+             => Result.Present(e.location)
+      case _ => Result.Missing(s"https://github.com/hmrc/admin-frontend-proxy")
     }
 
-  private def checkForInternalAuthEnvironment(configs: Seq[ServiceConfigsConnector.InternalAuthConfig], internalAuthEnv: String, environment: Environment): Check.Result = {
+  private def checkForInternalAuthEnvironment(configs: Seq[ServiceConfigsConnector.InternalAuthConfig], internalAuthEnv: String, environment: Environment): Result = {
     val url = s"https://github.com/hmrc/internal-auth-config/tree/main/$internalAuthEnv"
     if (configs.exists(cfg => cfg.environment == environment))
-      Right(Check.Present(url))
+      Result.Present(url)
     else
-      Left(Check.Missing(url))
+      Result.Missing(url)
   }
 
-  private def checkPipelineJob(serviceName: ServiceName)(implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Check.Result] =
+  private def checkPipelineJob(serviceName: ServiceName)(implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Result] =
     for {
       jobs <- teamsAndReposConnector.findJenkinsJobs(serviceName.asString)
       check = jobs.find(_.jobType == TeamsAndRepositoriesConnector.JobType.Pipeline)
     } yield check match {
-      case Some(job) => Right(Check.Present(job.jenkinsUrl))
-      case None      => Left(Check.Missing(s"https://github.com/hmrc/build-jobs"))
+      case Some(job) => Result.Present(job.jenkinsUrl)
+      case None      => Result.Missing(s"https://github.com/hmrc/build-jobs")
     }
 
-  private def checkIsDeployedForEnv(serviceName: ServiceName, releases: Seq[ReleasesConnector.Release], env: Environment): Check.Result =
+  private def checkIsDeployedForEnv(serviceName: ServiceName, releases: Seq[ReleasesConnector.Release], env: Environment): Result =
     if (releases.map(_.environment).contains(env.asString))
-      Right(Check.Present(s"https://catalogue.tax.service.gov.uk/deployment-timeline?service=${serviceName.asString}"))
+      Result.Present(s"https://catalogue.tax.service.gov.uk/deployment-timeline?service=${serviceName.asString}")
     else
-      Left(Check.Missing(s"/deploy-service/1?serviceName=${serviceName.asString}"))
+      Result.Missing(s"/deploy-service/1?serviceName=${serviceName.asString}")
 
-  private def checkMongoDbExistsInEnv(collections: Seq[ServiceMetricsConnector.MongoCollectionSize], env: Environment): Check.Result =
+  private def checkMongoDbExistsInEnv(collections: Seq[ServiceMetricsConnector.MongoCollectionSize], env: Environment): Result =
     if (collections.map(_.environment).contains(env)) {
       val db = collections.headOption.fold("")(_.database)
-      Right(Check.Present(s"https://grafana.tools.${env.asString}.tax.service.gov.uk/d/platops-mongo-collections?var-replica_set=*&var-database=$db&var-collection=All&orgId=1"))
-    } else Left(Check.Missing(""))
+      Result.Present(s"https://grafana.tools.${env.asString}.tax.service.gov.uk/d/platops-mongo-collections?var-replica_set=*&var-database=$db&var-collection=All&orgId=1")
+    } else Result.Missing("")
 }
 
 object StatusCheckService {
 
-  import Check.{EnvCheck, SimpleCheck}
   def hideUnconfiguredEnvironments(checks: List[Check], environments: Set[Environment]): List[Check] = {
     val configured =
       checks
         .flatMap {
-          case _: SimpleCheck => Nil
-          case x: EnvCheck    => x.results.toList
+          case _: Check.SimpleCheck => Nil
+          case x: Check.EnvCheck    => x.results.toList
         }
-        .collect { case (k, v) if environments.contains(k) && v.isRight => k }
+        .collect { case (k, v) if environments.contains(k) && v.isPresent => k }
         .toSet
 
     checks.collect {
-      case x: SimpleCheck => x
-      case x: EnvCheck    => x.copy(results = x.results.removedAll(environments.removedAll(configured)))
+      case x: Check.SimpleCheck => x
+      case x: Check.EnvCheck    => x.copy(results = x.results.removedAll(environments.removedAll(configured)))
     }
   }
 }

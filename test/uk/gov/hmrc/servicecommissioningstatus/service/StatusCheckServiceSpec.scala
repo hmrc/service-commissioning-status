@@ -22,9 +22,9 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import play.api.Configuration
 import uk.gov.hmrc.http.HeaderCarrier
+import uk.gov.hmrc.servicecommissioningstatus._
 import uk.gov.hmrc.servicecommissioningstatus.connectors._
 import uk.gov.hmrc.servicecommissioningstatus.persistence._
-import uk.gov.hmrc.servicecommissioningstatus._
 import uk.gov.hmrc.servicecommissioningstatus.persistence.LifecycleStatusRepository.Lifecycle
 
 import java.time.Instant
@@ -34,8 +34,8 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
   import Check._
   import Environment._
 
-  private val missing: Result = Left( Missing(""))
-  private val present: Result = Right(Present(""))
+  private val missing: Result = Result.Missing("")
+  private val present: Result = Result.Present("")
 
   private val allPresent: Map[Environment, Result] =
     Map(Integration -> present, Development -> present, QA -> present, Staging -> present, ExternalTest -> present, Production -> present)
@@ -493,7 +493,7 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
     implicit val hc: HeaderCarrier = HeaderCarrier()
     implicit val ec: ExecutionContext = scala.concurrent.ExecutionContext.global
 
-    when(teamsAndReposConnector.findServiceRepos(any[Option[ServiceName]],any[Option[TeamName]],any[Option[ServiceType]])(any[HeaderCarrier]))
+    when(teamsAndReposConnector.findServiceRepos(any[Option[ServiceName]], any[Option[TeamName]], any[Option[ServiceType]])(any[HeaderCarrier]))
       .thenReturn(Future.successful(Seq(TeamsAndRepositoriesConnector.Repo(
         name         = serviceName.asString,
         githubUrl    = "github.url",
@@ -502,11 +502,11 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
         isDeleted    = isDeleted,
       ))))
 
-    when(teamsAndReposConnector.findDeletedServiceRepos(any[Option[ServiceName]],any[Option[TeamName]],any[Option[ServiceType]])(any[HeaderCarrier]))
+    when(teamsAndReposConnector.findDeletedServiceRepos(any[Option[ServiceName]], any[Option[TeamName]], any[Option[ServiceType]])(any[HeaderCarrier]))
       .thenReturn(Future.successful(Nil))
 
     when(lifecycleStatusRepository.lastLifecycleStatus(any[ServiceName]))
-      .thenReturn(Future.successful(Option.when(isMarkedForDecommission)(LifecycleStatusRepository.Lifecycle(serviceName, LifecycleStatus.DecommissionInProgress, Some("bar"),  Some(dateTime)))))
+      .thenReturn(Future.successful(Option.when(isMarkedForDecommission)(LifecycleStatusRepository.Lifecycle(serviceName, LifecycleStatus.DecommissionInProgress, Some("bar"), Some(dateTime)))))
 
     when(lifecycleStatusRepository.setLifecycleStatus(any[ServiceName], any[LifecycleStatus], any[String]))
       .thenReturn(Future.unit)

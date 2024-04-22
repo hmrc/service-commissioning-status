@@ -52,6 +52,11 @@ object Environment extends Enum[Environment] {
     List(Development, Integration, QA, Staging, ExternalTest, Production)
 }
 
+sealed trait Result { def isPresent: Boolean }
+object Result {
+  case class Missing(addLink: String     ) extends Result { override def isPresent = false }
+  case class Present(evidenceLink: String) extends Result { override def isPresent = true }
+}
 
 sealed trait Check {
   val title     : String
@@ -60,10 +65,6 @@ sealed trait Check {
 }
 
 object Check {
-  case class Missing(addLink: String)
-  case class Present(evidenceLink: String)
-
-  type Result = Either[Missing, Present]
 
   sealed case class SimpleCheck(
     title     : String
@@ -83,13 +84,13 @@ object Check {
     implicit val formatResult: Format[Result] = Format(
       (json: JsValue) =>
         ((json \ "evidence").asOpt[String], (json \ "add").asOpt[String]) match {
-          case (Some(str), _) => JsSuccess(Right(Present(str)): Result)
-          case (_, Some(str)) => JsSuccess(Left(Missing(str)): Result)
+          case (Some(str), _) => JsSuccess(Result.Present(str))
+          case (_, Some(str)) => JsSuccess(Result.Missing(str))
           case _ => JsError("Could not find either field 'evidence' or 'add'")
       }
     , {
-        case Left(Missing(v)) => Json.obj("add" -> v)
-        case Right(Present(v)) => Json.obj("evidence" -> v)
+        case Result.Missing(v) => Json.obj("add" -> v)
+        case Result.Present(v) => Json.obj("evidence" -> v)
       }
     )
 
@@ -105,7 +106,7 @@ object Check {
         .of[Map[String, Result]]
         .map(_.map { case (k, v) => (Environment.parse(k).getOrElse(sys.error(s"Invalid Environment: $k")), v) })
     , Writes
-        .apply { xs => Json.toJson(xs.map { case (k, v) => k.asString -> v }) }
+        .apply(xs => Json.toJson(xs.map { case (k, v) => k.asString -> v }))
     )
 
     implicit val formatEnvCheck: Format[EnvCheck] =
@@ -116,12 +117,13 @@ object Check {
       )(EnvCheck.apply, unlift(EnvCheck.unapply))
 
     Format(
-      (json: JsValue) => json
-        .validate[SimpleCheck]
-        .orElse(json.validate[EnvCheck])
+      (json: JsValue) =>
+        json
+          .validate[SimpleCheck]
+          .orElse(json.validate[EnvCheck])
     , {
         case a: SimpleCheck => Json.toJson(a)
-        case b: EnvCheck => Json.toJson(b)
+        case b: EnvCheck    => Json.toJson(b)
       }
     )
   }

@@ -16,11 +16,9 @@
 
 package uk.gov.hmrc.servicecommissioningstatus.persistence
 
-import org.mongodb.scala.bson.BsonDocument
 import org.mongodb.scala.model.{Filters, Indexes, IndexModel, IndexOptions}
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.{Codecs, PlayMongoRepository}
-import uk.gov.hmrc.mongo.transaction.{TransactionConfiguration, Transactions}
 import uk.gov.hmrc.servicecommissioningstatus.{Check, ServiceName, LifecycleStatus}
 
 import javax.inject.{Inject, Singleton}
@@ -28,7 +26,7 @@ import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class CacheRepository @Inject()(
-  override val mongoComponent: MongoComponent
+  mongoComponent: MongoComponent
 )(implicit
   ec: ExecutionContext
 ) extends PlayMongoRepository[CacheRepository.ServiceCheck](
@@ -36,36 +34,33 @@ class CacheRepository @Inject()(
   collectionName = "cachedServiceCheck",
   domainFormat   = CacheRepository.ServiceCheck.format,
   indexes        = Seq(
-                     IndexModel(Indexes.ascending("serviceName"  ), IndexOptions().background(true).name("serviceNameIdx"))
-                   , IndexModel(Indexes.ascending("lifecycleStatus"), IndexOptions().background(true).name("lifecycleStatusIdx"))
+                     IndexModel(Indexes.ascending("serviceName"  ), IndexOptions().name("serviceNameIdx"))
+                   , IndexModel(Indexes.ascending("lifecycleStatus"), IndexOptions().name("lifecycleStatusIdx"))
                    ),
-  extraCodecs    = Seq(
-                     Codecs.playFormatCodec(ServiceName.format)
-                   , Codecs.playFormatCodec(LifecycleStatus.format)
-                   )
-) with Transactions {
+  extraCodecs    = Seq(Codecs.playFormatCodec(ServiceName.format)) ++
+                     Codecs.playFormatSumCodecs(LifecycleStatus.format)
+){
+  import CacheRepository._
 
   // we replace all the data for each call to putAll
   override lazy val requiresTtlIndex = false
 
-  private implicit val tc: TransactionConfiguration = TransactionConfiguration.strict
+  def putAll(items: Seq[ServiceCheck]): Future[Unit] =
+    MongoUtils.replace[ServiceCheck](
+      collection    = collection,
+      newVals       = items,
+      compareById   = (a, b) => a.serviceName == b.serviceName,
+      filterById    = entry => Filters.equal("serviceName", entry.serviceName)
+    )
 
-  def putAll(items: Seq[CacheRepository.ServiceCheck]): Future[Unit] =
-    withSessionAndTransaction { session =>
-      for {
-        _ <- collection.deleteMany(session, BsonDocument()).toFuture()
-        _ <- collection.insertMany(session, items).toFuture()
-      } yield ()
-    }
-
-  def findAll(serviceNames: Seq[ServiceName], lifecycleStatus: List[LifecycleStatus]): Future[Seq[CacheRepository.ServiceCheck]] =
+  def findAll(serviceNames: Seq[ServiceName], lifecycleStatus: Seq[LifecycleStatus]): Future[Seq[ServiceCheck]] =
     collection
       .find(
-        Filters.and(
-          Filters.in("serviceName", serviceNames: _*)
-        , if (lifecycleStatus.nonEmpty) Filters.in("lifecycleStatus", lifecycleStatus.map(_.asString): _*)
-          else                          Filters.empty()
-        )
+        Seq(
+          Option.when(serviceNames.nonEmpty)(Filters.in("serviceName", serviceNames: _*)),
+          Option.when(lifecycleStatus.nonEmpty)(Filters.in("lifecycleStatus", lifecycleStatus: _*))
+        ).flatten
+         .foldLeft(Filters.empty())(Filters.and(_, _))
       )
       .toFuture()
 }

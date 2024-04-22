@@ -42,8 +42,7 @@ object LifecycleStatus {
           case _           => JsError("String value expected")
         }
 
-      override def writes(rt: LifecycleStatus): JsValue = {
+      override def writes(rt: LifecycleStatus): JsValue =
         JsString(rt.asString)
-      }
     }
 }
