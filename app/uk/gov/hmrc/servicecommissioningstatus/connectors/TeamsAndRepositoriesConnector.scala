@@ -33,11 +33,13 @@ object TeamsAndRepositoriesConnector {
   sealed trait Tag extends WithAsString
 
   object Tag extends Enum[Tag] {
-    case object AdminFrontend extends Tag { def asString = "admin" }
-    case object Api           extends Tag { def asString = "api"   }
-    case object Stub          extends Tag { def asString = "stub"  }
+    case object AdminFrontend    extends Tag { def asString = "admin"              }
+    case object Api              extends Tag { def asString = "api"                }
+    case object BuiltOffPlatform extends Tag { def asString = "built-off-platform" }
+    case object Maven            extends Tag { def asString = "maven"              }
+    case object Stub             extends Tag { def asString = "stub"               }
 
-    override val values = List(AdminFrontend, Api, Stub)
+    override val values = List(AdminFrontend, Api, BuiltOffPlatform, Maven, Stub)
   }
 
   case class Repo(
