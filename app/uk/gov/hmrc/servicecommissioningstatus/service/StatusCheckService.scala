@@ -105,7 +105,7 @@ class StatusCheckService @Inject()(
                          ).mapN(_ ++ _)
                           .map(_.headOption)
       configLocation  <- serviceConfigsConnector.getConfigLocation(serviceName)
-      isDecommission  <- oRepo.fold(Future.successful(false))(repo => lifecycleStatus(repo).map(Seq(LifecycleStatus.DecommissionInProgress, LifecycleStatus.Archived,LifecycleStatus.Deleted).contains))
+      isDecommission  <- oRepo.fold(Future.successful(false))(repo => lifecycleStatus(repo).map( lifecycle => Seq(LifecycleStatus.DecommissionInProgress, LifecycleStatus.Archived,LifecycleStatus.Deleted).contains(lifecycle.lifecycleStatus)))
       isFrontend      =  oRepo.flatMap(_.serviceType).contains(ServiceType.Frontend)
       isAdminFrontend =  oRepo.map(_.tags).exists(_.contains(TeamsAndRepositoriesConnector.Tag.AdminFrontend))
       githubRepo      =  checkRepoExists(oRepo)
@@ -242,8 +242,8 @@ class StatusCheckService @Inject()(
                                           case Some(e) => Result.Present(e)
                                         },
                            helpText   = "Enables and configures PagerDuty alerts for the service.",
-                           linkToDocs = if (isDecommission) Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/add-service-alerting-using-pagerduty.html")
-                                        else                Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/decommission-a-microservice/remove-pagerduty-alerting-configuration.html")
+                           linkToDocs = if (isDecommission) Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/decommission-a-microservice/remove-pagerduty-alerting-configuration.html")
+                                        else                Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/add-service-alerting-using-pagerduty.html")
                          ) ::
                          EnvCheck(
                            title      = "Deployed",
