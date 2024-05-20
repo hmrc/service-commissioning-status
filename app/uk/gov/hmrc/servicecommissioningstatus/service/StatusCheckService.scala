@@ -25,6 +25,7 @@ import uk.gov.hmrc.servicecommissioningstatus.persistence.{CacheRepository, Life
 import uk.gov.hmrc.servicecommissioningstatus.persistence.LifecycleStatusRepository.Lifecycle
 
 import javax.inject.{Inject, Singleton}
+import java.time.{Instant, Duration}
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
@@ -67,17 +68,18 @@ class StatusCheckService @Inject()(
                    .map(_.sortBy(_.name))
       results  <- services.foldLeftM[Future, Seq[CacheRepository.ServiceCheck]](List.empty) { (acc, repo) =>
                     for {
-                      lifecycle <- lifecycleStatus(repo)
-                      checks    <- commissioningStatusChecks(ServiceName(repo.name))
-                    } yield acc :+ CacheRepository.ServiceCheck(ServiceName(repo.name), lifecycle.lifecycleStatus, checks)
+                      lifecycle             <- lifecycleStatus(repo)
+                      checks                <- commissioningStatusChecks(ServiceName(repo.name))
+                      beenDeployedSixMonths <- beenDeployedSixMonths(ServiceName(repo.name))
+                    } yield acc :+ CacheRepository.ServiceCheck(ServiceName(repo.name), lifecycle.lifecycleStatus, checks, beenDeployedSixMonths)
                   }
       _        <- cachedRepository.putAll(results)
     } yield results.size
 
-  def cachedCommissioningStatusChecks(
-    teamName       : Option[TeamName],
-    serviceType    : Option[ServiceType],
-    lifecycleStatus: List[LifecycleStatus]
+  def cachedCommissioningStatusChecks( //----------------------------
+    teamName             : Option[TeamName],
+    serviceType          : Option[ServiceType],
+    lifecycleStatus      : List[LifecycleStatus]
   )(implicit
     hc: HeaderCarrier,
     ec: ExecutionContext
@@ -316,6 +318,20 @@ class StatusCheckService @Inject()(
       lifecycleStatus <- oRepo.fold(Future.successful(Option.empty[Lifecycle]))(repo => lifecycleStatus(repo).map(Option.apply))
     } yield lifecycleStatus
 
+  def beenDeployedSixMonths(serviceName: ServiceName)(implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Seq[Environment]] =
+    for {
+      whatsRunningWhereReleases      <- releasesConnector.getReleases(serviceName) //this is for integration, timeline returns nothing for this env
+      activeEnvs                     = whatsRunningWhereReleases.versions.flatMap(release => Environment.values.find(_.asString == release.environment))
+      _                              = println(s"---------activeEnvs> $activeEnvs")
+
+      timeline                       <- releasesConnector.deploymentTimeline(serviceName, from=Instant.now().minus(Duration.ofDays(6*30)), to=Instant.now()) //get more accurate state for other envs from releases
+      recentlyActiveEnvs             = timeline.keySet.foldLeft(Seq.empty[Environment]) { (acc, environment) =>
+                                         if (timeline.getOrElse(environment, Seq.empty).isEmpty) acc :+ environment else acc
+                                       }
+      mergedActiveEnvs               = (activeEnvs.toSet ++ recentlyActiveEnvs).toSeq
+    }yield(mergedActiveEnvs)
+
+
   def setLifecycleStatus(
     serviceName    : ServiceName,
     lifecycleStatus: LifecycleStatus,
@@ -374,7 +390,7 @@ class StatusCheckService @Inject()(
     if (releases.map(_.environment).contains(env.asString))
       Result.Present(s"https://catalogue.tax.service.gov.uk/deployment-timeline?service=${serviceName.asString}")
     else
-      Result.Missing(s"/deploy-service/1?serviceName=${serviceName.asString}")
+      Result.Missing(s"/deploy-service?serviceName=${serviceName.asString}")
 
   private def checkMongoDbExistsInEnv(collections: Seq[ServiceMetricsConnector.MongoCollectionSize], env: Environment): Result =
     if (collections.map(_.environment).contains(env)) {

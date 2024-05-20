@@ -50,6 +50,12 @@ object Environment extends Enum[Environment] {
 
   override val values: List[Environment] =
     List(Development, Integration, QA, Staging, ExternalTest, Production)
+
+  val format: Format[Environment] = new Format[Environment] {
+    override def writes(o: Environment): JsValue = JsString(o.asString)
+    override def reads(json: JsValue): JsResult[Environment] =
+      json.validate[String].flatMap(s => Environment.parse(s).map(e => JsSuccess(e)).getOrElse(JsError("invalid environment")))
+  }
 }
 
 sealed trait Result { def isPresent: Boolean }
