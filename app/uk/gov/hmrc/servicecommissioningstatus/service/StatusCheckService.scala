@@ -19,7 +19,7 @@ package uk.gov.hmrc.servicecommissioningstatus.service
 import cats.implicits._
 import play.api.Configuration
 import uk.gov.hmrc.http.HeaderCarrier
-import uk.gov.hmrc.servicecommissioningstatus.{Check, Environment, LifecycleStatus, Result, ServiceName, ServiceType, TeamName}
+import uk.gov.hmrc.servicecommissioningstatus.{Check, Environment, LifecycleStatus, Result, ServiceName, ServiceType, TeamName, Warning}
 import uk.gov.hmrc.servicecommissioningstatus.connectors._
 import uk.gov.hmrc.servicecommissioningstatus.persistence.{CacheRepository, LifecycleStatusRepository}
 import uk.gov.hmrc.servicecommissioningstatus.persistence.LifecycleStatusRepository.Lifecycle
@@ -70,8 +70,8 @@ class StatusCheckService @Inject()(
                     for {
                       lifecycle             <- lifecycleStatus(repo)
                       checks                <- commissioningStatusChecks(ServiceName(repo.name))
-                      beenDeployedSixMonths <- beenDeployedSixMonths(ServiceName(repo.name))
-                    } yield acc :+ CacheRepository.ServiceCheck(ServiceName(repo.name), lifecycle.lifecycleStatus, checks, beenDeployedSixMonths)
+                      warnings              <- commissioningStatusWarnings(ServiceName(repo.name), checks)
+                    } yield acc :+ CacheRepository.ServiceCheck(ServiceName(repo.name), lifecycle.lifecycleStatus, checks, warnings)
                   }
       _        <- cachedRepository.putAll(results)
     } yield results.size
@@ -318,20 +318,6 @@ class StatusCheckService @Inject()(
       lifecycleStatus <- oRepo.fold(Future.successful(Option.empty[Lifecycle]))(repo => lifecycleStatus(repo).map(Option.apply))
     } yield lifecycleStatus
 
-  def beenDeployedSixMonths(serviceName: ServiceName)(implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Seq[Environment]] =
-    for {
-      whatsRunningWhereReleases      <- releasesConnector.getReleases(serviceName) //this is for integration, timeline returns nothing for this env
-      activeEnvs                     = whatsRunningWhereReleases.versions.flatMap(release => Environment.values.find(_.asString == release.environment))
-      _                              = println(s"---------activeEnvs> $activeEnvs")
-
-      timeline                       <- releasesConnector.deploymentTimeline(serviceName, from=Instant.now().minus(Duration.ofDays(6*30)), to=Instant.now()) //get more accurate state for other envs from releases
-      recentlyActiveEnvs             = timeline.keySet.foldLeft(Seq.empty[Environment]) { (acc, environment) =>
-                                         if (timeline.getOrElse(environment, Seq.empty).isEmpty) acc :+ environment else acc
-                                       }
-      mergedActiveEnvs               = (activeEnvs.toSet ++ recentlyActiveEnvs).toSeq
-    }yield(mergedActiveEnvs)
-
-
   def setLifecycleStatus(
     serviceName    : ServiceName,
     lifecycleStatus: LifecycleStatus,
@@ -345,6 +331,43 @@ class StatusCheckService @Inject()(
                    slackNotificationsConnector.send(msg)
                  } else Future.unit
     } yield ()
+
+  def commissioningStatusWarnings(serviceName: ServiceName, checks: List[Check])(implicit hc: HeaderCarrier, ec: ExecutionContext): Future[List[Warning]] = {
+    val environmentInactivityThresholdDays = config.get[Int]("environmentInactivityThresholdDays")
+
+    for {
+      whatsRunningWhereReleases          <- releasesConnector.getReleases(serviceName) //this is for integration, timeline returns nothing for this env
+      activeEnvs                         = whatsRunningWhereReleases.versions.flatMap(release => Environment.values.find(_.asString == release.environment))
+      _                                  = println(s"---------activeEnvs> $activeEnvs")
+
+      timeline                           <- releasesConnector.deploymentTimeline(serviceName, from=Instant.now().minus(Duration.ofDays(environmentInactivityThresholdDays)), to=Instant.now()) //get more accurate state for other envs from releases
+      recentlyActiveEnvs                 = timeline.keySet.foldLeft(Seq.empty[Environment]) { (acc, environment) =>
+                                              if (timeline.getOrElse(environment, Seq.empty).isEmpty) acc :+ environment else acc
+                                            }
+      mergedActiveEnvs                   = (activeEnvs.toSet ++ recentlyActiveEnvs).toSeq
+      hasConfigBase                      = checks.find(_.title == "App Config Base")
+                                                 .getOrElse(SimpleCheck(title = "", result = Result.Missing(""), helpText = "", linkToDocs = Some(""))) //case check does not apply for service
+                                                 .asInstanceOf[SimpleCheck]
+                                                 .result
+                                                 .isInstanceOf[Result.Present]
+      appConfigChecks                    = checks.find(_.title == "App Config Environment")
+                                                 .getOrElse(sys.error("Not found App Config Environment")) //case check does not apply for service
+                                                 .asInstanceOf[EnvCheck]
+                                                 .results
+      envsWithConfig                     =       appConfigChecks.keys.map{ key =>
+                                                   ???
+                                                 }
+
+      allWarnings: List[Warning]         = List(
+                                             if(mergedActiveEnvs.isEmpty && hasConfigBase){
+                                               Warning(
+                                                 title = "App Config Base"
+                                               , message = s"Service not deployed for $environmentInactivityThresholdDays days and has remaining config"
+                                               )
+                                             }
+                                           )
+    }yield(allWarnings)
+  }
 
   private def checkRepoExists(oRepo: Option[TeamsAndRepositoriesConnector.Repo]): Result =
     oRepo match {

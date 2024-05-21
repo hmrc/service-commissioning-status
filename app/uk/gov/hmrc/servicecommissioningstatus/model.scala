@@ -134,3 +134,16 @@ object Check {
     )
   }
 }
+
+case class Warning(
+  title: String
+, message: String
+)
+
+object Warning {
+  val format: OFormat[Warning] = {
+    ( (__ \ "title"  ).format[String]
+    ~ (__ \ "message").format[String]
+    )(Warning.apply, unlift(Warning.unapply))
+  }
+}
