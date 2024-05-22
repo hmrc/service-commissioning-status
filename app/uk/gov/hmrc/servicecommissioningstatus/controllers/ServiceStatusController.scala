@@ -50,7 +50,7 @@ class LifecycleStatusController @Inject()(
 
 
 
-  def cachedStatusChecks( //-------------------------
+  def cachedStatusChecks(
     teamName             : Option[TeamName],
     serviceType          : Option[ServiceType],
     lifecycleStatus      : List[LifecycleStatus],

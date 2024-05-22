@@ -19,13 +19,14 @@ package uk.gov.hmrc.servicecommissioningstatus.service
 import cats.implicits._
 import play.api.Configuration
 import uk.gov.hmrc.http.HeaderCarrier
+import uk.gov.hmrc.servicecommissioningstatus
 import uk.gov.hmrc.servicecommissioningstatus.{Check, Environment, LifecycleStatus, Result, ServiceName, ServiceType, TeamName, Warning}
 import uk.gov.hmrc.servicecommissioningstatus.connectors._
 import uk.gov.hmrc.servicecommissioningstatus.persistence.{CacheRepository, LifecycleStatusRepository}
 import uk.gov.hmrc.servicecommissioningstatus.persistence.LifecycleStatusRepository.Lifecycle
 
 import javax.inject.{Inject, Singleton}
-import java.time.{Instant, Duration}
+import java.time.{Duration, Instant}
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
@@ -76,7 +77,7 @@ class StatusCheckService @Inject()(
       _        <- cachedRepository.putAll(results)
     } yield results.size
 
-  def cachedCommissioningStatusChecks( //----------------------------
+  def cachedCommissioningStatusChecks(
     teamName             : Option[TeamName],
     serviceType          : Option[ServiceType],
     lifecycleStatus      : List[LifecycleStatus]
@@ -332,41 +333,51 @@ class StatusCheckService @Inject()(
                  } else Future.unit
     } yield ()
 
-  def commissioningStatusWarnings(serviceName: ServiceName, checks: List[Check])(implicit hc: HeaderCarrier, ec: ExecutionContext): Future[List[Warning]] = {
-    val environmentInactivityThresholdDays = config.get[Int]("environmentInactivityThresholdDays")
+  def commissioningStatusWarnings(serviceName: ServiceName, checks: List[Check])(implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Option[List[Warning]]] = {
+    val environmentInactivityThresholdDays = config.get[Int]("warnings.environmentInactivityThresholdDays")
 
     for {
       whatsRunningWhereReleases          <- releasesConnector.getReleases(serviceName) //this is for integration, timeline returns nothing for this env
       activeEnvs                         = whatsRunningWhereReleases.versions.flatMap(release => Environment.values.find(_.asString == release.environment))
-      _                                  = println(s"---------activeEnvs> $activeEnvs")
-
       timeline                           <- releasesConnector.deploymentTimeline(serviceName, from=Instant.now().minus(Duration.ofDays(environmentInactivityThresholdDays)), to=Instant.now()) //get more accurate state for other envs from releases
-      recentlyActiveEnvs                 = timeline.keySet.foldLeft(Seq.empty[Environment]) { (acc, environment) =>
+      recentActiveEnvs                   = timeline.keySet.foldLeft(Seq.empty[Environment]) { (acc, environment) =>
                                               if (timeline.getOrElse(environment, Seq.empty).isEmpty) acc :+ environment else acc
                                             }
-      mergedActiveEnvs                   = (activeEnvs.toSet ++ recentlyActiveEnvs).toSeq
+      mergedActiveEnvs                   = (activeEnvs.toSet ++ recentActiveEnvs).toSeq.sortBy(_.asString)
       hasConfigBase                      = checks.find(_.title == "App Config Base")
-                                                 .getOrElse(SimpleCheck(title = "", result = Result.Missing(""), helpText = "", linkToDocs = Some(""))) //case check does not apply for service
+                                                 .getOrElse(SimpleCheck(title = "", result = Result.Missing(""), helpText = "", linkToDocs = Some("")))
                                                  .asInstanceOf[SimpleCheck]
                                                  .result
                                                  .isInstanceOf[Result.Present]
       appConfigChecks                    = checks.find(_.title == "App Config Environment")
-                                                 .getOrElse(sys.error("Not found App Config Environment")) //case check does not apply for service
+                                                 .getOrElse(sys.error("Not found App Config Environment"))
                                                  .asInstanceOf[EnvCheck]
                                                  .results
-      envsWithConfig                     =       appConfigChecks.keys.map{ key =>
-                                                   ???
-                                                 }
+      envsWithConfig                     = appConfigChecks.keys.filter { environment =>
+                                             appConfigChecks.getOrElse(environment, Result.Missing("")).isInstanceOf[Result.Present]
+                                           }.toList
 
-      allWarnings: List[Warning]         = List(
-                                             if(mergedActiveEnvs.isEmpty && hasConfigBase){
-                                               Warning(
-                                                 title = "App Config Base"
-                                               , message = s"Service not deployed for $environmentInactivityThresholdDays days and has remaining config"
-                                               )
-                                             }
-                                           )
-    }yield(allWarnings)
+      allWarnings: List[Warning]        = (
+                                            if (mergedActiveEnvs.isEmpty && hasConfigBase)
+                                              List(
+                                                Warning(
+                                                  title = "App Config Base",
+                                                  message = s"Service not deployed for $environmentInactivityThresholdDays days and has remaining config"
+                                                )
+                                              )
+                                            else None
+                                          ) ++: envsWithConfig.flatMap { configEnv =>
+                                            if (!mergedActiveEnvs.contains(configEnv))
+                                              Some(
+                                                Warning(
+                                                  title = s"App Config Environment ${configEnv.asString}",
+                                                  message = s"Service not deployed for $environmentInactivityThresholdDays days in ${configEnv.asString} and has remaining config"
+                                                )
+                                              )
+                                            else None
+                                          }
+      optionWarnings                    = if(allWarnings.isEmpty) None else Some(allWarnings)
+    }yield(optionWarnings)
   }
 
   private def checkRepoExists(oRepo: Option[TeamsAndRepositoriesConnector.Repo]): Result =

@@ -69,11 +69,11 @@ object CacheRepository {
   import play.api.libs.functional.syntax._
   import play.api.libs.json._
 
-  case class ServiceCheck( // -------------------
+  case class ServiceCheck(
     serviceName    : ServiceName
   , lifecycleStatus: LifecycleStatus
   , checks         : Seq[Check]
-  , warnings       : Seq[Warning]
+  , warnings       : Option[Seq[Warning]]
   )
 
   object ServiceCheck {
@@ -83,8 +83,8 @@ object CacheRepository {
       ( (__ \ "serviceName"    ).format[ServiceName](ServiceName.format)
       ~ (__ \ "lifecycleStatus").format[LifecycleStatus](LifecycleStatus.format)
       ~ (__ \ "checks"         ).format[Seq[Check]]
-      ~ (__ \ "warnings"       ).format[Seq[Warning]]
-        )(ServiceCheck.apply, unlift(ServiceCheck.unapply))
+      ~ (__ \ "warnings"       ).formatNullable[Seq[Warning]]
+      )(ServiceCheck.apply, unlift(ServiceCheck.unapply))
     }
   }
 }
