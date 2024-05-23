@@ -77,6 +77,13 @@ object ServiceConfigsConnector {
       )(InternalAuthConfig.apply _)
     }
   }
+
+  case class ServiceRelationships(inboundServices: Seq[String])
+
+  object ServiceRelationships {
+    val reads: Reads[ServiceRelationships] =
+      (__ \ "inboundServices").read[Seq[String]].map(ServiceRelationships(_))
+  }
 }
 
 class ServiceConfigsConnector @Inject()(
@@ -110,4 +117,10 @@ class ServiceConfigsConnector @Inject()(
     httpClientV2
       .get(url"$url/service-configs/services/${serviceName.asString}/config-location")
       .execute[Map[String, String]]
+
+  private implicit val ServiceRelationshipsReads: Reads[ServiceRelationships] = ServiceRelationships.reads
+  def serviceRelationships(service: String)(implicit hc: HeaderCarrier): Future[ServiceRelationships] =
+    httpClientV2
+      .get(url"$url/service-configs/service-relationships/$service")
+      .execute[ServiceRelationships]
 }

@@ -17,19 +17,16 @@
 package uk.gov.hmrc.servicecommissioningstatus.service
 
 import cats.implicits._
-
-import java.time.{Duration, Instant}
-import javax.inject.{Inject, Singleton}
-
 import play.api.Configuration
-
-import scala.concurrent.{ExecutionContext, Future}
-
 import uk.gov.hmrc.http.HeaderCarrier
+import uk.gov.hmrc.servicecommissioningstatus._
 import uk.gov.hmrc.servicecommissioningstatus.connectors._
 import uk.gov.hmrc.servicecommissioningstatus.persistence.LifecycleStatusRepository.Lifecycle
 import uk.gov.hmrc.servicecommissioningstatus.persistence.{CacheRepository, LifecycleStatusRepository}
-import uk.gov.hmrc.servicecommissioningstatus.{Check, Environment, LifecycleStatus, Result, ServiceName, ServiceType, TeamName, Warning}
+
+import java.time.{Duration, Instant}
+import javax.inject.{Inject, Singleton}
+import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class StatusCheckService @Inject()(
@@ -330,10 +327,37 @@ class StatusCheckService @Inject()(
       current <- lifecycleStatusRepository.lastLifecycleStatus(serviceName)
       _       <- lifecycleStatusRepository.setLifecycleStatus(serviceName, lifecycleStatus, username)
       _       <- if (lifecycleStatus == LifecycleStatus.DecommissionInProgress && current.forall(_.lifecycleStatus != LifecycleStatus.DecommissionInProgress)) {
-                   val msg = SlackNotificationRequest.markedForDecommissioning(serviceName.asString, username)
-                   slackNotificationsConnector.send(msg)
+                   slackNotifications(serviceName, username)
                  } else Future.unit
     } yield ()
+
+  private def slackNotifications(serviceName: ServiceName, userName: String)(implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Unit] = {
+    val decommissionedServiceTeamMsg = SlackNotificationRequest.markedForDecommissioning(serviceName.asString, userName)
+    for {
+      _                    <- slackNotificationsConnector.send(decommissionedServiceTeamMsg)
+      serviceRelationships <- serviceConfigsConnector.serviceRelationships(serviceName.asString)
+    } yield {
+
+      if (serviceRelationships.inboundServices.nonEmpty) {
+        teamsAndReposConnector.getAllRepositories().flatMap {
+          allRepos =>
+            val enrichServiceRelationships = allRepos.filter(repo => serviceRelationships.inboundServices.contains(repo.name))
+            val teamNames                  = enrichServiceRelationships.flatMap(_.teamNames).distinct
+            val groupReposByTeamNames      = teamNames.map(name => name -> enrichServiceRelationships.filter(_.teamNames.contains(name)))
+
+            Future.sequence(
+              groupReposByTeamNames.map {
+                case (teamName, repos) =>
+                  val msg = SlackNotificationRequest.downstreamMarkedForDecommissioning(teamName, serviceName.asString, repos.map(_.name), userName)
+                  slackNotificationsConnector.send(msg)
+              }
+            ).map(_ => ())
+        }
+      } else {
+        Future.unit
+      }
+    }
+  }
 
   def commissioningStatusWarnings(serviceName: ServiceName, checks: List[Check])(implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Option[List[Warning]]] = {
     val environmentInactivityThresholdDays = config.get[Int]("warnings.environmentInactivityThresholdDays")

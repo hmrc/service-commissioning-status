@@ -23,9 +23,11 @@ import org.scalatest.wordspec.AnyWordSpec
 import play.api.Configuration
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.servicecommissioningstatus._
+import uk.gov.hmrc.servicecommissioningstatus.connectors.ServiceConfigsConnector.ServiceRelationships
+import uk.gov.hmrc.servicecommissioningstatus.connectors.TeamsAndRepositoriesConnector.Repo
 import uk.gov.hmrc.servicecommissioningstatus.connectors._
-import uk.gov.hmrc.servicecommissioningstatus.persistence._
 import uk.gov.hmrc.servicecommissioningstatus.persistence.LifecycleStatusRepository.Lifecycle
+import uk.gov.hmrc.servicecommissioningstatus.persistence._
 
 import java.time.Instant
 import scala.concurrent.{ExecutionContext, Future}
@@ -440,8 +442,37 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
       }
     }
 
-    "send a slack message" when {
-      "the service is marked for decommissioning" in new StatusCheckServiceFixture() {
+    "send a slack message to downstream teams and service team" when {
+
+      "the service is marked for decommissioning with downstream services" in new StatusCheckServiceFixture() {
+
+        val serviceTeamRequest: SlackNotificationRequest = SlackNotificationRequest.markedForDecommissioning(serviceName.asString, "timmy.test")
+        val downStreamTeamRequest1: SlackNotificationRequest = SlackNotificationRequest.downstreamMarkedForDecommissioning("team-1", serviceName.asString, Seq("service-1"), "timmy.test")
+        val downStreamTeamRequest2: SlackNotificationRequest = SlackNotificationRequest.downstreamMarkedForDecommissioning("team-2", serviceName.asString, Seq("service-1", "service-2"), "timmy.test")
+
+        when(serviceConfigsConnector.serviceRelationships(any[String])(any[HeaderCarrier]))
+          .thenReturn(Future.successful(ServiceRelationships(Seq("service-1", "service-2"))))
+
+        when(teamsAndReposConnector.getAllRepositories()(any[HeaderCarrier]))
+          .thenReturn(Future.successful(
+            Seq(
+              Repo("service-1", teamNames = Seq("team-1", "team-2"), isArchived = false, isDeprecated = false, githubUrl = "/url/path/1", isDeleted = false),
+              Repo("service-2", teamNames = Seq("team-2"), isArchived = false, isDeprecated = false, githubUrl = "/url/path/2", isDeleted = false),
+              Repo("service-3", teamNames = Seq("team-4"), isArchived = false, isDeprecated = false, githubUrl = "/url/path/2", isDeleted = false)
+            )
+          ))
+
+        service.setLifecycleStatus(serviceName, LifecycleStatus.DecommissionInProgress, "timmy.test").futureValue
+
+        verify(slackNotificationsConnector, times(1)).send(eqTo(serviceTeamRequest))(any[HeaderCarrier])
+        verify(slackNotificationsConnector, times(1)).send(eqTo(downStreamTeamRequest1))(any[HeaderCarrier])
+        verify(slackNotificationsConnector, times(1)).send(eqTo(downStreamTeamRequest2))(any[HeaderCarrier])
+      }
+    }
+
+    "send a slack message to service team" when {
+
+      "the service is marked for decommissioning with no downstream services" in new StatusCheckServiceFixture() {
         service.setLifecycleStatus(serviceName, LifecycleStatus.DecommissionInProgress, "timmy.test").futureValue
 
         verify(slackNotificationsConnector, times(1)).send(any[SlackNotificationRequest])(any[HeaderCarrier])
@@ -500,6 +531,7 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
         isArchived   = isArchived,
         isDeprecated = isDeprecated,
         isDeleted    = isDeleted,
+        teamNames    = Seq.empty
       ))))
 
     when(teamsAndReposConnector.findDeletedServiceRepos(any[Option[ServiceName]], any[Option[TeamName]], any[Option[ServiceType]])(any[HeaderCarrier]))
@@ -510,6 +542,9 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
 
     when(lifecycleStatusRepository.setLifecycleStatus(any[ServiceName], any[LifecycleStatus], any[String]))
       .thenReturn(Future.unit)
+
+    when(serviceConfigsConnector.serviceRelationships(any[String])(any[HeaderCarrier]))
+      .thenReturn(Future.successful(ServiceRelationships(Seq.empty)))
 
     when(slackNotificationsConnector.send(any[SlackNotificationRequest])(any[HeaderCarrier]))
       .thenReturn(Future.successful(SlackNotificationResponse(errors = List.empty)))

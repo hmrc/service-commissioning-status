@@ -90,10 +90,23 @@ object ByChannel {
     )(unlift(unapply))
 }
 
+final case class ByTeam(
+                            by: String = "github-team",
+                            teamName: String
+                          ) extends ChannelLookup
+
+object ByTeam {
+  val writes: OWrites[ByTeam] =
+    ( (__ \ "by"           ).write[String]
+      ~ (__ \ "teamName").write[String]
+      )(unlift(unapply))
+}
+
 object ChannelLookup {
   val writes: Writes[ChannelLookup] = {
     case lookup: ByRepo    => Json.toJson(lookup)(ByRepo.writes)
     case lookup: ByChannel => Json.toJson(lookup)(ByChannel.writes)
+    case lookup: ByTeam    => Json.toJson(lookup)(ByTeam.writes)
   }
 }
 
@@ -131,6 +144,29 @@ object SlackNotificationRequest {
       emoji         = ":tudor-crown:",
       text          = s"$repositoryName has been marked for decommissioning.",
       blocks        = blocks
+    )
+  }
+
+  def downstreamMarkedForDecommissioning(teamName: String, decomissionedRepository: String, impactedRepositories: Seq[String], username: String): SlackNotificationRequest = {
+    val blocks = Seq(
+      Json.obj(
+        "type" -> JsString("section"),
+        "text" -> Json.obj(
+          "type" -> JsString("mrkdwn"),
+          "text" -> JsString(s"@$username has marked `$decomissionedRepository` for decommissioning in the MDTP Catalogue." +
+            s"\n\nThe following services may have a dependency on this repository: ${impactedRepositories.mkString("\n")}" +
+            s"\n\nDecommissioning progress can be tracked <https://catalogue.tax.service.gov.uk/service/$decomissionedRepository/commissioning-state|here>." +
+            s"\n\nIf this was a mistake, please contact #team-platops")
+        )
+      )
+    )
+
+    SlackNotificationRequest(
+      channelLookup = ByTeam(teamName = teamName),
+      displayName = "MDTP Catalogue",
+      emoji = ":tudor-crown:",
+      text = s"$decomissionedRepository has been marked for decommissioning.",
+      blocks = blocks
     )
   }
 }

@@ -28,6 +28,50 @@ object ServiceName {
     Format.of[String].inmap(ServiceName.apply, unlift(ServiceName.unapply))
 }
 
+sealed trait RepoType { def asString: String }
+
+object RepoType {
+
+  case object Service extends RepoType {
+    override val asString = "Service"
+  }
+
+  case object Library extends RepoType {
+    override val asString = "Library"
+  }
+
+  case object Prototype extends RepoType {
+    override val asString = "Prototype"
+  }
+
+  case object Test extends RepoType {
+    override val asString = "Test"
+  }
+
+  case object Other extends RepoType {
+    override val asString = "Other"
+  }
+
+  val values: List[RepoType] =
+    List(Service, Library, Prototype, Test, Other)
+
+  def parse(s: String): Either[String, RepoType] =
+    values
+      .find(_.asString.equalsIgnoreCase(s))
+      .toRight(s"Invalid repoType - should be one of: ${values.map(_.asString).mkString(", ")}")
+
+  val format = new Format[RepoType] {
+    override def reads(json: JsValue): JsResult[RepoType] =
+      json match {
+        case JsString(s) => parse(s).fold(msg => JsError(msg), x => JsSuccess(x))
+        case _ => JsError("String value expected")
+      }
+
+    override def writes(o: RepoType): JsValue =
+      JsString(o.asString)
+  }
+}
+
 
 sealed trait ServiceType extends WithAsString
 
