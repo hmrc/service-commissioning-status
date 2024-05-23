@@ -16,17 +16,18 @@
 
 package uk.gov.hmrc.servicecommissioningstatus.connectors
 
-import play.api.libs.json.{JsPath, Reads, __}
-import play.api.libs.json.{Format, JsError, JsResult, JsString, JsSuccess, JsValue}
-import play.api.libs.functional.syntax._
-import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps}
-import uk.gov.hmrc.http.client.HttpClientV2
-import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
-import uk.gov.hmrc.servicecommissioningstatus.{Environment, ServiceName}
-
 import java.time.Instant
 import javax.inject.Inject
+
+import play.api.libs.functional.syntax._
+import play.api.libs.json.{Reads, __}
+
 import scala.concurrent.{ExecutionContext, Future}
+
+import uk.gov.hmrc.http.client.HttpClientV2
+import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps}
+import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
+import uk.gov.hmrc.servicecommissioningstatus.{Environment, ServiceName}
 
 object ReleasesConnector {
   case class Release(environment: String)
@@ -101,16 +102,5 @@ class ReleasesConnector @Inject()(
       .get(url"$url/releases-api/timeline/${serviceName.asString}?from=${from.toString}&to=${to.toString}")
       .execute[Map[Environment, Seq[DeploymentTimelineEvent]]]
   }
-
-
-//  def getDeployedInTimeframe(serviceName: ServiceName, from: Instant, to: Instant)(implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Seq[Environment]] = {
-//    httpClientV2
-//      .get(url"$url/releases-api/timeline/${serviceName.asString}?from=${from.toString}&to=${to.toString}")
-//      .execute[Timeline]
-//      .map(timeline =>
-//        timeline.releases
-//          .flatMap(r => Environment.parse(r.environment).toSeq)
-//      )
-//  }
 }
 

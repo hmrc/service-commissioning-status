@@ -17,17 +17,19 @@
 package uk.gov.hmrc.servicecommissioningstatus.service
 
 import cats.implicits._
-import play.api.Configuration
-import uk.gov.hmrc.http.HeaderCarrier
-import uk.gov.hmrc.servicecommissioningstatus
-import uk.gov.hmrc.servicecommissioningstatus.{Check, Environment, LifecycleStatus, Result, ServiceName, ServiceType, TeamName, Warning}
-import uk.gov.hmrc.servicecommissioningstatus.connectors._
-import uk.gov.hmrc.servicecommissioningstatus.persistence.{CacheRepository, LifecycleStatusRepository}
-import uk.gov.hmrc.servicecommissioningstatus.persistence.LifecycleStatusRepository.Lifecycle
 
-import javax.inject.{Inject, Singleton}
 import java.time.{Duration, Instant}
+import javax.inject.{Inject, Singleton}
+
+import play.api.Configuration
+
 import scala.concurrent.{ExecutionContext, Future}
+
+import uk.gov.hmrc.http.HeaderCarrier
+import uk.gov.hmrc.servicecommissioningstatus.connectors._
+import uk.gov.hmrc.servicecommissioningstatus.persistence.LifecycleStatusRepository.Lifecycle
+import uk.gov.hmrc.servicecommissioningstatus.persistence.{CacheRepository, LifecycleStatusRepository}
+import uk.gov.hmrc.servicecommissioningstatus.{Check, Environment, LifecycleStatus, Result, ServiceName, ServiceType, TeamName, Warning}
 
 @Singleton
 class StatusCheckService @Inject()(
@@ -78,9 +80,9 @@ class StatusCheckService @Inject()(
     } yield results.size
 
   def cachedCommissioningStatusChecks(
-    teamName             : Option[TeamName],
-    serviceType          : Option[ServiceType],
-    lifecycleStatus      : List[LifecycleStatus]
+    teamName       : Option[TeamName],
+    serviceType    : Option[ServiceType],
+    lifecycleStatus: List[LifecycleStatus]
   )(implicit
     hc: HeaderCarrier,
     ec: ExecutionContext
@@ -337,7 +339,7 @@ class StatusCheckService @Inject()(
     val environmentInactivityThresholdDays = config.get[Int]("warnings.environmentInactivityThresholdDays")
 
     for {
-      whatsRunningWhereReleases          <- releasesConnector.getReleases(serviceName) //this is for integration, timeline returns nothing for this env
+      whatsRunningWhereReleases          <- releasesConnector.getReleases(serviceName) //fallback if timeline returns no deployments however will flag non deployed without considering timeframe
       activeEnvs                         = whatsRunningWhereReleases.versions.flatMap(release => Environment.values.find(_.asString == release.environment))
       timeline                           <- releasesConnector.deploymentTimeline(serviceName, from=Instant.now().minus(Duration.ofDays(environmentInactivityThresholdDays)), to=Instant.now()) //get more accurate state for other envs from releases
       recentActiveEnvs                   = timeline.keySet.foldLeft(Seq.empty[Environment]) { (acc, environment) =>

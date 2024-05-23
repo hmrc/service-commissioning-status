@@ -16,13 +16,15 @@
 
 package uk.gov.hmrc.servicecommissioningstatus.persistence
 
-import org.mongodb.scala.model.{Filters, IndexModel, IndexOptions, Indexes, Sorts}
+import javax.inject.{Inject, Singleton}
+
+import org.mongodb.scala.model.{Filters, Indexes, IndexModel, IndexOptions, Sorts}
+
+import scala.concurrent.{ExecutionContext, Future}
+
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.{Codecs, PlayMongoRepository}
 import uk.gov.hmrc.servicecommissioningstatus.{Check, LifecycleStatus, ServiceName, Warning}
-
-import javax.inject.{Inject, Singleton}
-import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class CacheRepository @Inject()(

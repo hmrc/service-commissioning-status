@@ -17,10 +17,10 @@
 package uk.gov.hmrc.servicecommissioningstatus.controllers
 
 import play.api.Logging
-import play.api.libs.json.{Format, JsString, Json, Reads, Writes, __}
+import play.api.libs.json.{Format, Json, JsString, Reads, Writes, __}
 import play.api.mvc.{Action, AnyContent, ControllerComponents}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
-import uk.gov.hmrc.servicecommissioningstatus.{Check, Environment, LifecycleStatus, ServiceName, ServiceType, TeamName}
+import uk.gov.hmrc.servicecommissioningstatus.{Check, LifecycleStatus, ServiceName, ServiceType, TeamName}
 import uk.gov.hmrc.servicecommissioningstatus.persistence.CacheRepository.ServiceCheck
 import uk.gov.hmrc.servicecommissioningstatus.persistence.LifecycleStatusRepository.Lifecycle
 import uk.gov.hmrc.servicecommissioningstatus.service.StatusCheckService
@@ -47,13 +47,10 @@ class LifecycleStatusController @Inject()(
     }))
   }
 
-
-
-
   def cachedStatusChecks(
-    teamName             : Option[TeamName],
-    serviceType          : Option[ServiceType],
-    lifecycleStatus      : List[LifecycleStatus],
+    teamName       : Option[TeamName],
+    serviceType    : Option[ServiceType],
+    lifecycleStatus: List[LifecycleStatus]
   ) =
     Action.async { implicit request =>
       implicit val serviceCheckFormats: Writes[ServiceCheck] = ServiceCheck.format
