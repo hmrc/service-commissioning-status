@@ -39,14 +39,14 @@ object ServiceType extends Enum[ServiceType] {
   override val values: List[ServiceType] = List(Frontend, Backend)
 }
 
-sealed trait Environment extends WithAsString
+sealed trait Environment extends WithAsString { def displayString: String}
 object Environment extends Enum[Environment] {
-  case object Development  extends Environment { val asString = "development" }
-  case object Integration  extends Environment { val asString = "integration" }
-  case object QA           extends Environment { val asString = "qa"          }
-  case object Staging      extends Environment { val asString = "staging"     }
-  case object ExternalTest extends Environment { val asString = "externaltest"}
-  case object Production   extends Environment { val asString = "production"  }
+  case object Integration  extends Environment { val asString = "integration" ; override def displayString = "Integration"   }
+  case object Development  extends Environment { val asString = "development" ; override def displayString = "Development"   }
+  case object QA           extends Environment { val asString = "qa"          ; override def displayString = "QA"            }
+  case object Staging      extends Environment { val asString = "staging"     ; override def displayString = "Staging"       }
+  case object ExternalTest extends Environment { val asString = "externaltest"; override def displayString = "External Test" }
+  case object Production   extends Environment { val asString = "production"  ; override def displayString = "Production"    }
 
   override val values: List[Environment] =
     List(Development, Integration, QA, Staging, ExternalTest, Production)

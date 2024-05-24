@@ -339,46 +339,42 @@ class StatusCheckService @Inject()(
     val environmentInactivityThresholdDays = config.get[Int]("warnings.environmentInactivityThresholdDays")
 
     for {
-      whatsRunningWhereReleases          <- releasesConnector.getReleases(serviceName) //fallback if timeline returns no deployments however will flag non deployed without considering timeframe
-      activeEnvs                         = whatsRunningWhereReleases.versions.flatMap(release => Environment.values.find(_.asString == release.environment))
-      timeline                           <- releasesConnector.deploymentTimeline(serviceName, from=Instant.now().minus(Duration.ofDays(environmentInactivityThresholdDays)), to=Instant.now()) //get more accurate state for other envs from releases
-      recentActiveEnvs                   = timeline.keySet.foldLeft(Seq.empty[Environment]) { (acc, environment) =>
-                                              if (timeline.getOrElse(environment, Seq.empty).isEmpty) acc :+ environment else acc
-                                            }
-      mergedActiveEnvs                   = (activeEnvs.toSet ++ recentActiveEnvs).toSeq.sortBy(_.asString)
-      hasConfigBase                      = checks.find(_.title == "App Config Base")
-                                                 .getOrElse(SimpleCheck(title = "", result = Result.Missing(""), helpText = "", linkToDocs = Some("")))
-                                                 .asInstanceOf[SimpleCheck]
-                                                 .result
-                                                 .isInstanceOf[Result.Present]
-      appConfigChecks                    = checks.find(_.title == "App Config Environment")
-                                                 .getOrElse(sys.error("Not found App Config Environment"))
-                                                 .asInstanceOf[EnvCheck]
-                                                 .results
-      envsWithConfig                     = appConfigChecks.keys.filter { environment =>
-                                             appConfigChecks.getOrElse(environment, Result.Missing("")).isInstanceOf[Result.Present]
-                                           }.toList
+      whatsRunningWhereReleases  <- releasesConnector.getReleases(serviceName) //fallback if timeline returns no deployments however will flag non deployed without considering timeframe
+      activeEnvs                 = whatsRunningWhereReleases.versions.flatMap(release => Environment.values.find(_.asString == release.environment))
+      timeline                   <- releasesConnector.deploymentTimeline(serviceName, from=Instant.now().minus(Duration.ofDays(environmentInactivityThresholdDays)), to=Instant.now())
+      recentActiveEnvs           = timeline.keySet.foldLeft(Seq.empty[Environment]) { (acc, environment) =>
+                                      if (timeline.getOrElse(environment, Seq.empty).isEmpty) acc :+ environment else acc
+                                    }
+      mergedActiveEnvs           = (activeEnvs.toSet ++ recentActiveEnvs).toSeq.sortBy(_.displayString)
+      hasConfigBase              = checks.collect { case x: SimpleCheck if x.title == "App Config Base" => x.result.isPresent }.headOption.getOrElse(false)
+      appConfigChecks            = checks.find(_.title == "App Config Environment")
+                                         .getOrElse(sys.error("Not found App Config Environment"))
+                                         .asInstanceOf[EnvCheck]
+                                         .results
+      envsWithConfig             = appConfigChecks.keys.filter { environment =>
+                                      appConfigChecks.getOrElse(environment, Result.Missing("")).isInstanceOf[Result.Present]
+                                   }.toList
 
-      allWarnings: List[Warning]        = (
-                                            if (mergedActiveEnvs.isEmpty && hasConfigBase)
-                                              List(
-                                                Warning(
-                                                  title = "App Config Base",
-                                                  message = s"Service not deployed for $environmentInactivityThresholdDays days and has remaining config"
-                                                )
-                                              )
-                                            else None
-                                          ) ++: envsWithConfig.flatMap { configEnv =>
-                                            if (!mergedActiveEnvs.contains(configEnv))
-                                              Some(
-                                                Warning(
-                                                  title = s"App Config Environment ${configEnv.asString}",
-                                                  message = s"Service not deployed for $environmentInactivityThresholdDays days in ${configEnv.asString} and has remaining config"
-                                                )
-                                              )
-                                            else None
-                                          }
-      optionWarnings                    = if(allWarnings.isEmpty) None else Some(allWarnings)
+      allWarnings: List[Warning] = (
+                                     if (mergedActiveEnvs.isEmpty && hasConfigBase)
+                                       List(
+                                         Warning(
+                                           title = "App Config Base",
+                                           message = s"Service not deployed for $environmentInactivityThresholdDays days and has remaining config"
+                                         )
+                                       )
+                                     else None
+                                   ) ++: envsWithConfig.flatMap { configEnv =>
+                                     if (!mergedActiveEnvs.contains(configEnv))
+                                       Some(
+                                         Warning(
+                                           title = s"App Config Environment ${configEnv.displayString}",
+                                           message = s"Service not deployed for $environmentInactivityThresholdDays days in ${configEnv.displayString} and has remaining config."
+                                         )
+                                       )
+                                     else None
+                                   }
+      optionWarnings             = if(allWarnings.isEmpty) None else Some(allWarnings)
     }yield(optionWarnings)
   }
 
