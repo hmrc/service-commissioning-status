@@ -39,17 +39,23 @@ object ServiceType extends Enum[ServiceType] {
   override val values: List[ServiceType] = List(Frontend, Backend)
 }
 
-sealed trait Environment extends WithAsString
+sealed trait Environment extends WithAsString { def displayString: String }
 object Environment extends Enum[Environment] {
-  case object Development  extends Environment { val asString = "development" }
-  case object Integration  extends Environment { val asString = "integration" }
-  case object QA           extends Environment { val asString = "qa"          }
-  case object Staging      extends Environment { val asString = "staging"     }
-  case object ExternalTest extends Environment { val asString = "externaltest"}
-  case object Production   extends Environment { val asString = "production"  }
+  case object Integration  extends Environment { val asString = "integration" ; val displayString = "Integration"   }
+  case object Development  extends Environment { val asString = "development" ; val displayString = "Development"   }
+  case object QA           extends Environment { val asString = "qa"          ; val displayString = "QA"            }
+  case object Staging      extends Environment { val asString = "staging"     ; val displayString = "Staging"       }
+  case object ExternalTest extends Environment { val asString = "externaltest"; val displayString = "External Test" }
+  case object Production   extends Environment { val asString = "production"  ; val displayString = "Production"    }
 
   override val values: List[Environment] =
     List(Development, Integration, QA, Staging, ExternalTest, Production)
+
+  val format: Format[Environment] = new Format[Environment] {
+    override def writes(o: Environment): JsValue = JsString(o.asString)
+    override def reads(json: JsValue): JsResult[Environment] =
+      json.validate[String].flatMap(s => Environment.parse(s).map(e => JsSuccess(e)).getOrElse(JsError("invalid environment")))
+  }
 }
 
 sealed trait Result { def isPresent: Boolean }
@@ -126,5 +132,18 @@ object Check {
         case b: EnvCheck    => Json.toJson(b)
       }
     )
+  }
+}
+
+case class Warning(
+  title: String
+, message: String
+)
+
+object Warning {
+  val format: OFormat[Warning] = {
+    ( (__ \ "title"  ).format[String]
+    ~ (__ \ "message").format[String]
+    )(Warning.apply, unlift(Warning.unapply))
   }
 }

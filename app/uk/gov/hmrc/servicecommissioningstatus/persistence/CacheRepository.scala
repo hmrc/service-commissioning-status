@@ -16,13 +16,15 @@
 
 package uk.gov.hmrc.servicecommissioningstatus.persistence
 
-import org.mongodb.scala.model.{Filters, Indexes, IndexModel, IndexOptions}
+import javax.inject.{Inject, Singleton}
+
+import org.mongodb.scala.model.{Filters, Indexes, IndexModel, IndexOptions, Sorts}
+
+import scala.concurrent.{ExecutionContext, Future}
+
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.{Codecs, PlayMongoRepository}
-import uk.gov.hmrc.servicecommissioningstatus.{Check, ServiceName, LifecycleStatus}
-
-import javax.inject.{Inject, Singleton}
-import scala.concurrent.{ExecutionContext, Future}
+import uk.gov.hmrc.servicecommissioningstatus.{Check, LifecycleStatus, ServiceName, Warning}
 
 @Singleton
 class CacheRepository @Inject()(
@@ -61,7 +63,7 @@ class CacheRepository @Inject()(
           Option.when(lifecycleStatus.nonEmpty)(Filters.in("lifecycleStatus", lifecycleStatus: _*))
         ).flatten
          .foldLeft(Filters.empty())(Filters.and(_, _))
-      )
+      ).sort(Sorts.ascending("serviceName"))
       .toFuture()
 }
 
@@ -73,14 +75,17 @@ object CacheRepository {
     serviceName    : ServiceName
   , lifecycleStatus: LifecycleStatus
   , checks         : Seq[Check]
+  , warnings       : Option[Seq[Warning]]
   )
 
   object ServiceCheck {
     val format: Format[ServiceCheck] = {
-      implicit val formatCheck   = Check.format
+      implicit val formatCheck       = Check.format
+      implicit val formatWarning     = Warning.format
       ( (__ \ "serviceName"    ).format[ServiceName](ServiceName.format)
       ~ (__ \ "lifecycleStatus").format[LifecycleStatus](LifecycleStatus.format)
       ~ (__ \ "checks"         ).format[Seq[Check]]
+      ~ (__ \ "warnings"       ).formatNullable[Seq[Warning]]
       )(ServiceCheck.apply, unlift(ServiceCheck.unapply))
     }
   }

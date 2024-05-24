@@ -17,15 +17,19 @@
 package uk.gov.hmrc.servicecommissioningstatus.service
 
 import cats.implicits._
-import play.api.Configuration
-import uk.gov.hmrc.http.HeaderCarrier
-import uk.gov.hmrc.servicecommissioningstatus.{Check, Environment, LifecycleStatus, Result, ServiceName, ServiceType, TeamName}
-import uk.gov.hmrc.servicecommissioningstatus.connectors._
-import uk.gov.hmrc.servicecommissioningstatus.persistence.{CacheRepository, LifecycleStatusRepository}
-import uk.gov.hmrc.servicecommissioningstatus.persistence.LifecycleStatusRepository.Lifecycle
 
+import java.time.{Duration, Instant}
 import javax.inject.{Inject, Singleton}
+
+import play.api.Configuration
+
 import scala.concurrent.{ExecutionContext, Future}
+
+import uk.gov.hmrc.http.HeaderCarrier
+import uk.gov.hmrc.servicecommissioningstatus.connectors._
+import uk.gov.hmrc.servicecommissioningstatus.persistence.LifecycleStatusRepository.Lifecycle
+import uk.gov.hmrc.servicecommissioningstatus.persistence.{CacheRepository, LifecycleStatusRepository}
+import uk.gov.hmrc.servicecommissioningstatus.{Check, Environment, LifecycleStatus, Result, ServiceName, ServiceType, TeamName, Warning}
 
 @Singleton
 class StatusCheckService @Inject()(
@@ -67,9 +71,10 @@ class StatusCheckService @Inject()(
                    .map(_.sortBy(_.name))
       results  <- services.foldLeftM[Future, Seq[CacheRepository.ServiceCheck]](List.empty) { (acc, repo) =>
                     for {
-                      lifecycle <- lifecycleStatus(repo)
-                      checks    <- commissioningStatusChecks(ServiceName(repo.name))
-                    } yield acc :+ CacheRepository.ServiceCheck(ServiceName(repo.name), lifecycle.lifecycleStatus, checks)
+                      lifecycle             <- lifecycleStatus(repo)
+                      checks                <- commissioningStatusChecks(ServiceName(repo.name))
+                      warnings              <- commissioningStatusWarnings(ServiceName(repo.name), checks)
+                    } yield acc :+ CacheRepository.ServiceCheck(ServiceName(repo.name), lifecycle.lifecycleStatus, checks, warnings)
                   }
       _        <- cachedRepository.putAll(results)
     } yield results.size
@@ -330,6 +335,43 @@ class StatusCheckService @Inject()(
                  } else Future.unit
     } yield ()
 
+  def commissioningStatusWarnings(serviceName: ServiceName, checks: List[Check])(implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Option[List[Warning]]] = {
+    val environmentInactivityThresholdDays = config.get[Int]("warnings.environmentInactivityThresholdDays")
+
+    for {
+      whatsRunningWhereReleases  <- releasesConnector.getReleases(serviceName) //fallback if timeline returns no deployments however will flag non deployed without considering timeframe
+      activeEnvs                 = whatsRunningWhereReleases.versions.flatMap(release => Environment.values.find(_.asString == release.environment))
+      timeline                   <- releasesConnector.deploymentTimeline(serviceName, from=Instant.now().minus(Duration.ofDays(environmentInactivityThresholdDays)), to=Instant.now())
+      recentActiveEnvs           = timeline.keySet.foldLeft(Seq.empty[Environment]) { (acc, environment) =>
+                                      if (timeline.getOrElse(environment, Seq.empty).isEmpty) acc :+ environment else acc
+                                    }
+      mergedActiveEnvs           = (activeEnvs.toSet ++ recentActiveEnvs).toSeq.sortBy(_.displayString)
+      hasConfigBase              = checks.collect{ case sc: SimpleCheck if sc.title == "App Config Base" => sc.result.isPresent}.headOption.getOrElse(false)
+      appConfigChecks            = checks.collect{ case ec: EnvCheck if ec.title == "App Config Environment" => ec.results}.headOption.getOrElse(Map.empty)
+      envsWithConfig             = appConfigChecks.keys.filter(environment => appConfigChecks.getOrElse(environment, Result.Missing("")).isPresent).toList
+      allWarnings: List[Warning] = (
+                                     if (mergedActiveEnvs.isEmpty && hasConfigBase)
+                                       List(
+                                         Warning(
+                                           title = "App Config Base",
+                                           message = s"Service not deployed for $environmentInactivityThresholdDays days and has remaining config"
+                                         )
+                                       )
+                                     else None
+                                   ) ++: envsWithConfig.flatMap { configEnv =>
+                                     if (!mergedActiveEnvs.contains(configEnv))
+                                       Some(
+                                         Warning(
+                                           title = s"App Config Environment ${configEnv.displayString}",
+                                           message = s"Service not deployed for $environmentInactivityThresholdDays days in ${configEnv.displayString} and has remaining config."
+                                         )
+                                       )
+                                     else None
+                                   }
+      optionWarnings             = if(allWarnings.isEmpty) None else Some(allWarnings)
+    }yield(optionWarnings)
+  }
+
   private def checkRepoExists(oRepo: Option[TeamsAndRepositoriesConnector.Repo]): Result =
     oRepo match {
       case Some(repo) if !repo.isArchived
@@ -374,7 +416,7 @@ class StatusCheckService @Inject()(
     if (releases.map(_.environment).contains(env.asString))
       Result.Present(s"https://catalogue.tax.service.gov.uk/deployment-timeline?service=${serviceName.asString}")
     else
-      Result.Missing(s"/deploy-service/1?serviceName=${serviceName.asString}")
+      Result.Missing(s"/deploy-service?serviceName=${serviceName.asString}")
 
   private def checkMongoDbExistsInEnv(collections: Seq[ServiceMetricsConnector.MongoCollectionSize], env: Environment): Result =
     if (collections.map(_.environment).contains(env)) {
