@@ -346,15 +346,9 @@ class StatusCheckService @Inject()(
                                       if (timeline.getOrElse(environment, Seq.empty).isEmpty) acc :+ environment else acc
                                     }
       mergedActiveEnvs           = (activeEnvs.toSet ++ recentActiveEnvs).toSeq.sortBy(_.displayString)
-      hasConfigBase              = checks.collect { case x: SimpleCheck if x.title == "App Config Base" => x.result.isPresent }.headOption.getOrElse(false)
-      appConfigChecks            = checks.find(_.title == "App Config Environment")
-                                         .getOrElse(sys.error("Not found App Config Environment"))
-                                         .asInstanceOf[EnvCheck]
-                                         .results
-      envsWithConfig             = appConfigChecks.keys.filter { environment =>
-                                      appConfigChecks.getOrElse(environment, Result.Missing("")).isInstanceOf[Result.Present]
-                                   }.toList
-
+      hasConfigBase              = checks.collect{ case sc: SimpleCheck if sc.title == "App Config Base" => sc.result.isPresent}.headOption.getOrElse(false)
+      appConfigChecks            = checks.collect{ case ec: EnvCheck if ec.title == "App Config Environment" => ec.results}.headOption.getOrElse(Map.empty)
+      envsWithConfig             = appConfigChecks.keys.filter(environment => appConfigChecks.getOrElse(environment, Result.Missing("")).isPresent).toList
       allWarnings: List[Warning] = (
                                      if (mergedActiveEnvs.isEmpty && hasConfigBase)
                                        List(
