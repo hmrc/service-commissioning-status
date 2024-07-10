@@ -16,7 +16,9 @@
 
 package uk.gov.hmrc.servicecommissioningstatus.service
 
-import org.mockito.{ArgumentMatchersSugar, MockitoSugar}
+import org.mockito.Mockito.*
+import org.scalatestplus.mockito.MockitoSugar
+import org.mockito.ArgumentMatchers.{eq => eqTo, *}
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
@@ -469,7 +471,7 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
     isMarkedForDecommission: Boolean = false,
     isDeleted              : Boolean = false,
     dateTime               : Instant = Instant.now()
-  ) extends MockitoSugar with ArgumentMatchersSugar {
+  ) extends MockitoSugar {
     protected val serviceName                 = ServiceName("serviceName")
     protected val config                      = mock[Configuration]
     protected val serviceConfigsConnector     = mock[ServiceConfigsConnector]

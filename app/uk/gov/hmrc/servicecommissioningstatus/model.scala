@@ -25,7 +25,7 @@ case class ServiceName(asString: String) extends AnyVal
 
 object ServiceName {
   val format: Format[ServiceName] =
-    Format.of[String].inmap(ServiceName.apply, unlift(ServiceName.unapply))
+    Format.of[String].inmap(ServiceName.apply, _.asString)
 }
 
 
@@ -105,7 +105,7 @@ object Check {
       ~ (__ \ "simpleCheck").format[Result]
       ~ (__ \ "helpText"   ).format[String]
       ~ (__ \ "linkToDocs" ).formatNullable[String]
-      )(SimpleCheck.apply, unlift(SimpleCheck.unapply))
+      )(SimpleCheck.apply, s => Tuple.fromProductTyped(s))
 
     implicit val formatEnvMap: Format[Map[Environment, Result]] = Format(
       Reads
@@ -120,7 +120,7 @@ object Check {
       ~ (__ \ "environmentCheck").format[Map[Environment, Result]]
       ~ (__ \ "helpText"        ).format[String]
       ~ (__ \ "linkToDocs"      ).formatNullable[String]
-      )(EnvCheck.apply, unlift(EnvCheck.unapply))
+      )(EnvCheck.apply, e => Tuple.fromProductTyped(e))
 
     Format(
       (json: JsValue) =>
@@ -144,6 +144,6 @@ object Warning {
   val format: OFormat[Warning] = {
     ( (__ \ "title"  ).format[String]
     ~ (__ \ "message").format[String]
-    )(Warning.apply, unlift(Warning.unapply))
+    )(Warning.apply, w => Tuple.fromProductTyped(w))
   }
 }

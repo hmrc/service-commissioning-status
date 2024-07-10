@@ -97,7 +97,7 @@ class StatusCheckService @Inject()(
 
   private lazy val environmentsToHideWhenUnconfigured: Set[Environment] = {
     import scala.jdk.CollectionConverters._
-    config.underlying.getStringList("environmentsToHideWhenUnconfigured").asScala.toSet.map { str: String =>
+    config.underlying.getStringList("environmentsToHideWhenUnconfigured").asScala.toSet.map { str =>
       Environment.parse(str).getOrElse(sys.error(s"config 'environmentsToHideWhenUnconfigured' contains an invalid environment: $str"))
     }
   }

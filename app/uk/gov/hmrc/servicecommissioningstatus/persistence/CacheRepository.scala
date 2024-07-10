@@ -19,6 +19,7 @@ package uk.gov.hmrc.servicecommissioningstatus.persistence
 import javax.inject.{Inject, Singleton}
 
 import org.mongodb.scala.model.{Filters, Indexes, IndexModel, IndexOptions, Sorts}
+import org.mongodb.scala.ObservableFuture
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -86,7 +87,7 @@ object CacheRepository {
       ~ (__ \ "lifecycleStatus").format[LifecycleStatus](LifecycleStatus.format)
       ~ (__ \ "checks"         ).format[Seq[Check]]
       ~ (__ \ "warnings"       ).formatNullable[Seq[Warning]]
-      )(ServiceCheck.apply, unlift(ServiceCheck.unapply))
+      )(ServiceCheck.apply, s => Tuple.fromProductTyped(s))
     }
   }
 }

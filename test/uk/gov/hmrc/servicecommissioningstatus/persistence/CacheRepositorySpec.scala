@@ -30,7 +30,7 @@ class CacheRepositorySpec
      with DefaultPlayMongoRepositorySupport[CacheRepository.ServiceCheck] {
   import CacheRepository._
 
-  override protected val repository = new CacheRepository(mongoComponent)
+  override protected val repository: CacheRepository = CacheRepository(mongoComponent)
 
   val serviceCheck1 = ServiceCheck(
     serviceName     = ServiceName("service1")

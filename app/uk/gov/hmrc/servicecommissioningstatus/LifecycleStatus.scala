@@ -18,16 +18,14 @@ package uk.gov.hmrc.servicecommissioningstatus
 
 import play.api.libs.json._
 
-sealed trait LifecycleStatus { val asString: String }
+enum LifecycleStatus(val asString: String):
+  case Active                 extends LifecycleStatus("Active")
+  case Archived               extends LifecycleStatus("Archived")
+  case DecommissionInProgress extends LifecycleStatus("DecommissionInProgress")
+  case Deprecated             extends LifecycleStatus("Deprecated")
+  case Deleted                extends LifecycleStatus("Deleted")
 
-object LifecycleStatus {
-  object Active                 extends LifecycleStatus { val asString: String = "Active" }
-  object Archived               extends LifecycleStatus { val asString: String = "Archived" }
-  object DecommissionInProgress extends LifecycleStatus { val asString: String = "DecommissionInProgress" }
-  object Deprecated             extends LifecycleStatus { val asString: String = "Deprecated" }
-  object Deleted                extends LifecycleStatus { val asString: String = "Deleted" }
-
-  val values: List[LifecycleStatus] = List(Active, Archived, DecommissionInProgress, Deprecated, Deleted)
+object LifecycleStatus:
 
   def parse(s: String): Either[String, LifecycleStatus] =
     values
@@ -45,4 +43,4 @@ object LifecycleStatus {
       override def writes(rt: LifecycleStatus): JsValue =
         JsString(rt.asString)
     }
-}
+

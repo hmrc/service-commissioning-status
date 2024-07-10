@@ -19,6 +19,7 @@ package uk.gov.hmrc.servicecommissioningstatus.persistence
 import org.bson.conversions.Bson
 import org.mongodb.scala.MongoCollection
 import org.mongodb.scala.model.{DeleteOneModel, Filters, ReplaceOptions, ReplaceOneModel}
+import org.mongodb.scala.ObservableFuture
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.reflect.ClassTag

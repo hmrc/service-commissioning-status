@@ -26,7 +26,7 @@ import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.http.test.{HttpClientV2Support, WireMockSupport}
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
 import uk.gov.hmrc.servicecommissioningstatus.ServiceName
-
+import ReleasesConnector.{WhatsRunningWhereReleases, Release}
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class ReleasesConnectorSpec
@@ -36,13 +36,12 @@ class ReleasesConnectorSpec
     with ScalaFutures
     with IntegrationPatience
     with HttpClientV2Support
-    with WireMockSupport {
-  import ReleasesConnector.{WhatsRunningWhereReleases, Release}
+    with WireMockSupport:
 
-  private lazy val releasesConnector =
-    new ReleasesConnector(
+  private lazy val releasesConnector: ReleasesConnector =
+    ReleasesConnector(
       httpClientV2   = httpClientV2,
-      servicesConfig = new ServicesConfig(Configuration(
+      servicesConfig = ServicesConfig(Configuration(
         "microservice.services.releases-api.port" -> wireMockPort,
         "microservice.services.releases-api.host" -> wireMockHost
       ))
@@ -96,4 +95,3 @@ class ReleasesConnectorSpec
       response shouldBe WhatsRunningWhereReleases(Seq.empty)
     }
   }
-}

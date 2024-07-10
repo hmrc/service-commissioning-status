@@ -20,6 +20,7 @@ import org.mongodb.scala.model.{Filters, FindOneAndReplaceOptions, Indexes, Inde
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.{Codecs, PlayMongoRepository}
 import uk.gov.hmrc.servicecommissioningstatus.{ServiceName, LifecycleStatus}
+import org.mongodb.scala.ObservableFuture
 
 import javax.inject.{Inject, Singleton}
 import java.time.Instant
@@ -79,6 +80,6 @@ object LifecycleStatusRepository {
       ~ (__ \ "lifecycleStatus").format[LifecycleStatus](LifecycleStatus.format)
       ~ (__ \ "username"       ).formatNullable[String]
       ~ (__ \ "createDate"     ).formatNullable[Instant]
-      )(Lifecycle.apply, unlift(Lifecycle.unapply))
+      )(Lifecycle.apply, l => Tuple.fromProductTyped(l))
   }
 }

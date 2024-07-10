@@ -17,6 +17,7 @@
 package uk.gov.hmrc.servicecommissioningstatus.connectors
 
 import play.api.Logger
+import play.api.libs.ws.writeableOf_JsValue
 import play.api.libs.functional.syntax.{toFunctionalBuilderOps, unlift}
 import play.api.libs.json._
 import uk.gov.hmrc.http.{HeaderCarrier, StringContextOps}
@@ -75,7 +76,7 @@ object ByRepo {
   val writes: OWrites[ByRepo] =
     ( (__ \ "by"            ).write[String]
     ~ (__ \ "repositoryName").write[String]
-    )(unlift(unapply))
+    )(b => Tuple.fromProductTyped(b))
 }
 
 final case class ByChannel(
@@ -87,7 +88,7 @@ object ByChannel {
   val writes: OWrites[ByChannel] =
     ( (__ \ "by"           ).write[String]
     ~ (__ \ "slackChannels").write[Seq[String]]
-    )(unlift(unapply))
+    )(b => Tuple.fromProductTyped(b))
 }
 
 object ChannelLookup {
@@ -112,7 +113,7 @@ object SlackNotificationRequest {
     ~ (__ \ "emoji"        ).write[String]
     ~ (__ \ "text"         ).write[String]
     ~ (__ \ "blocks"       ).write[Seq[JsObject]]
-    )(unlift(unapply))
+    )(s => Tuple.fromProductTyped(s))
 
   def markedForDecommissioning(repositoryName: String, username: String): SlackNotificationRequest = {
     val blocks = Seq(
