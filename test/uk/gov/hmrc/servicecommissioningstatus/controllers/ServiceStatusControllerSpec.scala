@@ -34,7 +34,7 @@ import scala.concurrent.{ExecutionContext, Future}
 class ServiceStatusControllerSpec
   extends AnyWordSpec
     with Matchers
-    with MockitoSugar {
+    with MockitoSugar:
 
   private val mockStatusCheckService: StatusCheckService = mock[StatusCheckService]
 
@@ -49,27 +49,27 @@ class ServiceStatusControllerSpec
       ExternalTest  -> Result.Present("https://github.com/hmrc/app-config-externaltest/blob/main/foo.yaml")
     )
 
-   import Check._
-   private val checks =
-      SimpleCheck(
-        title      = "Github Repo",
-        result     = Result.Present("https://github.com/hmrc/foo"),
-        helpText   = "Github help text",
-        linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook")
-      ) ::
-      SimpleCheck(
-        title      = "App Config Base",
-        result     = Result.Missing("https://github.com/hmrc/app-config-base/blob/main/foo.conf"),
-        helpText   = "Base help text",
-        linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook")
-      ) ::
-      EnvCheck(
-        title      = "App Config Environment",
-        results    = appConfigEnvironment,
-        helpText   = "Env help text",
-        linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook")
-      ) ::
-      Nil
+  import Check._
+  private val checks =
+     SimpleCheck(
+       title      = "Github Repo",
+       result     = Result.Present("https://github.com/hmrc/foo"),
+       helpText   = "Github help text",
+       linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook")
+     ) ::
+     SimpleCheck(
+       title      = "App Config Base",
+       result     = Result.Missing("https://github.com/hmrc/app-config-base/blob/main/foo.conf"),
+       helpText   = "Base help text",
+       linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook")
+     ) ::
+     EnvCheck(
+       title      = "App Config Environment",
+       results    = appConfigEnvironment,
+       helpText   = "Env help text",
+       linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook")
+     ) ::
+     Nil
 
   private val json1 =
     """
@@ -97,8 +97,8 @@ class ServiceStatusControllerSpec
       "linkToDocs": "https://docs.tax.service.gov.uk/mdtp-handbook"
     }]"""
 
-  "LifecycleStatusController" should {
-    "return all completed Service Commissioning Checks as Json" in {
+  "LifecycleStatusController" should:
+    "return all completed Service Commissioning Checks as Json" in:
       when(mockStatusCheckService.commissioningStatusChecks(ServiceName(eqTo("foo")))(any[HeaderCarrier], any[ExecutionContext]))
         .thenReturn(Future.successful(checks))
 
@@ -106,6 +106,3 @@ class ServiceStatusControllerSpec
       val result = controller.statusChecks(ServiceName("foo"))(FakeRequest())
       val bodyText = contentAsJson(result)
       bodyText mustBe Json.parse(json1)
-    }
-  }
-}

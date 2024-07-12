@@ -27,46 +27,44 @@ import uk.gov.hmrc.servicecommissioningstatus._
 class CacheRepositorySpec
   extends AnyWordSpec
      with Matchers
-     with DefaultPlayMongoRepositorySupport[CacheRepository.ServiceCheck] {
+     with DefaultPlayMongoRepositorySupport[CacheRepository.ServiceCheck]:
   import CacheRepository._
 
   override protected val repository: CacheRepository = CacheRepository(mongoComponent)
 
-  val serviceCheck1 = ServiceCheck(
-    serviceName     = ServiceName("service1")
-  , lifecycleStatus = LifecycleStatus.Active
-  , checks          = Seq(Check.SimpleCheck(title = "title1", result = Result.Present("link1"), helpText = "help1", linkToDocs = None))
-  , warnings        = Some(Seq(Warning(title = "title1", message = "warning1")))
-  )
-  val serviceCheck2 = ServiceCheck(
-    serviceName     = ServiceName("service2")
-  , lifecycleStatus = LifecycleStatus.Archived
-  , checks          = Seq(Check.SimpleCheck(title = "title2", result = Result.Missing("link2"), helpText = "help2", linkToDocs = None))
-  , warnings        = Some(Seq(Warning(title = "title1", message = "warning1"), Warning(title = "title2", message = "warning2")))
-  )
-  val serviceCheck3 = ServiceCheck(
-    serviceName     = ServiceName("service3")
-  , lifecycleStatus = LifecycleStatus.DecommissionInProgress
-  , checks          = Seq(Check.SimpleCheck(title = "title3", result = Result.Present("link3"), helpText = "help3", linkToDocs = None))
-  , warnings        = None
-  )
+  val serviceCheck1: ServiceCheck =
+    ServiceCheck(
+      serviceName     = ServiceName("service1")
+    , lifecycleStatus = LifecycleStatus.Active
+    , checks          = Seq(Check.SimpleCheck(title = "title1", result = Result.Present("link1"), helpText = "help1", linkToDocs = None))
+    , warnings        = Some(Seq(Warning(title = "title1", message = "warning1")))
+    )
+  val serviceCheck2: ServiceCheck =
+    ServiceCheck(
+      serviceName     = ServiceName("service2")
+    , lifecycleStatus = LifecycleStatus.Archived
+    , checks          = Seq(Check.SimpleCheck(title = "title2", result = Result.Missing("link2"), helpText = "help2", linkToDocs = None))
+    , warnings        = Some(Seq(Warning(title = "title1", message = "warning1"), Warning(title = "title2", message = "warning2")))
+    )
+  val serviceCheck3: ServiceCheck =
+    ServiceCheck(
+      serviceName     = ServiceName("service3")
+    , lifecycleStatus = LifecycleStatus.DecommissionInProgress
+    , checks          = Seq(Check.SimpleCheck(title = "title3", result = Result.Present("link3"), helpText = "help3", linkToDocs = None))
+    , warnings        = None
+    )
 
-  "CacheRepository.putAll" should {
-    "put correctly" in {
+  "CacheRepository.putAll" should:
+    "put correctly" in:
       repository.putAll(Seq(serviceCheck1, serviceCheck2)).futureValue
       findAll().futureValue should contain.only(serviceCheck1, serviceCheck2)
 
       repository.putAll(Seq(serviceCheck2.copy(lifecycleStatus = LifecycleStatus.Deprecated), serviceCheck3)).futureValue
       findAll().futureValue should contain.only(serviceCheck2.copy(lifecycleStatus = LifecycleStatus.Deprecated), serviceCheck3)
-    }
-  }
 
-  "CacheRepository.findAll" should {
-    "find matches" in {
+  "CacheRepository.findAll" should:
+    "find matches" in:
       repository.putAll(Seq(serviceCheck1, serviceCheck2, serviceCheck3)).futureValue
 
       repository.findAll(serviceNames = Seq(ServiceName("service1")), lifecycleStatus = Seq.empty).futureValue shouldBe Seq(serviceCheck1)
       repository.findAll(serviceNames = Seq.empty, lifecycleStatus = Seq(LifecycleStatus.Archived)).futureValue shouldBe Seq(serviceCheck2)
-    }
-  }
-}

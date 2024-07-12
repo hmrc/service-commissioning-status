@@ -38,7 +38,7 @@ class ServiceMetricsConnectorSpec
     with ScalaFutures
     with IntegrationPatience
     with HttpClientV2Support
-    with WireMockSupport {
+    with WireMockSupport:
 
   private lazy val connector =
     new ServiceMetricsConnector(
@@ -51,9 +51,9 @@ class ServiceMetricsConnectorSpec
 
   implicit val headerCarrier: HeaderCarrier = HeaderCarrier()
 
-  "getCollections" should {
-    "return a list of collections for a given service" in {
-      val rawResponse =
+  "getCollections" should:
+    "return a list of collections for a given service" in:
+      val rawResponse: String =
         """
           |[
           |   {
@@ -93,35 +93,32 @@ class ServiceMetricsConnectorSpec
           )
       )
 
-      val expected = Seq(
-        MongoCollectionSize(
-          database    = "service-one",
-          collection  = "collection-one",
-          sizeBytes   = BigDecimal(1000),
-          date        = LocalDate.of(2023, 2, 2),
-          environment = Environment.QA,
-          service     = Some("service-one")
-        ),
-        MongoCollectionSize(
-          database = "service-one",
-          collection = "collection-one",
-          sizeBytes = BigDecimal(5000),
-          date = LocalDate.of(2023, 2, 2),
-          environment = Environment.Staging,
-          service = Some("service-one")
-        ),
-        MongoCollectionSize(
-          database = "service-one",
-          collection = "collection-one",
-          sizeBytes = BigDecimal(8500),
-          date = LocalDate.of(2023, 2, 2),
-          environment = Environment.Production,
-          service = Some("service-one")
+      val expected: Seq[MongoCollectionSize] =
+        Seq(
+          MongoCollectionSize(
+            database    = "service-one",
+            collection  = "collection-one",
+            sizeBytes   = BigDecimal(1000),
+            date        = LocalDate.of(2023, 2, 2),
+            environment = Environment.QA,
+            service     = Some("service-one")
+          ),
+          MongoCollectionSize(
+            database = "service-one",
+            collection = "collection-one",
+            sizeBytes = BigDecimal(5000),
+            date = LocalDate.of(2023, 2, 2),
+            environment = Environment.Staging,
+            service = Some("service-one")
+          ),
+          MongoCollectionSize(
+            database = "service-one",
+            collection = "collection-one",
+            sizeBytes = BigDecimal(8500),
+            date = LocalDate.of(2023, 2, 2),
+            environment = Environment.Production,
+            service = Some("service-one")
+          )
         )
-      )
 
       connector.getCollections(ServiceName("service-one")).futureValue should contain theSameElementsAs expected
-    }
-  }
-
-}

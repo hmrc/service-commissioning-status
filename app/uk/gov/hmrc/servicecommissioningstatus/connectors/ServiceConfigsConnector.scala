@@ -25,7 +25,7 @@ import uk.gov.hmrc.servicecommissioningstatus.{Environment, ServiceName}
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
 
-object ServiceConfigsConnector {
+object ServiceConfigsConnector:
   import play.api.libs.functional.syntax._
   import play.api.libs.json._
 
@@ -40,8 +40,8 @@ object ServiceConfigsConnector {
 
   object FrontendRoute {
     val reads: Reads[FrontendRoute] = {
-      implicit val readsRoute: Reads[Routes]    = Routes.reads
-      implicit val readsEnv: Reads[Environment] = Environment.reads
+      given Reads[Routes]      = Routes.reads
+      given Reads[Environment] = Environment.format
       ( (__ \ "environment").read[Environment]
       ~ (__ \ "routes"     ).read[Seq[Routes]]
       )(FrontendRoute.apply _)
@@ -53,10 +53,10 @@ object ServiceConfigsConnector {
   , location: String
   )
 
-  object AdminFrontendRoute {
-    val reads: Reads[AdminFrontendRoute] = {
+  object AdminFrontendRoute:
+    val reads: Reads[AdminFrontendRoute] =
       import cats.implicits._
-      implicit val readsAllow: Reads[Map[Environment, List[String]]] =
+      given Reads[Map[Environment, List[String]]] =
         _.as[Map[String, List[String]]]
          .toList
          .traverse { case (k, v) => Environment.parse(k).map(_ -> v) }
@@ -65,49 +65,43 @@ object ServiceConfigsConnector {
       ( (__ \ "allow"   ).read[Map[Environment, List[String]]]
       ~ (__ \ "location").read[String]
       )(AdminFrontendRoute.apply _)
-    }
-  }
 
   case class InternalAuthConfig(service: ServiceName, environment: Environment)
 
-  object InternalAuthConfig {
-    implicit val reads: Reads[InternalAuthConfig] = {
+  object InternalAuthConfig:
+    given reads: Reads[InternalAuthConfig] =
       ( (__ \ "serviceName").read[ServiceName](ServiceName.format)
-      ~ (__ \ "environment").read[Environment](Environment.reads)
+      ~ (__ \ "environment").read[Environment](Environment.format)
       )(InternalAuthConfig.apply _)
-    }
-  }
-}
 
 class ServiceConfigsConnector @Inject()(
   servicesConfig: ServicesConfig,
   httpClientV2: HttpClientV2
-)(implicit ec: ExecutionContext){
+)(implicit ec: ExecutionContext):
   import HttpReads.Implicits._
   import ServiceConfigsConnector._
 
   private val url: String = servicesConfig.baseUrl("service-configs")
 
-  private implicit val frontendRoutesReads: Reads[FrontendRoute] = FrontendRoute.reads
-  def getMDTPFrontendRoutes(serviceName: ServiceName)(implicit hc: HeaderCarrier): Future[Seq[FrontendRoute]] =
+  private given Reads[FrontendRoute] = FrontendRoute.reads
+  def getMDTPFrontendRoutes(serviceName: ServiceName)(using HeaderCarrier): Future[Seq[FrontendRoute]] =
     httpClientV2
       .get(url"$url/service-configs/frontend-route/${serviceName.asString}")
       .execute[Seq[FrontendRoute]]
 
-  private implicit val adminFrontendRoutesReads: Reads[AdminFrontendRoute] = AdminFrontendRoute.reads
-  def getAdminFrontendRoutes(serviceName: ServiceName)(implicit hc: HeaderCarrier): Future[Seq[AdminFrontendRoute]] =
+  private given Reads[AdminFrontendRoute] = AdminFrontendRoute.reads
+  def getAdminFrontendRoutes(serviceName: ServiceName)(using HeaderCarrier): Future[Seq[AdminFrontendRoute]] =
     httpClientV2
       .get(url"$url/service-configs/admin-frontend-route/${serviceName.asString}")
       .execute[Seq[AdminFrontendRoute]]
 
-  private implicit val internalAuthConfigFormat: Reads[InternalAuthConfig] = InternalAuthConfig.reads
-  def getInternalAuthConfig(serviceName: ServiceName)(implicit hc: HeaderCarrier): Future[Seq[InternalAuthConfig]] =
+  private given Reads[InternalAuthConfig] = InternalAuthConfig.reads
+  def getInternalAuthConfig(serviceName: ServiceName)(using HeaderCarrier): Future[Seq[InternalAuthConfig]] =
     httpClientV2
       .get(url"$url/service-configs/internal-auth-config/${serviceName.asString}")
       .execute[Seq[InternalAuthConfig]]
 
-  def getConfigLocation(serviceName: ServiceName)(implicit hc: HeaderCarrier): Future[Map[String, String]] =
+  def getConfigLocation(serviceName: ServiceName)(using HeaderCarrier): Future[Map[String, String]] =
     httpClientV2
       .get(url"$url/service-configs/services/${serviceName.asString}/config-location")
       .execute[Map[String, String]]
-}

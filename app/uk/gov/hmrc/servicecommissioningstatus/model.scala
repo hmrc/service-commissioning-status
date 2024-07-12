@@ -23,99 +23,93 @@ case class TeamName(asString: String) extends AnyVal
 
 case class ServiceName(asString: String) extends AnyVal
 
-object ServiceName {
+object ServiceName:
   val format: Format[ServiceName] =
     Format.of[String].inmap(ServiceName.apply, _.asString)
-}
 
+enum ServiceType(val asString: String):
+  case Frontend extends ServiceType("frontend")
+  case Backend  extends ServiceType("backend")
 
-sealed trait ServiceType extends WithAsString
+object ServiceType:
+  def parse(s: String): Either[String, ServiceType] =
+    values
+      .find(_.asString.equalsIgnoreCase(s))
+      .toRight(s"Invalid value: \"$s\" - should be one of: ${values.map(_.asString).mkString(", ")}")
 
+  val reads: Reads[ServiceType] =
+    _.validate[String]
+      .flatMap(parse(_).fold(JsError(_), JsSuccess(_)))
 
-object ServiceType extends Enum[ServiceType] {
-  case object Frontend extends ServiceType { val asString = "frontend" }
-  case object Backend  extends ServiceType { val asString = "backend"  }
+enum Environment(val asString: String, val displayString: String):
+  case Integration  extends Environment(asString = "integration" , displayString = "Integration"   )
+  case Development  extends Environment(asString = "development" , displayString = "Development"   )
+  case QA           extends Environment(asString = "qa"          , displayString = "QA"            )
+  case Staging      extends Environment(asString = "staging"     , displayString = "Staging"       )
+  case ExternalTest extends Environment(asString = "externaltest", displayString = "External Test" )
+  case Production   extends Environment(asString = "production"  , displayString = "Production"    )
 
-  override val values: List[ServiceType] = List(Frontend, Backend)
-}
+object Environment:
+  def parse(s: String): Either[String, Environment] =
+    values
+      .find(_.asString.equalsIgnoreCase(s))
+      .toRight(s"Invalid value: \"$s\" - should be one of: ${values.map(_.asString).mkString(", ")}")
 
-sealed trait Environment extends WithAsString { def displayString: String }
-object Environment extends Enum[Environment] {
-  case object Integration  extends Environment { val asString = "integration" ; val displayString = "Integration"   }
-  case object Development  extends Environment { val asString = "development" ; val displayString = "Development"   }
-  case object QA           extends Environment { val asString = "qa"          ; val displayString = "QA"            }
-  case object Staging      extends Environment { val asString = "staging"     ; val displayString = "Staging"       }
-  case object ExternalTest extends Environment { val asString = "externaltest"; val displayString = "External Test" }
-  case object Production   extends Environment { val asString = "production"  ; val displayString = "Production"    }
-
-  override val values: List[Environment] =
-    List(Development, Integration, QA, Staging, ExternalTest, Production)
-
-  val format: Format[Environment] = new Format[Environment] {
+  val format: Format[Environment] = new Format[Environment]:
     override def writes(o: Environment): JsValue = JsString(o.asString)
     override def reads(json: JsValue): JsResult[Environment] =
       json.validate[String].flatMap(s => Environment.parse(s).map(e => JsSuccess(e)).getOrElse(JsError("invalid environment")))
-  }
-}
 
-sealed trait Result { def isPresent: Boolean }
-object Result {
-  case class Missing(addLink: String     ) extends Result { override def isPresent = false }
-  case class Present(evidenceLink: String) extends Result { override def isPresent = true }
-}
+enum Result(val isPresent: Boolean):
+  case Missing(addLink: String) extends Result(false)
+  case Present(evidenceLink: String) extends Result(true)
 
-sealed trait Check {
-  val title     : String
-  val helpText  : String
-  val linkToDocs: Option[String]
-}
-
-object Check {
-
-  sealed case class SimpleCheck(
-    title     : String
-  , result    : Result
-  , helpText  : String
-  , linkToDocs: Option[String]
+enum Check:
+  case SimpleCheck(
+    title: String,
+    result: Result,
+    helpText: String,
+    linkToDocs: Option[String]
   ) extends Check
 
-  sealed case class EnvCheck(
-    title     : String
-  , results   : Map[Environment, Result]
-  , helpText  : String
-  , linkToDocs: Option[String]
+  case EnvCheck(
+    title: String,
+    results: Map[Environment, Result],
+    helpText: String,
+    linkToDocs: Option[String]
   ) extends Check
 
-  val format: Format[Check] = {
-    implicit val formatResult: Format[Result] = Format(
+object Check:
+  val format: Format[Check] =
+    given Format[Result] = Format(
       (json: JsValue) =>
-        ((json \ "evidence").asOpt[String], (json \ "add").asOpt[String]) match {
+        ((json \ "evidence").asOpt[String], (json \ "add").asOpt[String]) match
           case (Some(str), _) => JsSuccess(Result.Present(str))
           case (_, Some(str)) => JsSuccess(Result.Missing(str))
           case _ => JsError("Could not find either field 'evidence' or 'add'")
-      }
     , {
         case Result.Missing(v) => Json.obj("add" -> v)
         case Result.Present(v) => Json.obj("evidence" -> v)
       }
     )
 
-    implicit val formatSimpleCheck: Format[SimpleCheck] =
+    given Format[SimpleCheck] =
       ( (__ \ "title"      ).format[String]
       ~ (__ \ "simpleCheck").format[Result]
       ~ (__ \ "helpText"   ).format[String]
       ~ (__ \ "linkToDocs" ).formatNullable[String]
       )(SimpleCheck.apply, s => Tuple.fromProductTyped(s))
 
-    implicit val formatEnvMap: Format[Map[Environment, Result]] = Format(
-      Reads
-        .of[Map[String, Result]]
-        .map(_.map { case (k, v) => (Environment.parse(k).getOrElse(sys.error(s"Invalid Environment: $k")), v) })
-    , Writes
-        .apply(xs => Json.toJson(xs.map { case (k, v) => k.asString -> v }))
-    )
+    given Format[Map[Environment, Result]] =
+      Format(
+        Reads
+          .of[Map[String, Result]]
+          .map(_.map { case (k, v) => (Environment.parse(k).getOrElse(sys.error(s"Invalid Environment: $k")), v) })
+      , Writes
+          .apply(xs => Json.toJson(xs.map { case (k, v) => k.asString -> v }))
+      )
 
-    implicit val formatEnvCheck: Format[EnvCheck] =
+    given Format[EnvCheck] =
       ( (__ \ "title"           ).format[String]
       ~ (__ \ "environmentCheck").format[Map[Environment, Result]]
       ~ (__ \ "helpText"        ).format[String]
@@ -132,18 +126,14 @@ object Check {
         case b: EnvCheck    => Json.toJson(b)
       }
     )
-  }
-}
 
 case class Warning(
   title: String
 , message: String
 )
 
-object Warning {
-  val format: OFormat[Warning] = {
+object Warning:
+  val format: OFormat[Warning] =
     ( (__ \ "title"  ).format[String]
     ~ (__ \ "message").format[String]
     )(Warning.apply, w => Tuple.fromProductTyped(w))
-  }
-}

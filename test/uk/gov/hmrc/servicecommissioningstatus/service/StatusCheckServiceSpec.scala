@@ -18,7 +18,7 @@ package uk.gov.hmrc.servicecommissioningstatus.service
 
 import org.mockito.Mockito.*
 import org.scalatestplus.mockito.MockitoSugar
-import org.mockito.ArgumentMatchers.{eq => eqTo, *}
+import org.mockito.ArgumentMatchers.any
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
@@ -32,7 +32,7 @@ import uk.gov.hmrc.servicecommissioningstatus.persistence.LifecycleStatusReposit
 import java.time.Instant
 import scala.concurrent.{ExecutionContext, Future}
 
-class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures {
+class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures:
   import Check._
   import Environment._
 
@@ -45,8 +45,8 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
   private val allMissing: Map[Environment, Result] =
     Map(Integration -> missing, Development -> missing, QA -> missing, Staging -> missing, ExternalTest -> missing, Production -> missing)
 
-  "Checks" should {
-    "hide Integration when unconfigured" in {
+  "Checks" should:
+    "hide Integration when unconfigured" in:
       StatusCheckService.hideUnconfiguredEnvironments(
         checks       =  SimpleCheck(
                           title      = "A",
@@ -137,59 +137,58 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
         ) ::
         Nil
       )
-    }
 
-    "show Integration when partially configured" in {
-      val checks = SimpleCheck(
-                     title      = "A",
-                     result     = present,
-                     helpText   = "",
-                     linkToDocs = None
-                   ) ::
-                   SimpleCheck(
-                     title      = "B",
-                     result     = present,
-                     helpText   = "",
-                     linkToDocs = None
-                   ) ::
-                   EnvCheck(
-                     title      = "C",
-                     results    = allPresent + (Integration -> missing),
-                     helpText   = "",
-                     linkToDocs = None
-                   ) ::
-                   SimpleCheck(
-                     title      = "D",
-                     result     = present,
-                     helpText   = "",
-                     linkToDocs = None
-                   ) ::
-                   EnvCheck(
-                     title      = "E",
-                     results    = allPresent, // Configured here
-                     helpText   = "",
-                     linkToDocs = None
-                   ) ::
-                   EnvCheck(
-                     title      = "F",
-                     results    = allPresent + (Integration -> missing),
-                     helpText   = "",
-                     linkToDocs = None
-                   ) ::
-                   SimpleCheck(
-                     title      = "G",
-                     result     = present,
-                     helpText   = "",
-                     linkToDocs = None
-                   ) ::
-                   Nil
+    "show Integration when partially configured" in:
+      val checks: List[Check] =
+        SimpleCheck(
+          title      = "A",
+          result     = present,
+          helpText   = "",
+          linkToDocs = None
+        ) ::
+        SimpleCheck(
+          title      = "B",
+          result     = present,
+          helpText   = "",
+          linkToDocs = None
+        ) ::
+        EnvCheck(
+          title      = "C",
+          results    = allPresent + (Integration -> missing),
+          helpText   = "",
+          linkToDocs = None
+        ) ::
+        SimpleCheck(
+          title      = "D",
+          result     = present,
+          helpText   = "",
+          linkToDocs = None
+        ) ::
+        EnvCheck(
+          title      = "E",
+          results    = allPresent, // Configured here
+          helpText   = "",
+          linkToDocs = None
+        ) ::
+        EnvCheck(
+          title      = "F",
+          results    = allPresent + (Integration -> missing),
+          helpText   = "",
+          linkToDocs = None
+        ) ::
+        SimpleCheck(
+          title      = "G",
+          result     = present,
+          helpText   = "",
+          linkToDocs = None
+        ) ::
+        Nil
       StatusCheckService.hideUnconfiguredEnvironments(
         checks       = checks
       , environments = Set(Environment.Integration, Environment.Development)
       ) shouldBe (checks) // Unchanged
-    }
 
-    "hide Integration and Development unconfigured" in {
+    "hide Integration and Development unconfigured" in:
       StatusCheckService.hideUnconfiguredEnvironments(
         checks       =  SimpleCheck(
                           title      = "A",
@@ -280,9 +279,8 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
         ) ::
         Nil
       )
-    }
 
-    "show QA, Staging, ExternalTest & Production when unconfigured" in {
+    "show QA, Staging, ExternalTest & Production when unconfigured" in:
       StatusCheckService.hideUnconfiguredEnvironments(
         checks       =  SimpleCheck(
                           title      = "A",
@@ -373,129 +371,120 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
         ) ::
         Nil
       )
-    }
-  }
 
-  "lifecycleStatus" should {
+  "lifecycleStatus" should:
 
-    "return the status Archived" when {
-      "the service is archived" in new StatusCheckServiceFixture(isArchived = true) {
-        val status = service.getLifecycleStatus(serviceName).futureValue
+    "return the status Archived" when:
+      "the service is archived" in new StatusCheckServiceFixture(isArchived = true):
+        val status: Option[Lifecycle] =
+          service.getLifecycleStatus(serviceName).futureValue
 
         status shouldBe Some(Lifecycle(ServiceName("serviceName"), LifecycleStatus.Archived))
-      }
 
       "the service is archived and marked for decommission" in new StatusCheckServiceFixture(
         isArchived              = true,
         isMarkedForDecommission = true
-      ) {
-        val status = service.getLifecycleStatus(serviceName).futureValue
+      ):
+        val status: Option[Lifecycle] =
+          service.getLifecycleStatus(serviceName).futureValue
 
         status shouldBe Some(Lifecycle(ServiceName("serviceName"), LifecycleStatus.Archived))
-      }
 
       "the service is archived, marked for decommission and deprecated" in new StatusCheckServiceFixture(
           isArchived              = true,
           isMarkedForDecommission = true,
           isDeprecated            = true,
-        ) {
-        val status = service.getLifecycleStatus(serviceName).futureValue
+        ):
+        val status: Option[Lifecycle] =
+          service.getLifecycleStatus(serviceName).futureValue
 
         status shouldBe Some(Lifecycle(ServiceName("serviceName"), LifecycleStatus.Archived))
-      }
-    }
 
-    "return the status DecommissionInProgress" when {
+    "return the status DecommissionInProgress" when:
 
       val now: Instant = Instant.now()
 
-      "the service is marked for decommission" in new StatusCheckServiceFixture(isMarkedForDecommission = true, dateTime = now) {
-        val status = service.getLifecycleStatus(serviceName).futureValue
+      "the service is marked for decommission" in new StatusCheckServiceFixture(isMarkedForDecommission = true, dateTime = now):
+        val status: Option[Lifecycle] =
+          service.getLifecycleStatus(serviceName).futureValue
 
         status shouldBe Some(Lifecycle(ServiceName("serviceName"), LifecycleStatus.DecommissionInProgress, Some("bar"), Some(now)))
-      }
 
       "the service is deprecated and marked for decommission" in new StatusCheckServiceFixture(
         isMarkedForDecommission = true,
         isDeprecated            = true,
         dateTime                = now
-      ) {
-        val status = service.getLifecycleStatus(serviceName).futureValue
+      ):
+        val status: Option[Lifecycle] =
+          service.getLifecycleStatus(serviceName).futureValue
 
         status shouldBe Some(Lifecycle(ServiceName("serviceName"), LifecycleStatus.DecommissionInProgress , Some("bar"), Some(now)))
-      }
-    }
 
-    "return the status Deprecated" when {
-      "the service is deprecated and not archived or marked for decommission" in new StatusCheckServiceFixture(isDeprecated = true) {
-        val status = service.getLifecycleStatus(serviceName).futureValue
+    "return the status Deprecated" when:
+      "the service is deprecated and not archived or marked for decommission" in new StatusCheckServiceFixture(isDeprecated = true):
+        val status: Option[Lifecycle] =
+          service.getLifecycleStatus(serviceName).futureValue
 
         status shouldBe Some(Lifecycle(ServiceName("serviceName"), LifecycleStatus.Deprecated))
-      }
-    }
 
-    "return Active" when {
-      "the service is not archived, deprecated or marked for decommission" in new StatusCheckServiceFixture {
-        val status = service.getLifecycleStatus(serviceName).futureValue
+    "return Active" when:
+      "the service is not archived, deprecated or marked for decommission" in new StatusCheckServiceFixture:
+        val status: Option[Lifecycle] =
+          service.getLifecycleStatus(serviceName).futureValue
 
         status shouldBe Some(Lifecycle(ServiceName("serviceName"), LifecycleStatus.Active))
-      }
-    }
 
-    "send a slack message" when {
-      "the service is marked for decommissioning" in new StatusCheckServiceFixture() {
+    "send a slack message" when:
+      "the service is marked for decommissioning" in new StatusCheckServiceFixture():
         service.setLifecycleStatus(serviceName, LifecycleStatus.DecommissionInProgress, "timmy.test").futureValue
 
-        verify(slackNotificationsConnector, times(1)).send(any[SlackNotificationRequest])(any[HeaderCarrier])
-      }
-    }
+        verify(slackNotificationsConnector, times(1)).send(any[SlackNotificationRequest])(using any[HeaderCarrier])
 
-    "not send a slack message" when {
-      "the status isn't decommissioning" in new StatusCheckServiceFixture() {
+    "not send a slack message" when:
+      "the status isn't decommissioning" in new StatusCheckServiceFixture():
         service.setLifecycleStatus(serviceName, LifecycleStatus.Archived, "timmy.test").futureValue
 
-        verify(slackNotificationsConnector, times(0)).send(any[SlackNotificationRequest])(any[HeaderCarrier])
-      }
+        verify(slackNotificationsConnector, times(0)).send(any[SlackNotificationRequest])(using any[HeaderCarrier])
 
-      "the service has already been marked for decommissioning" in new StatusCheckServiceFixture(isMarkedForDecommission = true) {
+      "the service has already been marked for decommissioning" in new StatusCheckServiceFixture(isMarkedForDecommission = true):
         service.setLifecycleStatus(serviceName, LifecycleStatus.DecommissionInProgress, "timmy.test").futureValue
 
-        verify(slackNotificationsConnector, times(0)).send(any[SlackNotificationRequest])(any[HeaderCarrier])
-      }
-    }
-  }
+        verify(slackNotificationsConnector, times(0)).send(any[SlackNotificationRequest])(using any[HeaderCarrier])
 
-  private abstract class  StatusCheckServiceFixture(
+  private abstract class StatusCheckServiceFixture(
     isArchived             : Boolean = false,
     isDeprecated           : Boolean = false,
     isMarkedForDecommission: Boolean = false,
     isDeleted              : Boolean = false,
     dateTime               : Instant = Instant.now()
-  ) extends MockitoSugar {
-    protected val serviceName                 = ServiceName("serviceName")
-    protected val config                      = mock[Configuration]
-    protected val serviceConfigsConnector     = mock[ServiceConfigsConnector]
-    protected val releasesConnector           = mock[ReleasesConnector]
-    protected val teamsAndReposConnector      = mock[TeamsAndRepositoriesConnector]
-    protected val serviceMetricsConnector     = mock[ServiceMetricsConnector]
-    protected val slackNotificationsConnector = mock[SlackNotificationsConnector]
-    protected val cachedRepository            = mock[CacheRepository]
-    protected val lifecycleStatusRepository   = mock[LifecycleStatusRepository]
-    protected val service = new StatusCheckService(
-      config,
-      serviceConfigsConnector,
-      releasesConnector,
-      teamsAndReposConnector,
-      serviceMetricsConnector,
-      slackNotificationsConnector,
-      cachedRepository,
-      lifecycleStatusRepository,
-    )
+  ) extends MockitoSugar:
+    private val config                       : Configuration                 = mock[Configuration]
+    private val serviceConfigsConnector      : ServiceConfigsConnector       = mock[ServiceConfigsConnector]
+    private val releasesConnector            : ReleasesConnector             = mock[ReleasesConnector]
+    private val teamsAndReposConnector       : TeamsAndRepositoriesConnector = mock[TeamsAndRepositoriesConnector]
+    private val serviceMetricsConnector      : ServiceMetricsConnector       = mock[ServiceMetricsConnector]
+    private val cachedRepository             : CacheRepository               = mock[CacheRepository]
+    private val lifecycleStatusRepository    : LifecycleStatusRepository     = mock[LifecycleStatusRepository]
 
-    implicit val hc: HeaderCarrier = HeaderCarrier()
-    implicit val ec: ExecutionContext = scala.concurrent.ExecutionContext.global
+    protected val serviceName                : ServiceName                   = ServiceName("serviceName")
+    protected val slackNotificationsConnector: SlackNotificationsConnector   = mock[SlackNotificationsConnector]
 
-    when(teamsAndReposConnector.findServiceRepos(any[Option[ServiceName]], any[Option[TeamName]], any[Option[ServiceType]])(any[HeaderCarrier]))
+    protected val service: StatusCheckService =
+      StatusCheckService(
+        config,
+        serviceConfigsConnector,
+        releasesConnector,
+        teamsAndReposConnector,
+        serviceMetricsConnector,
+        slackNotificationsConnector,
+        cachedRepository,
+        lifecycleStatusRepository,
+      )
+
+    given HeaderCarrier = HeaderCarrier()
+    given ExecutionContext = scala.concurrent.ExecutionContext.global
+
+    when(teamsAndReposConnector.findServiceRepos(any[Option[ServiceName]], any[Option[TeamName]], any[Option[ServiceType]])(using any[HeaderCarrier]))
       .thenReturn(Future.successful(Seq(TeamsAndRepositoriesConnector.Repo(
         name         = serviceName.asString,
         githubUrl    = "github.url",
@@ -504,7 +493,7 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
         isDeleted    = isDeleted,
       ))))
 
-    when(teamsAndReposConnector.findDeletedServiceRepos(any[Option[ServiceName]], any[Option[TeamName]], any[Option[ServiceType]])(any[HeaderCarrier]))
+    when(teamsAndReposConnector.findDeletedServiceRepos(any[Option[ServiceName]], any[Option[TeamName]], any[Option[ServiceType]])(using any[HeaderCarrier]))
       .thenReturn(Future.successful(Nil))
 
     when(lifecycleStatusRepository.lastLifecycleStatus(any[ServiceName]))
@@ -513,7 +502,5 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
     when(lifecycleStatusRepository.setLifecycleStatus(any[ServiceName], any[LifecycleStatus], any[String]))
       .thenReturn(Future.unit)
 
-    when(slackNotificationsConnector.send(any[SlackNotificationRequest])(any[HeaderCarrier]))
+    when(slackNotificationsConnector.send(any[SlackNotificationRequest])(using any[HeaderCarrier]))
       .thenReturn(Future.successful(SlackNotificationResponse(errors = List.empty)))
-  }
-}

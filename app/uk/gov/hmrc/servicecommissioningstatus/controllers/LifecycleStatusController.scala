@@ -30,21 +30,20 @@ import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton()
 class LifecycleStatusController @Inject()(
- cc                : ControllerComponents,
- statusCheckService: StatusCheckService
-)(implicit
-  ec: ExecutionContext
+  cc                : ControllerComponents,
+  statusCheckService: StatusCheckService
+)(using ExecutionContext
 ) extends BackendController(cc)
-     with Logging {
+  with Logging:
 
   import LifecycleStatusController._
 
   def listAllChecks(): Action[AnyContent] = Action.apply {
-    Ok(Json.toJson(statusCheckService.listAllChecks().flatMap {
+    Ok(Json.toJson(statusCheckService.listAllChecks().flatMap:
       case (title, cls) if cls == classOf[Check.EnvCheck]    => Some(Json.obj(title -> JsString("environment")))
       case (title, cls) if cls == classOf[Check.SimpleCheck] => Some(Json.obj(title -> JsString("simple"     )))
       case _                                                 => None
-    }))
+    ))
   }
 
   def cachedStatusChecks(
@@ -53,7 +52,7 @@ class LifecycleStatusController @Inject()(
     lifecycleStatus: List[LifecycleStatus]
   ) =
     Action.async { implicit request =>
-      implicit val serviceCheckFormats: Writes[ServiceCheck] = ServiceCheck.format
+      given Writes[ServiceCheck] = ServiceCheck.format
       statusCheckService
         .cachedCommissioningStatusChecks(teamName, serviceType, lifecycleStatus)
         .map(results => Ok(Json.toJson(results)))
@@ -61,7 +60,7 @@ class LifecycleStatusController @Inject()(
 
   def statusChecks(serviceName: ServiceName): Action[AnyContent] =
     Action.async { implicit request =>
-      implicit val checkFormats: Writes[Check] = Check.format
+      given Writes[Check] = Check.format
       statusCheckService
         .commissioningStatusChecks(serviceName)
         .map(results => Ok(Json.toJson(results)))
@@ -76,16 +75,15 @@ class LifecycleStatusController @Inject()(
 
   def setLifecycleStatus(serviceName: ServiceName): Action[LifecycleStatusRequest] =
     Action.async(parse.json[LifecycleStatusRequest](reads)) { implicit request =>
-      if (request.body.lifecycleStatus == LifecycleStatus.DecommissionInProgress)
+      if request.body.lifecycleStatus == LifecycleStatus.DecommissionInProgress then
         statusCheckService
           .setLifecycleStatus(serviceName, request.body.lifecycleStatus, request.body.username)
           .map(_ => NoContent)
       else
         Future.successful(BadRequest("Unsupported service status - must be: 'DecommissionInProgress'."))
     }
-}
 
-object LifecycleStatusController {
+object LifecycleStatusController:
   import play.api.libs.functional.syntax._
 
   case class LifecycleStatusRequest(
@@ -93,10 +91,8 @@ object LifecycleStatusController {
     username       : String
   )
 
-  val reads: Reads[LifecycleStatusRequest] = {
-    implicit val lsf: Format[LifecycleStatus] = LifecycleStatus.format
+  val reads: Reads[LifecycleStatusRequest] =
+    given Format[LifecycleStatus] = LifecycleStatus.format
     ( (__ \ "lifecycleStatus").read[LifecycleStatus]
     ~ (__ \ "username"       ).read[String]
     )(LifecycleStatusRequest.apply _)
-  }
-}

@@ -18,29 +18,27 @@ package uk.gov.hmrc.servicecommissioningstatus
 
 import play.api.mvc.QueryStringBindable
 
-object Binders {
+import scala.language.implicitConversions
 
-  implicit def serviceNameBindable(implicit strBinder: QueryStringBindable[String]): QueryStringBindable[ServiceName] =
+object Binders:
+
+  implicit def serviceNameBindable(using strBinder: QueryStringBindable[String]): QueryStringBindable[ServiceName] =
     strBinder.transform(ServiceName.apply, _.asString)
 
-  implicit def serviceTypeBindable(implicit strBinder: QueryStringBindable[String]): QueryStringBindable[ServiceType] =
-    new QueryStringBindable[ServiceType] {
+  implicit def serviceTypeBindable(using strBinder: QueryStringBindable[String]): QueryStringBindable[ServiceType] =
+    new QueryStringBindable[ServiceType]:
       override def bind(key: String, params: Map[String, Seq[String]]): Option[Either[String, ServiceType]] =
         strBinder.bind(key, params).map(_.flatMap(s => ServiceType.parse(s)))
       override def unbind(key: String, value: ServiceType): String =
         strBinder.unbind(key, value.asString)
-    }
 
 
-  implicit def lifecycleStatusBindable(implicit strBinder: QueryStringBindable[String]): QueryStringBindable[LifecycleStatus] =
-    new QueryStringBindable[LifecycleStatus] {
+  implicit def lifecycleStatusBindable(using strBinder: QueryStringBindable[String]): QueryStringBindable[LifecycleStatus] =
+    new QueryStringBindable[LifecycleStatus]:
       override def bind(key: String, params: Map[String, Seq[String]]): Option[Either[String, LifecycleStatus]] =
         strBinder.bind(key, params).map(_.flatMap(s => LifecycleStatus.parse(s)))
       override def unbind(key: String, value: LifecycleStatus): String =
         strBinder.unbind(key, value.asString)
-    }
-
-
-  implicit def teamNameBindable(implicit strBinder: QueryStringBindable[String]): QueryStringBindable[TeamName] =
+  
+  implicit def teamNameBindable(using strBinder: QueryStringBindable[String]): QueryStringBindable[TeamName] =
     strBinder.transform(TeamName.apply, _.asString)
-}

@@ -34,7 +34,7 @@ class CacheScheduler @Inject()(
 , mongoLockRepository : MongoLockRepository
 , statusCheckService  : StatusCheckService
 , timestampSupport    : TimestampSupport
-)(implicit
+)(using
   actorSystem         : ActorSystem
 , applicationLifecycle: ApplicationLifecycle
 ) extends SchedulerUtils {
@@ -53,15 +53,15 @@ class CacheScheduler @Inject()(
   , schedulerInterval = schedulerConfig.interval
   )
 
-  implicit val hc: HeaderCarrier = HeaderCarrier()
-  implicit val ec: ExecutionContext = actorSystem.dispatchers.lookup("scheduler-dispatcher")
+  given HeaderCarrier = HeaderCarrier()
+  given ExecutionContext = actorSystem.dispatchers.lookup("scheduler-dispatcher")
 
   scheduleWithLock("Cache Scheduler", schedulerConfig, lock) {
     logger.info("Updating cache ...")
-    for {
+    for
       count <- statusCheckService.updateCache()
-      _ =  logger.info(s"Finished updating cache - updated ${count} services")
-    } yield ()
+      _     =  logger.info(s"Finished updating cache - updated ${count} services")
+    yield ()
   }
 
 }

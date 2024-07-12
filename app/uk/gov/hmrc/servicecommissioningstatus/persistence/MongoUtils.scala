@@ -25,7 +25,7 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.reflect.ClassTag
 
 
-object MongoUtils {
+object MongoUtils:
   /**
     * Equivalent to ```
     *   withSessionAndTransacion { s =>
@@ -52,8 +52,8 @@ object MongoUtils {
     oldValsFilter: Bson = Filters.empty(),
     compareById  : (A, A) => Boolean, // TODO would a `uniqueId: A => String` be more practical?
     filterById   : A => Bson
-  )(implicit ec: ExecutionContext): Future[Unit] =
-    for {
+  )(using ExecutionContext): Future[Unit] =
+    for
       old         <- collection.find(oldValsFilter).toFuture()
       bulkUpdates =  //upsert any that were not present already
                      newVals
@@ -71,7 +71,6 @@ object MongoUtils {
                        .map(entry =>
                          DeleteOneModel(filterById(entry))
                        )
-       _          <- if (bulkUpdates.isEmpty) Future.unit
+      _           <- if (bulkUpdates.isEmpty) Future.unit
                      else collection.bulkWrite(bulkUpdates).toFuture().map(_=> ())
-    } yield ()
-}
+    yield ()

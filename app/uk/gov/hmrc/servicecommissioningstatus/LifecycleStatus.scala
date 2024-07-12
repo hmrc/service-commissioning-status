@@ -33,14 +33,12 @@ object LifecycleStatus:
       .toRight(s"Invalid service status - should be one of: ${values.map(_.asString).mkString(", ")}")
 
   val format: Format[LifecycleStatus] =
-    new Format[LifecycleStatus] {
+    new Format[LifecycleStatus]:
       override def reads(json: JsValue): JsResult[LifecycleStatus] =
-        json match {
+        json match
           case JsString(s) => parse(s).fold(msg => JsError(msg), rt => JsSuccess(rt))
           case _           => JsError("String value expected")
-        }
 
       override def writes(rt: LifecycleStatus): JsValue =
         JsString(rt.asString)
-    }
 

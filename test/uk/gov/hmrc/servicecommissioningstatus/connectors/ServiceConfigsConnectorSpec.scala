@@ -36,22 +36,22 @@ class ServiceConfigsConnectorSpec
     with ScalaFutures
     with IntegrationPatience
     with HttpClientV2Support
-    with WireMockSupport {
+    with WireMockSupport:
   import ServiceConfigsConnector.{FrontendRoute, Routes}
 
-  implicit val headerCarrier: HeaderCarrier = HeaderCarrier()
+  given HeaderCarrier = HeaderCarrier()
 
-  private lazy val serviceConfigsConnector =
-    new ServiceConfigsConnector(
+  private lazy val serviceConfigsConnector: ServiceConfigsConnector =
+    ServiceConfigsConnector(
       httpClientV2 = httpClientV2,
-      servicesConfig = new ServicesConfig(Configuration(
+      servicesConfig = ServicesConfig(Configuration(
         "microservice.services.service-configs.port" -> wireMockPort,
         "microservice.services.service-configs.host" -> wireMockHost
       ))
     )
 
-  "GET getMDTPFrontendRoutes" should {
-    "return FrontendRoutes for service" in {
+  "GET getMDTPFrontendRoutes" should:
+    "return FrontendRoutes for service" in:
       stubFor(
         get(urlEqualTo("/service-configs/frontend-route/foo"))
           .willReturn(
@@ -88,20 +88,21 @@ class ServiceConfigsConnectorSpec
           )
       )
 
-      val response = serviceConfigsConnector
-        .getMDTPFrontendRoutes(ServiceName("foo"))
-        .futureValue
+      val response: Seq[FrontendRoute] =
+        serviceConfigsConnector
+          .getMDTPFrontendRoutes(ServiceName("foo"))
+          .futureValue
 
-      val expectedOutput = Seq(
-        FrontendRoute(Environment.QA,         Seq(Routes("https://github.com/hmrc/mdtp-frontend-routes/blob/main/qa/foo.conf#L2505"))),
-        FrontendRoute(Environment.Production, Seq(Routes("https://github.com/hmrc/mdtp-frontend-routes/blob/main/production/foo.conf#L2505"))),
-        FrontendRoute(Environment.Staging,    Seq(Routes("https://github.com/hmrc/mdtp-frontend-routes/blob/main/staging/foo.conf#L2505")))
-      )
+      val expectedOutput: Seq[FrontendRoute] =
+        Seq(
+          FrontendRoute(Environment.QA,         Seq(Routes("https://github.com/hmrc/mdtp-frontend-routes/blob/main/qa/foo.conf#L2505"))),
+          FrontendRoute(Environment.Production, Seq(Routes("https://github.com/hmrc/mdtp-frontend-routes/blob/main/production/foo.conf#L2505"))),
+          FrontendRoute(Environment.Staging,    Seq(Routes("https://github.com/hmrc/mdtp-frontend-routes/blob/main/staging/foo.conf#L2505")))
+        )
 
       response shouldBe expectedOutput
-    }
 
-    "return empty Seq when a service has no frontend routes" in {
+    "return empty Seq when a service has no frontend routes" in:
       stubFor(
         get(urlEqualTo("/service-configs/frontend-route/foo-non-existing"))
           .willReturn(
@@ -111,18 +112,17 @@ class ServiceConfigsConnectorSpec
           )
       )
 
-      val response = serviceConfigsConnector
-        .getMDTPFrontendRoutes(ServiceName("foo-non-existing"))
-        .futureValue
+      val response: Seq[FrontendRoute] =
+        serviceConfigsConnector
+          .getMDTPFrontendRoutes(ServiceName("foo-non-existing"))
+          .futureValue
 
       val expectedOutput = Seq.empty
 
       response shouldBe expectedOutput
-    }
-  }
 
-  "GET getConfigLocation" should {
-    "return Right(Present) for a service with a Grafana Dashboard" in {
+  "GET getConfigLocation" should:
+    "return Right(Present) for a service with a Grafana Dashboard" in:
       stubFor(get(urlEqualTo("/service-configs/services/foo/config-location"))
         .willReturn(aResponse().withStatus(200).withBody(
           """{
@@ -159,6 +159,3 @@ class ServiceConfigsConnectorSpec
         "app-config-qa"           -> "https://github.com/hmrc/app-config-qa/blob/HEAD/foo.yaml",
         "service-manager-config"  -> "https://github.com/hmrc/service-manager-config/blob/main/services.json#L11428"
       )
-    }
-  }
-}

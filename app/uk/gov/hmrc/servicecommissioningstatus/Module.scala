@@ -18,9 +18,7 @@ package uk.gov.hmrc.servicecommissioningstatus
 
 import com.google.inject.AbstractModule
 
-class Module extends AbstractModule {
-  override def configure(): Unit = {
-    bind(classOf[uk.gov.hmrc.servicecommissioningstatus.config.AppConfig       ]).asEagerSingleton()
+class Module extends AbstractModule:
+  override def configure(): Unit =
+    bind(classOf[uk.gov.hmrc.servicecommissioningstatus.config.AppConfig        ]).asEagerSingleton()
     bind(classOf[uk.gov.hmrc.servicecommissioningstatus.scheduler.CacheScheduler]).asEagerSingleton()
-  }
-}

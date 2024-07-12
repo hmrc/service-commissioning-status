@@ -40,7 +40,7 @@ class LifecycleStatusRepository @Inject()(
                       IndexModel(Indexes.descending("createdDate"), IndexOptions().name("createdDateIdx")),
                    ),
   extraCodecs    = Seq(Codecs.playFormatCodec(ServiceName.format))
-) {
+):
 
   override lazy val requiresTtlIndex = false
 
@@ -60,9 +60,8 @@ class LifecycleStatusRepository @Inject()(
       .sort(Sorts.orderBy(Sorts.descending("createDate")))
       .limit(1)
       .headOption()
-}
 
-object LifecycleStatusRepository {
+object LifecycleStatusRepository:
   import play.api.libs.functional.syntax._
   import play.api.libs.json._
 
@@ -73,13 +72,10 @@ object LifecycleStatusRepository {
   , createdDate    : Option[Instant] = None
   )
 
-  object Lifecycle {
-
+  object Lifecycle:
     val format: Format[Lifecycle] =
       ( (__ \ "serviceName"    ).format[ServiceName](ServiceName.format)
       ~ (__ \ "lifecycleStatus").format[LifecycleStatus](LifecycleStatus.format)
       ~ (__ \ "username"       ).formatNullable[String]
       ~ (__ \ "createDate"     ).formatNullable[Instant]
       )(Lifecycle.apply, l => Tuple.fromProductTyped(l))
-  }
-}
