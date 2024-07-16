@@ -20,7 +20,7 @@ import play.api.libs.json.Reads
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps}
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
-import uk.gov.hmrc.servicecommissioningstatus.{Environment, ServiceName}
+import uk.gov.hmrc.servicecommissioningstatus.{Environment, Parser, ServiceName}
 
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
@@ -59,7 +59,7 @@ object ServiceConfigsConnector:
       given Reads[Map[Environment, List[String]]] =
         _.as[Map[String, List[String]]]
          .toList
-         .traverse { case (k, v) => Environment.parse(k).map(_ -> v) }
+         .traverse { case (k, v) => Parser[Environment].parse(k).map(_ -> v) }
          .fold(JsError.apply, xs => JsSuccess.apply(xs.toMap))
 
       ( (__ \ "allow"   ).read[Map[Environment, List[String]]]

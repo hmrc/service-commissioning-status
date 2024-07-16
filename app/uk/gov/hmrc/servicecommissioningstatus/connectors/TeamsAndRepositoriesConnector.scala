@@ -21,7 +21,7 @@ import play.api.libs.json.{Reads, __}
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps}
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
-import uk.gov.hmrc.servicecommissioningstatus.{ServiceName, ServiceType, TeamName}
+import uk.gov.hmrc.servicecommissioningstatus.{FromString, Parser, ServiceName, ServiceType, TeamName}
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
@@ -30,7 +30,7 @@ object TeamsAndRepositoriesConnector:
   import play.api.libs.functional.syntax.*
   import play.api.libs.json.*
 
-  enum Tag(val asString: String):
+  enum Tag(val asString: String) extends FromString:
     case AdminFrontend    extends Tag("admin"             )
     case Api              extends Tag("api"               )
     case BuiltOffPlatform extends Tag("built-off-platform")
@@ -38,14 +38,11 @@ object TeamsAndRepositoriesConnector:
     case Stub             extends Tag("stub"              )
     
   object Tag:
-    def parse(s: String): Either[String, Tag] =
-      values
-        .find(_.asString.equalsIgnoreCase(s))
-        .toRight(s"Invalid value: \"$s\" - should be one of: ${values.map(_.asString).mkString(", ")}")
+    given Parser[Tag] = Parser.parser(Tag.values)
 
     val reads: Reads[Tag] =
       _.validate[String]
-        .flatMap(parse(_).fold(JsError(_), JsSuccess(_)))
+        .flatMap(Parser[Tag].parse(_).fold(JsError(_), JsSuccess(_)))
 
   case class Repo(
     name        : String

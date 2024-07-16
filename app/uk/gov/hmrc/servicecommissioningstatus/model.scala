@@ -16,8 +16,10 @@
 
 package uk.gov.hmrc.servicecommissioningstatus
 
-import play.api.libs.functional.syntax._
-import play.api.libs.json._
+import play.api.libs.functional.syntax.*
+import play.api.libs.json.*
+import play.api.mvc.{PathBindable, QueryStringBindable}
+import FromStringEnum._
 
 case class TeamName(asString: String) extends AnyVal
 
@@ -27,21 +29,18 @@ object ServiceName:
   val format: Format[ServiceName] =
     Format.of[String].inmap(ServiceName.apply, _.asString)
 
-enum ServiceType(val asString: String):
+enum ServiceType(val asString: String) extends FromString derives PathBindable, QueryStringBindable:
   case Frontend extends ServiceType("frontend")
   case Backend  extends ServiceType("backend")
 
 object ServiceType:
-  def parse(s: String): Either[String, ServiceType] =
-    values
-      .find(_.asString.equalsIgnoreCase(s))
-      .toRight(s"Invalid value: \"$s\" - should be one of: ${values.map(_.asString).mkString(", ")}")
+  given Parser[ServiceType] = Parser.parser(ServiceType.values)
 
   val reads: Reads[ServiceType] =
     _.validate[String]
-      .flatMap(parse(_).fold(JsError(_), JsSuccess(_)))
+      .flatMap(Parser[ServiceType].parse(_).fold(JsError(_), JsSuccess(_)))
 
-enum Environment(val asString: String, val displayString: String):
+enum Environment(val asString: String, val displayString: String) extends FromString derives PathBindable, QueryStringBindable:
   case Integration  extends Environment(asString = "integration" , displayString = "Integration"   )
   case Development  extends Environment(asString = "development" , displayString = "Development"   )
   case QA           extends Environment(asString = "qa"          , displayString = "QA"            )
@@ -50,15 +49,12 @@ enum Environment(val asString: String, val displayString: String):
   case Production   extends Environment(asString = "production"  , displayString = "Production"    )
 
 object Environment:
-  def parse(s: String): Either[String, Environment] =
-    values
-      .find(_.asString.equalsIgnoreCase(s))
-      .toRight(s"Invalid value: \"$s\" - should be one of: ${values.map(_.asString).mkString(", ")}")
+  given Parser[Environment] = Parser.parser(Environment.values)
 
   val format: Format[Environment] = new Format[Environment]:
     override def writes(o: Environment): JsValue = JsString(o.asString)
     override def reads(json: JsValue): JsResult[Environment] =
-      json.validate[String].flatMap(s => Environment.parse(s).map(e => JsSuccess(e)).getOrElse(JsError("invalid environment")))
+      json.validate[String].flatMap(s => Parser[Environment].parse(s).map(e => JsSuccess(e)).getOrElse(JsError("invalid environment")))
 
 enum Result(val isPresent: Boolean):
   case Missing(addLink: String) extends Result(false)
@@ -104,7 +100,7 @@ object Check:
       Format(
         Reads
           .of[Map[String, Result]]
-          .map(_.map { case (k, v) => (Environment.parse(k).getOrElse(sys.error(s"Invalid Environment: $k")), v) })
+          .map(_.map { case (k, v) => (Parser[Environment].parse(k).getOrElse(sys.error(s"Invalid Environment: $k")), v) })
       , Writes
           .apply(xs => Json.toJson(xs.map { case (k, v) => k.asString -> v }))
       )

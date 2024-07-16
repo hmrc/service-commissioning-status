@@ -18,7 +18,7 @@ package uk.gov.hmrc.servicecommissioningstatus.connectors
 
 import play.api.Logger
 import play.api.libs.ws.writeableOf_JsValue
-import play.api.libs.functional.syntax.{toFunctionalBuilderOps, unlift}
+import play.api.libs.functional.syntax.toFunctionalBuilderOps
 import play.api.libs.json._
 import uk.gov.hmrc.http.{HeaderCarrier, StringContextOps}
 import uk.gov.hmrc.http.client.HttpClientV2

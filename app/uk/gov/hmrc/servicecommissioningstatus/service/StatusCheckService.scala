@@ -16,20 +16,18 @@
 
 package uk.gov.hmrc.servicecommissioningstatus.service
 
-import cats.implicits._
+import cats.implicits.*
 
 import java.time.{Duration, Instant}
 import javax.inject.{Inject, Singleton}
-
 import play.api.Configuration
 
 import scala.concurrent.{ExecutionContext, Future}
-
 import uk.gov.hmrc.http.HeaderCarrier
-import uk.gov.hmrc.servicecommissioningstatus.connectors._
+import uk.gov.hmrc.servicecommissioningstatus.connectors.*
 import uk.gov.hmrc.servicecommissioningstatus.persistence.LifecycleStatusRepository.Lifecycle
 import uk.gov.hmrc.servicecommissioningstatus.persistence.{CacheRepository, LifecycleStatusRepository}
-import uk.gov.hmrc.servicecommissioningstatus.{Check, Environment, LifecycleStatus, Result, ServiceName, ServiceType, TeamName, Warning}
+import uk.gov.hmrc.servicecommissioningstatus.{Check, Environment, LifecycleStatus, Parser, Result, ServiceName, ServiceType, TeamName, Warning}
 
 @Singleton
 class StatusCheckService @Inject()(
@@ -98,7 +96,7 @@ class StatusCheckService @Inject()(
   private lazy val environmentsToHideWhenUnconfigured: Set[Environment] =
     import scala.jdk.CollectionConverters._
     config.underlying.getStringList("environmentsToHideWhenUnconfigured").asScala.toSet.map { str =>
-      Environment.parse(str).getOrElse(sys.error(s"config 'environmentsToHideWhenUnconfigured' contains an invalid environment: $str"))
+      Parser[Environment].parse(str).getOrElse(sys.error(s"config 'environmentsToHideWhenUnconfigured' contains an invalid environment: $str"))
     }
 
   import Check.{EnvCheck, SimpleCheck}

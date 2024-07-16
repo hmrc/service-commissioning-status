@@ -16,29 +16,61 @@
 
 package uk.gov.hmrc.servicecommissioningstatus
 
-import play.api.mvc.QueryStringBindable
+import cats.implicits._
+import play.api.data.FormError
+import play.api.data.format.Formatter
+import play.api.mvc.{PathBindable, QueryStringBindable}
 
+import java.time.{Instant, LocalDate}
 import scala.language.implicitConversions
+import scala.util.Try
 
 object Binders:
 
-  implicit def serviceNameBindable(using strBinder: QueryStringBindable[String]): QueryStringBindable[ServiceName] =
-    strBinder.transform(ServiceName.apply, _.asString)
+  given QueryStringBindable[Instant] =
+    queryStringBindableFromString[Instant](
+      s => Some(Try(Instant.parse(s)).toEither.left.map(_.getMessage)),
+      _.toString
+    )
 
-  implicit def serviceTypeBindable(using strBinder: QueryStringBindable[String]): QueryStringBindable[ServiceType] =
-    new QueryStringBindable[ServiceType]:
-      override def bind(key: String, params: Map[String, Seq[String]]): Option[Either[String, ServiceType]] =
-        strBinder.bind(key, params).map(_.flatMap(s => ServiceType.parse(s)))
-      override def unbind(key: String, value: ServiceType): String =
-        strBinder.unbind(key, value.asString)
+  given QueryStringBindable[LocalDate] =
+    queryStringBindableFromString[LocalDate](
+      s => Some(Try(LocalDate.parse(s)).toEither.left.map(_.getMessage)),
+      _.toString
+    )
+    
+  /** `summon[QueryStringBindable[String]].transform` doesn't allow us to provide failures.
+   * This function provides `andThen` semantics
+   */
+  def queryStringBindableFromString[T](parse: String => Option[Either[String, T]], asString: T => String)(using strBinder: QueryStringBindable[String]): QueryStringBindable[T] =
+    new QueryStringBindable[T]:
+      override def bind(key: String, params: Map[String, Seq[String]]): Option[Either[String, T]] =
+        strBinder.bind(key, params) match
+          case Some(Right(s)) => parse(s)
+          case _ => None
 
+      override def unbind(key: String, value: T): String =
+        strBinder.unbind(key, asString(value))
 
-  implicit def lifecycleStatusBindable(using strBinder: QueryStringBindable[String]): QueryStringBindable[LifecycleStatus] =
-    new QueryStringBindable[LifecycleStatus]:
-      override def bind(key: String, params: Map[String, Seq[String]]): Option[Either[String, LifecycleStatus]] =
-        strBinder.bind(key, params).map(_.flatMap(s => LifecycleStatus.parse(s)))
-      override def unbind(key: String, value: LifecycleStatus): String =
-        strBinder.unbind(key, value.asString)
-  
-  implicit def teamNameBindable(using strBinder: QueryStringBindable[String]): QueryStringBindable[TeamName] =
-    strBinder.transform(TeamName.apply, _.asString)
+  /** `summon[PathBindable[String]].transform` doesn't allow us to provide failures.
+   * This function provides `andThen` semantics
+   */
+  def pathBindableFromString[T](parse: String => Either[String, T], asString: T => String)(using strBinder: PathBindable[String]): PathBindable[T] =
+    new PathBindable[T]:
+      override def bind(key: String, value: String): Either[String, T] =
+        parse(value)
+
+      override def unbind(key: String, value: T): String =
+        asString(value)
+
+  def formFormatFromString[T](parse: String => Either[String, T], asString: T => String): Formatter[T] =
+    new Formatter[T]:
+      override def bind(key: String, data: Map[String, String]): Either[Seq[FormError], T] =
+        data
+          .get(key)
+          .map(_.trim) match
+          case Some(s) if s.nonEmpty => parse(s).leftMap(err => Seq(FormError(key, err)))
+          case _ => Left(Seq(FormError(key, s"$key is missing")))
+
+      override def unbind(key: String, value: T): Map[String, String] =
+        Map(key -> asString(value))
