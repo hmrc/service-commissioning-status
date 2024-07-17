@@ -75,7 +75,7 @@ object LifecycleStatusRepository:
   object Lifecycle:
     val format: Format[Lifecycle] =
       ( (__ \ "serviceName"    ).format[ServiceName](ServiceName.format)
-      ~ (__ \ "lifecycleStatus").format[LifecycleStatus](LifecycleStatus.format)
+      ~ (__ \ "lifecycleStatus").format[LifecycleStatus]
       ~ (__ \ "username"       ).formatNullable[String]
       ~ (__ \ "createDate"     ).formatNullable[Instant]
       )(Lifecycle.apply, l => Tuple.fromProductTyped(l))

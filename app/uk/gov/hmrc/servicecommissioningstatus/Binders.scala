@@ -16,9 +16,6 @@
 
 package uk.gov.hmrc.servicecommissioningstatus
 
-import cats.implicits._
-import play.api.data.FormError
-import play.api.data.format.Formatter
 import play.api.mvc.{PathBindable, QueryStringBindable}
 
 import java.time.{Instant, LocalDate}
@@ -38,7 +35,7 @@ object Binders:
       s => Some(Try(LocalDate.parse(s)).toEither.left.map(_.getMessage)),
       _.toString
     )
-    
+
   /** `summon[QueryStringBindable[String]].transform` doesn't allow us to provide failures.
    * This function provides `andThen` semantics
    */
@@ -62,15 +59,3 @@ object Binders:
 
       override def unbind(key: String, value: T): String =
         asString(value)
-
-  def formFormatFromString[T](parse: String => Either[String, T], asString: T => String): Formatter[T] =
-    new Formatter[T]:
-      override def bind(key: String, data: Map[String, String]): Either[Seq[FormError], T] =
-        data
-          .get(key)
-          .map(_.trim) match
-          case Some(s) if s.nonEmpty => parse(s).leftMap(err => Seq(FormError(key, err)))
-          case _ => Left(Seq(FormError(key, s"$key is missing")))
-
-      override def unbind(key: String, value: T): Map[String, String] =
-        Map(key -> asString(value))

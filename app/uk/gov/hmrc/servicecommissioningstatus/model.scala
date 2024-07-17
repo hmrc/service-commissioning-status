@@ -29,18 +29,14 @@ object ServiceName:
   val format: Format[ServiceName] =
     Format.of[String].inmap(ServiceName.apply, _.asString)
 
-enum ServiceType(val asString: String) extends FromString derives PathBindable, QueryStringBindable:
+enum ServiceType(val asString: String) extends FromString derives PathBindable, QueryStringBindable, Reads:
   case Frontend extends ServiceType("frontend")
   case Backend  extends ServiceType("backend")
 
 object ServiceType:
   given Parser[ServiceType] = Parser.parser(ServiceType.values)
 
-  val reads: Reads[ServiceType] =
-    _.validate[String]
-      .flatMap(Parser[ServiceType].parse(_).fold(JsError(_), JsSuccess(_)))
-
-enum Environment(val asString: String, val displayString: String) extends FromString derives PathBindable, QueryStringBindable:
+enum Environment(val asString: String, val displayString: String) extends FromString derives PathBindable, QueryStringBindable, Reads, Writes:
   case Integration  extends Environment(asString = "integration" , displayString = "Integration"   )
   case Development  extends Environment(asString = "development" , displayString = "Development"   )
   case QA           extends Environment(asString = "qa"          , displayString = "QA"            )
@@ -51,10 +47,7 @@ enum Environment(val asString: String, val displayString: String) extends FromSt
 object Environment:
   given Parser[Environment] = Parser.parser(Environment.values)
 
-  val format: Format[Environment] = new Format[Environment]:
-    override def writes(o: Environment): JsValue = JsString(o.asString)
-    override def reads(json: JsValue): JsResult[Environment] =
-      json.validate[String].flatMap(s => Parser[Environment].parse(s).map(e => JsSuccess(e)).getOrElse(JsError("invalid environment")))
+  val format: Format[Environment] = Format(derived$Reads, derived$Writes)
 
 enum Result(val isPresent: Boolean):
   case Missing(addLink: String) extends Result(false)

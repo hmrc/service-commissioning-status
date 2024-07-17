@@ -17,7 +17,6 @@
 package uk.gov.hmrc.servicecommissioningstatus
 
 import play.api.data.format.Formatter
-import play.api.data.FormError
 import play.api.libs.json.{JsError, JsString, JsSuccess, Reads, Writes}
 import play.api.mvc.{PathBindable, QueryStringBindable}
 
@@ -36,18 +35,6 @@ object Parser:
 
 
 trait FormFormat[A] extends Formatter[A]
-
-object FormFormat:
-  def derived[A <: FromString : Parser]: FormFormat[A] =
-    new FormFormat[A]:
-      override def bind(key: String, data: Map[String, String]): Either[Seq[FormError], A] =
-        data
-          .get(key)
-          .flatMap(Parser[A].parse(_).toOption)
-          .fold[Either[Seq[FormError], A]](Left(Seq(FormError(key, "Invalid value"))))(Right.apply)
-
-      override def unbind(key: String, value: A): Map[String, String] =
-        Map(key -> value.asString)
 
 object FromStringEnum:
   extension (obj: Ordering.type)

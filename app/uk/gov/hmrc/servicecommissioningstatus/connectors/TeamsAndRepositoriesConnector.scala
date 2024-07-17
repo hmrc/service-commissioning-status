@@ -25,12 +25,13 @@ import uk.gov.hmrc.servicecommissioningstatus.{FromString, Parser, ServiceName, 
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
+import uk.gov.hmrc.servicecommissioningstatus.FromStringEnum._
 
 object TeamsAndRepositoriesConnector:
   import play.api.libs.functional.syntax.*
   import play.api.libs.json.*
 
-  enum Tag(val asString: String) extends FromString:
+  enum Tag(val asString: String) extends FromString derives Reads:
     case AdminFrontend    extends Tag("admin"             )
     case Api              extends Tag("api"               )
     case BuiltOffPlatform extends Tag("built-off-platform")
@@ -39,10 +40,6 @@ object TeamsAndRepositoriesConnector:
     
   object Tag:
     given Parser[Tag] = Parser.parser(Tag.values)
-
-    val reads: Reads[Tag] =
-      _.validate[String]
-        .flatMap(Parser[Tag].parse(_).fold(JsError(_), JsSuccess(_)))
 
   case class Repo(
     name        : String
@@ -56,8 +53,6 @@ object TeamsAndRepositoriesConnector:
 
   object Repo:
     val readsActive: Reads[Repo] =
-      given Reads[ServiceType] = ServiceType.reads
-      given Reads[Tag] = Tag.reads
       ( (__ \ "name"        ).read[String]
       ~ (__ \ "serviceType" ).readNullable[ServiceType]
       ~ (__ \ "tags"        ).readWithDefault[Seq[Tag]](Seq.empty)
@@ -68,8 +63,6 @@ object TeamsAndRepositoriesConnector:
       ) (apply _)
 
     val readsDeleted: Reads[Repo] =
-      given Reads[ServiceType] = ServiceType.reads
-      given Reads[Tag] = Tag.reads
       ( (__ \ "name"        ).read[String]
       ~ (__ \ "serviceType" ).readNullable[ServiceType]
       ~ (__ \ "tags"        ).readWithDefault[Seq[Tag]](Seq.empty)

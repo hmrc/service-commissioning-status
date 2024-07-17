@@ -17,10 +17,10 @@
 package uk.gov.hmrc.servicecommissioningstatus
 
 import play.api.libs.json.*
-import play.api.mvc.{PathBindable, QueryStringBindable}
+import play.api.mvc.QueryStringBindable
 import FromStringEnum._
 
-enum LifecycleStatus(val asString: String) extends FromString derives PathBindable, QueryStringBindable:
+enum LifecycleStatus(val asString: String) extends FromString derives QueryStringBindable, Reads, Writes:
   case Active                 extends LifecycleStatus("Active")
   case Archived               extends LifecycleStatus("Archived")
   case DecommissionInProgress extends LifecycleStatus("DecommissionInProgress")
@@ -31,13 +31,5 @@ object LifecycleStatus:
 
   given Parser[LifecycleStatus] = Parser.parser(LifecycleStatus.values)
   
-  val format: Format[LifecycleStatus] =
-    new Format[LifecycleStatus]:
-      override def reads(json: JsValue): JsResult[LifecycleStatus] =
-        json match
-          case JsString(s) => Parser[LifecycleStatus].parse(s).fold(msg => JsError(msg), rt => JsSuccess(rt))
-          case _           => JsError("String value expected")
-
-      override def writes(rt: LifecycleStatus): JsValue =
-        JsString(rt.asString)
+  val format: Format[LifecycleStatus] = Format(derived$Reads, derived$Writes)
 
