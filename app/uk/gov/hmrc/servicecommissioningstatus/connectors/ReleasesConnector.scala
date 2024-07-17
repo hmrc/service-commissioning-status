@@ -18,33 +18,29 @@ package uk.gov.hmrc.servicecommissioningstatus.connectors
 
 import java.time.Instant
 import javax.inject.Inject
-
-import play.api.libs.functional.syntax._
-import play.api.libs.json.{Reads, __}
+import play.api.libs.functional.syntax.*
+import play.api.libs.json.{Format, Reads, __}
 
 import scala.concurrent.{ExecutionContext, Future}
-
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps}
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
 import uk.gov.hmrc.servicecommissioningstatus.{Environment, ServiceName}
 
-object ReleasesConnector {
+object ReleasesConnector:
   case class Release(environment: String)
 
-  object Release {
+  object Release:
     val reads: Reads[Release] =
       (__ \ "environment").read[String].map(Release(_))
-  }
 
   case class WhatsRunningWhereReleases(versions: Seq[Release])
 
-  object WhatsRunningWhereReleases {
+  object WhatsRunningWhereReleases:
     val reads: Reads[WhatsRunningWhereReleases] = {
-      implicit val rs: Reads[Release] = Release.reads
+      given Reads[Release] = Release.reads
       (__ \ "versions").read[Seq[Release]].map(WhatsRunningWhereReleases(_))
     }
-  }
 
   case class DeploymentTimelineEvent(
     env: Environment,
@@ -56,9 +52,9 @@ object ReleasesConnector {
     displayEnd: Option[Instant] = None
   )
 
-  object DeploymentTimelineEvent {
-    implicit val deploymentTimelineEventReads: Reads[DeploymentTimelineEvent] = {
-      implicit val ef = Environment.format
+  object DeploymentTimelineEvent:
+    given deploymentTimelineEventReads: Reads[DeploymentTimelineEvent] =
+      given Format[Environment] = Environment.format
       ((__ \ "environment").read[Environment]
         ~ (__ \ "version").read[String]
         ~ (__ \ "username").read[String]
@@ -67,40 +63,31 @@ object ReleasesConnector {
         ~ (__ \ "displayStart").readNullable[Instant]
         ~ (__ \ "displayEnd").readNullable[Instant]
       )(DeploymentTimelineEvent.apply _)
-    }
-  }
-
-}
 
 class ReleasesConnector @Inject()(
   servicesConfig: ServicesConfig,
-  httpClientV2: HttpClientV2
-)(implicit ec: ExecutionContext){
+  httpClientV2  : HttpClientV2
+)(using ExecutionContext):
   import HttpReads.Implicits._
   import ReleasesConnector._
 
   private val url: String = servicesConfig.baseUrl("releases-api")
 
-  def getReleases(serviceName: ServiceName)(implicit hc: HeaderCarrier): Future[WhatsRunningWhereReleases] = {
+  def getReleases(serviceName: ServiceName)(implicit hc: HeaderCarrier): Future[WhatsRunningWhereReleases] =
     implicit val r: Reads[WhatsRunningWhereReleases] = WhatsRunningWhereReleases.reads
     httpClientV2
       .get(url"$url/releases-api/whats-running-where/${serviceName.asString}")
       .execute[Option[WhatsRunningWhereReleases]]
       .map(_.getOrElse(WhatsRunningWhereReleases(Seq.empty)))
-  }
 
   def deploymentTimeline(
     serviceName: ServiceName
   , from       : Instant
   , to         : Instant
-  )(implicit
-    hc: HeaderCarrier
-  ): Future[Map[Environment, Seq[DeploymentTimelineEvent]]] = {
-    implicit val dtr  = DeploymentTimelineEvent.deploymentTimelineEventReads
-    implicit val er = Environment.format
+  )(using HeaderCarrier
+  ): Future[Map[Environment, Seq[DeploymentTimelineEvent]]] =
+    given Reads[DeploymentTimelineEvent] = DeploymentTimelineEvent.deploymentTimelineEventReads
+    given Format[Environment] = Environment.format
     httpClientV2
       .get(url"$url/releases-api/timeline/${serviceName.asString}?from=${from.toString}&to=${to.toString}")
       .execute[Map[Environment, Seq[DeploymentTimelineEvent]]]
-  }
-}
-

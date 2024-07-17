@@ -16,33 +16,17 @@
 
 package uk.gov.hmrc.servicecommissioningstatus
 
-import play.api.libs.json._
+import play.api.libs.json.*
+import play.api.mvc.QueryStringBindable
+import FromStringEnum._
 
-sealed trait LifecycleStatus { val asString: String }
+enum LifecycleStatus(val asString: String) extends FromString derives QueryStringBindable, Reads, Writes:
+  case Active                 extends LifecycleStatus("Active")
+  case Archived               extends LifecycleStatus("Archived")
+  case DecommissionInProgress extends LifecycleStatus("DecommissionInProgress")
+  case Deprecated             extends LifecycleStatus("Deprecated")
+  case Deleted                extends LifecycleStatus("Deleted")
 
-object LifecycleStatus {
-  object Active                 extends LifecycleStatus { val asString: String = "Active" }
-  object Archived               extends LifecycleStatus { val asString: String = "Archived" }
-  object DecommissionInProgress extends LifecycleStatus { val asString: String = "DecommissionInProgress" }
-  object Deprecated             extends LifecycleStatus { val asString: String = "Deprecated" }
-  object Deleted                extends LifecycleStatus { val asString: String = "Deleted" }
+object LifecycleStatus:
 
-  val values: List[LifecycleStatus] = List(Active, Archived, DecommissionInProgress, Deprecated, Deleted)
-
-  def parse(s: String): Either[String, LifecycleStatus] =
-    values
-      .find(_.asString == s)
-      .toRight(s"Invalid service status - should be one of: ${values.map(_.asString).mkString(", ")}")
-
-  val format: Format[LifecycleStatus] =
-    new Format[LifecycleStatus] {
-      override def reads(json: JsValue): JsResult[LifecycleStatus] =
-        json match {
-          case JsString(s) => parse(s).fold(msg => JsError(msg), rt => JsSuccess(rt))
-          case _           => JsError("String value expected")
-        }
-
-      override def writes(rt: LifecycleStatus): JsValue =
-        JsString(rt.asString)
-    }
-}
+  given Parser[LifecycleStatus] = Parser.parser(LifecycleStatus.values)

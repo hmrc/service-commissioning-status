@@ -27,7 +27,7 @@ import java.time.LocalDate
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
-object ServiceMetricsConnector {
+object ServiceMetricsConnector:
   case class MongoCollectionSize(
     database: String
   , collection: String
@@ -37,9 +37,9 @@ object ServiceMetricsConnector {
   , service: Option[String]
   )
 
-  object MongoCollectionSize {
-    val reads: Reads[MongoCollectionSize] = {
-      implicit val envR = Environment.reads
+  object MongoCollectionSize:
+    val reads: Reads[MongoCollectionSize] =
+      given Reads[Environment] = Environment.format
       ( (__ \ "database"   ).read[String]
       ~ (__ \ "collection" ).read[String]
       ~ (__ \ "sizeBytes"  ).read[BigDecimal]
@@ -47,27 +47,20 @@ object ServiceMetricsConnector {
       ~ (__ \ "environment").read[Environment]
       ~ (__ \ "service"    ).readNullable[String]
       )(apply _)
-    }
-  }
-}
 
 @Singleton
 class ServiceMetricsConnector @Inject()(
   servicesConfig: ServicesConfig
 , httpClientV2: HttpClientV2
-)(implicit
-  ec: ExecutionContext
-){
+)(using ExecutionContext):
   import HttpReads.Implicits._
   import ServiceMetricsConnector._
 
   private val url: String = servicesConfig.baseUrl("service-metrics")
 
-  def getCollections(serviceName: ServiceName)(implicit hc: HeaderCarrier): Future[Seq[MongoCollectionSize]] = {
-    implicit val mcsR = MongoCollectionSize.reads
+  def getCollections(serviceName: ServiceName)(using HeaderCarrier): Future[Seq[MongoCollectionSize]] =
+    given Reads[MongoCollectionSize] = MongoCollectionSize.reads
 
     httpClientV2
       .get(url"$url/service-metrics/${serviceName.asString}/collections")
       .execute[Seq[MongoCollectionSize]]
-  }
-}

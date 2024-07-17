@@ -16,11 +16,13 @@
 
 package uk.gov.hmrc.servicecommissioningstatus.controllers
 
-import org.mockito.scalatest.MockitoSugar
+import org.mockito.Mockito.when
+import org.scalatestplus.mockito.MockitoSugar
+import org.mockito.ArgumentMatchers.{eq => eqTo, *}
 import org.scalatest.matchers.must.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import play.api.libs.json.Json
-import play.api.test.Helpers._
+import play.api.test.Helpers.*
 import play.api.test.{FakeRequest, Helpers}
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.servicecommissioningstatus.{Check, Environment, Result, ServiceName}
@@ -29,10 +31,10 @@ import uk.gov.hmrc.servicecommissioningstatus.service.StatusCheckService
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{ExecutionContext, Future}
 
-class LifecycleStatusControllerSpec
+class ServiceStatusControllerSpec
   extends AnyWordSpec
     with Matchers
-    with MockitoSugar {
+    with MockitoSugar:
 
   private val mockStatusCheckService: StatusCheckService = mock[StatusCheckService]
 
@@ -47,41 +49,30 @@ class LifecycleStatusControllerSpec
       ExternalTest  -> Result.Present("https://github.com/hmrc/app-config-externaltest/blob/main/foo.yaml")
     )
 
-   import Check._
-   private val checks =
-      SimpleCheck(
-        title      = "Github Repo",
-        result     = Result.Present("https://github.com/hmrc/foo"),
-        helpText   = "Github help text",
-        linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook")
-      ) ::
-      SimpleCheck(
-        title      = "App Config Base",
-        result     = Result.Missing("https://github.com/hmrc/app-config-base/blob/main/foo.conf"),
-        helpText   = "Base help text",
-        linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook")
-      ) ::
-      EnvCheck(
-        title      = "App Config Environment",
-        results    = appConfigEnvironment,
-        helpText   = "Env help text",
-        linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook")
-      ) ::
-      Nil
+  import Check._
+  private val checks =
+     SimpleCheck(
+       title      = "Github Repo",
+       result     = Result.Present("https://github.com/hmrc/foo"),
+       helpText   = "Github help text",
+       linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook")
+     ) ::
+     SimpleCheck(
+       title      = "App Config Base",
+       result     = Result.Missing("https://github.com/hmrc/app-config-base/blob/main/foo.conf"),
+       helpText   = "Base help text",
+       linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook")
+     ) ::
+     EnvCheck(
+       title      = "App Config Environment",
+       results    = appConfigEnvironment,
+       helpText   = "Env help text",
+       linkToDocs = Some("https://docs.tax.service.gov.uk/mdtp-handbook")
+     ) ::
+     Nil
 
-  "LifecycleStatusController" should {
-    "return all completed Service Commissioning Checks as Json" in {
-      when(mockStatusCheckService.commissioningStatusChecks(eqTo(ServiceName("foo")))(any[HeaderCarrier], any[ExecutionContext]))
-        .thenReturn(Future.successful(checks))
-
-      val controller = new LifecycleStatusController(Helpers.stubControllerComponents(), mockStatusCheckService)
-      val result = controller.statusChecks(ServiceName("foo"))(FakeRequest())
-      val bodyText = contentAsJson(result)
-      bodyText mustBe Json.parse(json1)
-    }
-  }
-
-  private val json1 = """
+  private val json1 =
+    """
     [{
       "title": "Github Repo",
       "simpleCheck": { "evidence": "https://github.com/hmrc/foo" },
@@ -106,4 +97,12 @@ class LifecycleStatusControllerSpec
       "linkToDocs": "https://docs.tax.service.gov.uk/mdtp-handbook"
     }]"""
 
-}
+  "LifecycleStatusController" should:
+    "return all completed Service Commissioning Checks as Json" in:
+      when(mockStatusCheckService.commissioningStatusChecks(ServiceName(eqTo("foo")))(any[HeaderCarrier], any[ExecutionContext]))
+        .thenReturn(Future.successful(checks))
+
+      val controller = LifecycleStatusController(Helpers.stubControllerComponents(), mockStatusCheckService)
+      val result = controller.statusChecks(ServiceName("foo"))(FakeRequest())
+      val bodyText = contentAsJson(result)
+      bodyText mustBe Json.parse(json1)

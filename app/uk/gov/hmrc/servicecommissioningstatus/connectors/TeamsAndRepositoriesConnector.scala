@@ -16,31 +16,30 @@
 
 package uk.gov.hmrc.servicecommissioningstatus.connectors
 
-import play.api.Logger
+import play.api.Logging
 import play.api.libs.json.{Reads, __}
-import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps}
 import uk.gov.hmrc.http.client.HttpClientV2
+import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps}
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
-import uk.gov.hmrc.servicecommissioningstatus.{Enum, WithAsString, ServiceType, ServiceName, TeamName}
+import uk.gov.hmrc.servicecommissioningstatus.{FromString, Parser, ServiceName, ServiceType, TeamName}
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
+import uk.gov.hmrc.servicecommissioningstatus.FromStringEnum._
 
-object TeamsAndRepositoriesConnector {
-  import play.api.libs.functional.syntax._
-  import play.api.libs.json._
+object TeamsAndRepositoriesConnector:
+  import play.api.libs.functional.syntax.*
+  import play.api.libs.json.*
 
-  sealed trait Tag extends WithAsString
-
-  object Tag extends Enum[Tag] {
-    case object AdminFrontend    extends Tag { def asString = "admin"              }
-    case object Api              extends Tag { def asString = "api"                }
-    case object BuiltOffPlatform extends Tag { def asString = "built-off-platform" }
-    case object Maven            extends Tag { def asString = "maven"              }
-    case object Stub             extends Tag { def asString = "stub"               }
-
-    override val values = List(AdminFrontend, Api, BuiltOffPlatform, Maven, Stub)
-  }
+  enum Tag(val asString: String) extends FromString derives Reads:
+    case AdminFrontend    extends Tag("admin"             )
+    case Api              extends Tag("api"               )
+    case BuiltOffPlatform extends Tag("built-off-platform")
+    case Maven            extends Tag("maven"             )
+    case Stub             extends Tag("stub"              )
+    
+  object Tag:
+    given Parser[Tag] = Parser.parser(Tag.values)
 
   case class Repo(
     name        : String
@@ -52,10 +51,8 @@ object TeamsAndRepositoriesConnector {
   , isDeleted   : Boolean
   )
 
-  object Repo {
-    val readsActive: Reads[Repo] = {
-      implicit val readServiceType = ServiceType.reads
-      implicit val readTag         = Tag.reads
+  object Repo:
+    val readsActive: Reads[Repo] =
       ( (__ \ "name"        ).read[String]
       ~ (__ \ "serviceType" ).readNullable[ServiceType]
       ~ (__ \ "tags"        ).readWithDefault[Seq[Tag]](Seq.empty)
@@ -64,11 +61,8 @@ object TeamsAndRepositoriesConnector {
       ~ (__ \ "url"         ).read[String]
       ~ Reads.pure(false)
       ) (apply _)
-    }
 
-    val readsDeleted: Reads[Repo] = {
-      implicit val readServiceType = ServiceType.reads
-      implicit val readTag         = Tag.reads
+    val readsDeleted: Reads[Repo] =
       ( (__ \ "name"        ).read[String]
       ~ (__ \ "serviceType" ).readNullable[ServiceType]
       ~ (__ \ "tags"        ).readWithDefault[Seq[Tag]](Seq.empty)
@@ -77,21 +71,13 @@ object TeamsAndRepositoriesConnector {
       ~ Reads.pure("")
       ~ Reads.pure(true)
       ) (apply _)
-    }
-  }
 
-  sealed trait JobType { def asString: String }
+  enum JobType(val asString: String):
+    case Job         extends JobType("job")
+    case Pipeline    extends JobType("pipeline")
+    case PullRequest extends JobType("pull-request")
 
-  object JobType {
-    case object Job         extends JobType { override val asString = "job"         }
-    case object Pipeline    extends JobType { override val asString = "pipeline"    }
-    case object PullRequest extends JobType { override val asString = "pull-request"}
-
-    private val logger = Logger(this.getClass)
-
-    val values: List[JobType] =
-      List(Job, Pipeline, PullRequest)
-
+  object JobType extends Logging:
     def parse(s: String): JobType =
       values
         .find(_.asString.equalsIgnoreCase(s)).getOrElse {
@@ -99,9 +85,8 @@ object TeamsAndRepositoriesConnector {
         Job
       }
 
-    implicit val reads: Reads[JobType] =
+    given Reads[JobType] =
       Reads.of[String].map(parse)
-  }
 
   case class JenkinsJob(
     repoName   : String,
@@ -109,22 +94,20 @@ object TeamsAndRepositoriesConnector {
     jobType    : JobType
   )
 
-  object JenkinsJob {
-    implicit val reads: Reads[JenkinsJob] =
+  object JenkinsJob:
+    given reads: Reads[JenkinsJob] =
       ( (__ \ "repoName"  ).read[String]
       ~ (__ \ "jenkinsURL").read[String]
       ~ (__ \ "jobType"   ).read[JobType]
       )(JenkinsJob.apply _)
-  }
-}
 
 @Singleton
 class TeamsAndRepositoriesConnector @Inject()(
   httpClientV2  : HttpClientV2,
   servicesConfig: ServicesConfig
-)(implicit val ec: ExecutionContext) {
-  import HttpReads.Implicits._
-  import TeamsAndRepositoriesConnector._
+)(using ExecutionContext):
+  import HttpReads.Implicits.*
+  import TeamsAndRepositoriesConnector.*
 
   private val url = servicesConfig.baseUrl("teams-and-repositories")
 
@@ -132,32 +115,28 @@ class TeamsAndRepositoriesConnector @Inject()(
     serviceName: Option[ServiceName] = None
   , team       : Option[TeamName]    = None
   , serviceType: Option[ServiceType] = None
-  )(implicit hc: HeaderCarrier): Future[Seq[Repo]] = {
-    implicit val readRepo: Reads[Repo] = Repo.readsActive
+  )(using HeaderCarrier): Future[Seq[Repo]] =
+    given Reads[Repo] = Repo.readsActive
 
     httpClientV2
       .get(url"$url/api/v2/repositories?repoType=service&name=${serviceName.map(sn => s"\"${sn.asString}\"")}&team=${team.map(_.asString)}&serviceType=${serviceType.map(_.asString)}")
       .execute[Seq[Repo]]
-  }
 
   def findDeletedServiceRepos(
     serviceName: Option[ServiceName] = None
   , team       : Option[TeamName]    = None
   , serviceType: Option[ServiceType] = None
-  )(implicit hc: HeaderCarrier): Future[Seq[Repo]] = {
-    implicit val readRepo: Reads[Repo] = Repo.readsDeleted
+  )(using HeaderCarrier): Future[Seq[Repo]] =
+    given Reads[Repo] = Repo.readsDeleted
 
     httpClientV2
       .get(url"$url/api/deleted-repositories?repoType=service&name=${serviceName.map(sn => s"\"${sn.asString}\"")}&team=${team.map(_.asString)}&serviceType=${serviceType.map(_.asString)}")
       .execute[Seq[Repo]]
-  }
 
-  def findJenkinsJobs(repoName: String)(implicit hc: HeaderCarrier): Future[Seq[JenkinsJob]] = {
-    implicit val readJobs: Reads[Seq[JenkinsJob]] =
+  def findJenkinsJobs(repoName: String)(using HeaderCarrier): Future[Seq[JenkinsJob]] =
+    given Reads[Seq[JenkinsJob]] =
       Reads.at(__ \ "jobs")(Reads.seq(JenkinsJob.reads))
 
     httpClientV2
       .get(url"$url/api/v2/repositories/$repoName/jenkins-jobs")
       .execute[Seq[JenkinsJob]]
-  }
-}

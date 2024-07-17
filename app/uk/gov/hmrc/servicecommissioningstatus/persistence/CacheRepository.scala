@@ -17,11 +17,11 @@
 package uk.gov.hmrc.servicecommissioningstatus.persistence
 
 import javax.inject.{Inject, Singleton}
-
-import org.mongodb.scala.model.{Filters, Indexes, IndexModel, IndexOptions, Sorts}
+import org.mongodb.scala.model.{Filters, IndexModel, IndexOptions, Indexes, Sorts}
+import org.mongodb.scala.ObservableFuture
+import play.api.libs.json.Format
 
 import scala.concurrent.{ExecutionContext, Future}
-
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.{Codecs, PlayMongoRepository}
 import uk.gov.hmrc.servicecommissioningstatus.{Check, LifecycleStatus, ServiceName, Warning}
@@ -29,8 +29,7 @@ import uk.gov.hmrc.servicecommissioningstatus.{Check, LifecycleStatus, ServiceNa
 @Singleton
 class CacheRepository @Inject()(
   mongoComponent: MongoComponent
-)(implicit
-  ec: ExecutionContext
+)(using ExecutionContext
 ) extends PlayMongoRepository[CacheRepository.ServiceCheck](
   mongoComponent = mongoComponent,
   collectionName = "cachedServiceCheck",
@@ -40,8 +39,8 @@ class CacheRepository @Inject()(
                    , IndexModel(Indexes.ascending("lifecycleStatus"), IndexOptions().name("lifecycleStatusIdx"))
                    ),
   extraCodecs    = Seq(Codecs.playFormatCodec(ServiceName.format)) ++
-                     Codecs.playFormatSumCodecs(LifecycleStatus.format)
-){
+                     Codecs.playFormatSumCodecs(summon[Format[LifecycleStatus]])
+):
   import CacheRepository._
 
   // we replace all the data for each call to putAll
@@ -65,9 +64,8 @@ class CacheRepository @Inject()(
          .foldLeft(Filters.empty())(Filters.and(_, _))
       ).sort(Sorts.ascending("serviceName"))
       .toFuture()
-}
 
-object CacheRepository {
+object CacheRepository:
   import play.api.libs.functional.syntax._
   import play.api.libs.json._
 
@@ -79,14 +77,12 @@ object CacheRepository {
   )
 
   object ServiceCheck {
-    val format: Format[ServiceCheck] = {
-      implicit val formatCheck       = Check.format
-      implicit val formatWarning     = Warning.format
+    val format: Format[ServiceCheck] =
+      given Format[Check] = Check.format
+      given OFormat[Warning] = Warning.format
       ( (__ \ "serviceName"    ).format[ServiceName](ServiceName.format)
-      ~ (__ \ "lifecycleStatus").format[LifecycleStatus](LifecycleStatus.format)
+      ~ (__ \ "lifecycleStatus").format[LifecycleStatus]
       ~ (__ \ "checks"         ).format[Seq[Check]]
       ~ (__ \ "warnings"       ).formatNullable[Seq[Warning]]
-      )(ServiceCheck.apply, unlift(ServiceCheck.unapply))
-    }
+      )(ServiceCheck.apply, s => Tuple.fromProductTyped(s))
   }
-}

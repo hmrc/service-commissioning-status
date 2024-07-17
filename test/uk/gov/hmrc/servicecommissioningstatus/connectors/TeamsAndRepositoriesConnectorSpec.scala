@@ -40,10 +40,10 @@ class TeamsAndRepositoriesConnectorSpec
     with WireMockSupport
     with TypeCheckedTripleEquals
     with OptionValues
-    with EitherValues {
+    with EitherValues:
 
   override def fakeApplication(): Application =
-    new GuiceApplicationBuilder()
+    GuiceApplicationBuilder()
       .configure(
         Map(
           "microservice.services.teams-and-repositories.host" -> wireMockHost,
@@ -55,10 +55,10 @@ class TeamsAndRepositoriesConnectorSpec
   private lazy val teamsAndRepositoriesConnector: TeamsAndRepositoriesConnector =
     app.injector.instanceOf[TeamsAndRepositoriesConnector]
 
-  implicit val hc: HeaderCarrier = HeaderCarrier()
+  given HeaderCarrier = HeaderCarrier()
 
-  "findBuildJobs" should {
-    "return build jobs for a service" in {
+  "findBuildJobs" should:
+    "return build jobs for a service" in:
       stubFor(
         get(urlEqualTo("/api/v2/repositories/service-one/jenkins-jobs"))
           .willReturn(
@@ -83,14 +83,12 @@ class TeamsAndRepositoriesConnectorSpec
           )
       )
 
-      val response = teamsAndRepositoriesConnector
-        .findJenkinsJobs("service-one")(HeaderCarrierConverter.fromRequest(FakeRequest()))
-        .futureValue
+      val response: Seq[TeamsAndRepositoriesConnector.JenkinsJob] =
+        teamsAndRepositoriesConnector
+          .findJenkinsJobs("service-one")(using HeaderCarrierConverter.fromRequest(FakeRequest()))
+          .futureValue
 
       response shouldBe Seq(
         TeamsAndRepositoriesConnector.JenkinsJob(repoName= "service-one", jenkinsUrl = "http.jenkins/service-one",           jobType = TeamsAndRepositoriesConnector.JobType.Job),
         TeamsAndRepositoriesConnector.JenkinsJob(repoName= "service-one", jenkinsUrl = "http.jenkins/service-one-pipeline",  jobType = TeamsAndRepositoriesConnector.JobType.Pipeline)
       )
-    }
-  }
-}

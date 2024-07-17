@@ -35,11 +35,11 @@ class SlackNotificationsConnectorSpec
     with ScalaFutures
     with IntegrationPatience
     with HttpClientV2Support
-    with WireMockSupport {
+    with WireMockSupport:
 
   private def connector(testChannelOnly: Boolean) =
-    new SlackNotificationsConnector(
-      servicesConfig = new ServicesConfig(Configuration(
+    SlackNotificationsConnector(
+      servicesConfig = ServicesConfig(Configuration(
         "microservice.services.slack-notifications.port" -> wireMockPort,
         "microservice.services.slack-notifications.host" -> wireMockHost,
         "slack-notifications.authToken"                  -> "token",
@@ -48,10 +48,10 @@ class SlackNotificationsConnectorSpec
       httpClientV2 = httpClientV2
     )
 
-  implicit val headerCarrier: HeaderCarrier = HeaderCarrier()
+  given HeaderCarrier = HeaderCarrier()
 
-  "send" should {
-    "return a response containing no errors" in {
+  "send" should:
+    "return a response containing no errors" in:
       stubFor(
         post(urlEqualTo("/slack-notifications/v2/notification"))
           .willReturn(
@@ -65,9 +65,8 @@ class SlackNotificationsConnectorSpec
         .send(SlackNotificationRequest.markedForDecommissioning("example-frontend", "timmy.test"))
         .futureValue
         .errors shouldBe List.empty[SlackNotificationError]
-    }
 
-    "replace channel lookup with explicit slack channel when switch enabled" in {
+    "replace channel lookup with explicit slack channel when switch enabled" in:
       stubFor(
         post(urlEqualTo("/slack-notifications/v2/notification"))
           .willReturn(
@@ -77,22 +76,20 @@ class SlackNotificationsConnectorSpec
           )
       )
 
-      val msg = SlackNotificationRequest.markedForDecommissioning("example-frontend", "timmy.test")
+      val msg: SlackNotificationRequest =
+        SlackNotificationRequest.markedForDecommissioning("example-frontend", "timmy.test")
 
-      msg.channelLookup shouldBe ByRepo(repositoryName = "example-frontend")
+      msg.channelLookup shouldBe ChannelLookup.ByRepo(repositoryName = "example-frontend")
 
       connector(testChannelOnly = true)
         .send(msg)
         .futureValue
         .errors shouldBe List.empty[SlackNotificationError]
 
-      val expectedLookup =
+      val expectedLookup: String =
         """{"by":"slack-channel","slackChannels":["test-alerts-channel"]}"""
 
       verify(
         postRequestedFor(urlEqualTo("/slack-notifications/v2/notification"))
           .withRequestBody(containing(expectedLookup))
       )
-    }
-  }
-}

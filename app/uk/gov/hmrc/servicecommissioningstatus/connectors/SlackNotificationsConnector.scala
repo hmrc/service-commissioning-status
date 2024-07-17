@@ -17,7 +17,8 @@
 package uk.gov.hmrc.servicecommissioningstatus.connectors
 
 import play.api.Logger
-import play.api.libs.functional.syntax.{toFunctionalBuilderOps, unlift}
+import play.api.libs.ws.writeableOf_JsValue
+import play.api.libs.functional.syntax.toFunctionalBuilderOps
 import play.api.libs.json._
 import uk.gov.hmrc.http.{HeaderCarrier, StringContextOps}
 import uk.gov.hmrc.http.client.HttpClientV2
@@ -32,9 +33,7 @@ import scala.util.control.NonFatal
 class SlackNotificationsConnector @Inject()(
   httpClientV2: HttpClientV2,
   servicesConfig: ServicesConfig
-)(implicit
-  ec: ExecutionContext
-) {
+)(using ExecutionContext):
 
   private val logger = Logger(getClass)
 
@@ -44,58 +43,42 @@ class SlackNotificationsConnector @Inject()(
   private val onlySendToTest: Boolean = servicesConfig.getBoolean("slack-notifications.onlySendToTestChannel")
 
   private def replaceChannelLookup(in: SlackNotificationRequest): SlackNotificationRequest =
-    if(onlySendToTest) in.copy(channelLookup = ByChannel(slackChannels = Seq("test-alerts-channel")))
+    if onlySendToTest then in.copy(channelLookup = ChannelLookup.ByChannel(slackChannels = Seq("test-alerts-channel")))
     else in
 
-  def send(request: SlackNotificationRequest)(implicit hc: HeaderCarrier): Future[SlackNotificationResponse] = {
-    implicit val snrW: Writes[SlackNotificationRequest] = SlackNotificationRequest.writes
-    implicit val snrR: Reads[SlackNotificationResponse] = SlackNotificationResponse.reads
+  def send(request: SlackNotificationRequest)(using HeaderCarrier): Future[SlackNotificationResponse] =
+    given Writes[SlackNotificationRequest] = SlackNotificationRequest.writes
+    given Reads[SlackNotificationResponse] = SlackNotificationResponse.reads
     httpClientV2
       .post(url"$baseUrl/slack-notifications/v2/notification")
       .withBody(Json.toJson(replaceChannelLookup(request)))
       .setHeader("Authorization" -> token)
       .execute[SlackNotificationResponse]
-      .recoverWith {
+      .recoverWith:
         case NonFatal(ex) =>
           logger.error(s"Unable to notify ${request.channelLookup} on Slack", ex)
           Future.failed(ex)
-      }
-  }
 
-}
+enum ChannelLookup:
+  case ByRepo(by: String = "github-repository", repositoryName: String)
+  case ByChannel(by: String = "slack-channel", slackChannels: Seq[String])
 
-sealed trait ChannelLookup
-
-final case class ByRepo(
-  by: String = "github-repository",
-  repositoryName: String
-) extends ChannelLookup
-
-object ByRepo {
-  val writes: OWrites[ByRepo] =
-    ( (__ \ "by"            ).write[String]
-    ~ (__ \ "repositoryName").write[String]
-    )(unlift(unapply))
-}
-
-final case class ByChannel(
-  by: String = "slack-channel",
-  slackChannels: Seq[String]
-) extends ChannelLookup
-
-object ByChannel {
-  val writes: OWrites[ByChannel] =
-    ( (__ \ "by"           ).write[String]
-    ~ (__ \ "slackChannels").write[Seq[String]]
-    )(unlift(unapply))
-}
-
-object ChannelLookup {
-  val writes: Writes[ChannelLookup] = {
+object ChannelLookup:
+  object ByRepo:
+    val writes: OWrites[ByRepo] =
+      ( (__ \ "by"            ).write[String]
+      ~ (__ \ "repositoryName").write[String]
+      )(b => Tuple.fromProductTyped(b))
+  
+  object ByChannel:
+    val writes: OWrites[ByChannel] =
+      ( (__ \ "by"           ).write[String]
+      ~ (__ \ "slackChannels").write[Seq[String]]
+      )(b => Tuple.fromProductTyped(b))
+  
+  val writes: Writes[ChannelLookup] =
     case lookup: ByRepo    => Json.toJson(lookup)(ByRepo.writes)
     case lookup: ByChannel => Json.toJson(lookup)(ByChannel.writes)
-  }
-}
 
 final case class SlackNotificationRequest(
   channelLookup: ChannelLookup,
@@ -105,16 +88,16 @@ final case class SlackNotificationRequest(
   blocks       : Seq[JsObject]
 )
 
-object SlackNotificationRequest {
+object SlackNotificationRequest:
   val writes: Writes[SlackNotificationRequest] =
     ( (__ \ "channelLookup").write[ChannelLookup](ChannelLookup.writes)
     ~ (__ \ "displayName"  ).write[String]
     ~ (__ \ "emoji"        ).write[String]
     ~ (__ \ "text"         ).write[String]
     ~ (__ \ "blocks"       ).write[Seq[JsObject]]
-    )(unlift(unapply))
+    )(s => Tuple.fromProductTyped(s))
 
-  def markedForDecommissioning(repositoryName: String, username: String): SlackNotificationRequest = {
+  def markedForDecommissioning(repositoryName: String, username: String): SlackNotificationRequest =
     val blocks = Seq(
       Json.obj(
         "type" -> JsString("section"),
@@ -126,14 +109,12 @@ object SlackNotificationRequest {
     )
 
     SlackNotificationRequest(
-      channelLookup = ByRepo(repositoryName = repositoryName),
+      channelLookup = ChannelLookup.ByRepo(repositoryName = repositoryName),
       displayName   = "MDTP Catalogue",
       emoji         = ":tudor-crown:",
       text          = s"$repositoryName has been marked for decommissioning.",
       blocks        = blocks
     )
-  }
-}
 
 final case class SlackNotificationError(
   code   : String,
@@ -144,9 +125,9 @@ final case class SlackNotificationResponse(
   errors: List[SlackNotificationError]
 )
 
-object SlackNotificationResponse {
-  val reads: Reads[SlackNotificationResponse] = {
-    implicit val sneReads: Reads[SlackNotificationError] =
+object SlackNotificationResponse:
+  val reads: Reads[SlackNotificationResponse] =
+    given Reads[SlackNotificationError] =
       ( (__ \ "code"   ).read[String]
       ~ (__ \ "message").read[String]
       )(SlackNotificationError.apply _)
@@ -154,5 +135,3 @@ object SlackNotificationResponse {
     (__ \ "errors")
       .readWithDefault[List[SlackNotificationError]](List.empty)
       .map(SlackNotificationResponse.apply)
-  }
-}

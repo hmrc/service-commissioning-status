@@ -26,7 +26,7 @@ import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.http.test.{HttpClientV2Support, WireMockSupport}
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
 import uk.gov.hmrc.servicecommissioningstatus.ServiceName
-
+import ReleasesConnector.{WhatsRunningWhereReleases, Release}
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class ReleasesConnectorSpec
@@ -36,22 +36,21 @@ class ReleasesConnectorSpec
     with ScalaFutures
     with IntegrationPatience
     with HttpClientV2Support
-    with WireMockSupport {
-  import ReleasesConnector.{WhatsRunningWhereReleases, Release}
+    with WireMockSupport:
 
-  private lazy val releasesConnector =
-    new ReleasesConnector(
+  private lazy val releasesConnector: ReleasesConnector =
+    ReleasesConnector(
       httpClientV2   = httpClientV2,
-      servicesConfig = new ServicesConfig(Configuration(
+      servicesConfig = ServicesConfig(Configuration(
         "microservice.services.releases-api.port" -> wireMockPort,
         "microservice.services.releases-api.host" -> wireMockHost
       ))
     )
 
-  implicit val headerCarrier: HeaderCarrier = HeaderCarrier()
+  given HeaderCarrier = HeaderCarrier()
 
-  "GET getReleases" should {
-    "return WhatsRunningWhereReleases for a service" in {
+  "GET getReleases" should:
+    "return WhatsRunningWhereReleases for a service" in:
       stubFor(
         get(urlEqualTo("/releases-api/whats-running-where/foo"))
           .willReturn(
@@ -77,23 +76,21 @@ class ReleasesConnectorSpec
           )
       )
 
-      val response = releasesConnector
-        .getReleases(ServiceName("foo"))
-        .futureValue
+      val response: WhatsRunningWhereReleases =
+        releasesConnector
+          .getReleases(ServiceName("foo"))
+          .futureValue
 
       response shouldBe WhatsRunningWhereReleases(Seq(Release("staging"), Release("qa"), Release("production")))
-    }
 
-    "return WhatsRunningWhereReleases that contains Empty Seq when service Not Found" in {
+    "return WhatsRunningWhereReleases that contains Empty Seq when service Not Found" in:
       stubFor(
         get(urlEqualTo("/releases-api/whats-running-where/foo-non-existing"))
           .willReturn(aResponse().withStatus(404)))
 
-      val response = releasesConnector
-        .getReleases(ServiceName("foo-non-existing"))
-        .futureValue
+      val response: WhatsRunningWhereReleases =
+        releasesConnector
+          .getReleases(ServiceName("foo-non-existing"))
+          .futureValue
 
       response shouldBe WhatsRunningWhereReleases(Seq.empty)
-    }
-  }
-}
