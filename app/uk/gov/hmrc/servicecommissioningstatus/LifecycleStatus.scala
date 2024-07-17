@@ -30,6 +30,3 @@ enum LifecycleStatus(val asString: String) extends FromString derives QueryStrin
 object LifecycleStatus:
 
   given Parser[LifecycleStatus] = Parser.parser(LifecycleStatus.values)
-  
-  val format: Format[LifecycleStatus] = Format(derived$Reads, derived$Writes)
-

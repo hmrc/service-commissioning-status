@@ -17,7 +17,7 @@
 package uk.gov.hmrc.servicecommissioningstatus.controllers
 
 import play.api.Logging
-import play.api.libs.json.{Format, Json, JsString, Reads, Writes, __}
+import play.api.libs.json.{Json, JsString, Reads, Writes, __}
 import play.api.mvc.{Action, AnyContent, ControllerComponents}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 import uk.gov.hmrc.servicecommissioningstatus.{Check, LifecycleStatus, ServiceName, ServiceType, TeamName}
@@ -92,7 +92,6 @@ object LifecycleStatusController:
   )
 
   val reads: Reads[LifecycleStatusRequest] =
-    given Format[LifecycleStatus] = LifecycleStatus.format
     ( (__ \ "lifecycleStatus").read[LifecycleStatus]
     ~ (__ \ "username"       ).read[String]
     )(LifecycleStatusRequest.apply _)

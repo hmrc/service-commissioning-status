@@ -17,12 +17,11 @@
 package uk.gov.hmrc.servicecommissioningstatus.persistence
 
 import javax.inject.{Inject, Singleton}
-
-import org.mongodb.scala.model.{Filters, Indexes, IndexModel, IndexOptions, Sorts}
+import org.mongodb.scala.model.{Filters, IndexModel, IndexOptions, Indexes, Sorts}
 import org.mongodb.scala.ObservableFuture
+import play.api.libs.json.Format
 
 import scala.concurrent.{ExecutionContext, Future}
-
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.{Codecs, PlayMongoRepository}
 import uk.gov.hmrc.servicecommissioningstatus.{Check, LifecycleStatus, ServiceName, Warning}
@@ -40,7 +39,7 @@ class CacheRepository @Inject()(
                    , IndexModel(Indexes.ascending("lifecycleStatus"), IndexOptions().name("lifecycleStatusIdx"))
                    ),
   extraCodecs    = Seq(Codecs.playFormatCodec(ServiceName.format)) ++
-                     Codecs.playFormatSumCodecs(LifecycleStatus.format)
+                     Codecs.playFormatSumCodecs(summon[Format[LifecycleStatus]])
 ):
   import CacheRepository._
 
@@ -82,7 +81,7 @@ object CacheRepository:
       given Format[Check] = Check.format
       given OFormat[Warning] = Warning.format
       ( (__ \ "serviceName"    ).format[ServiceName](ServiceName.format)
-      ~ (__ \ "lifecycleStatus").format[LifecycleStatus](LifecycleStatus.format)
+      ~ (__ \ "lifecycleStatus").format[LifecycleStatus]
       ~ (__ \ "checks"         ).format[Seq[Check]]
       ~ (__ \ "warnings"       ).formatNullable[Seq[Warning]]
       )(ServiceCheck.apply, s => Tuple.fromProductTyped(s))
