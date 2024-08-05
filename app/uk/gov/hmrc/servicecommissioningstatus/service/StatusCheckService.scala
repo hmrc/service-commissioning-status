@@ -362,7 +362,7 @@ class StatusCheckService @Inject()(
   private def checkRepoExists(oRepo: Option[TeamsAndRepositoriesConnector.Repo]): Result =
     oRepo match
       case Some(repo) if !repo.isArchived && !repo.isDeleted => Result.Present(repo.githubUrl)
-      case _                                                 => Result.Missing("/create-service")
+      case _                                                 => Result.Missing("/create-repo")
 
   private def checkFrontendRouteForEnv(frontendRoutes: Seq[ServiceConfigsConnector.FrontendRoute], env: Environment): Result =
     frontendRoutes
