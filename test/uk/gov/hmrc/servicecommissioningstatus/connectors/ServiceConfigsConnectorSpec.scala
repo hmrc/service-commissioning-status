@@ -37,7 +37,8 @@ class ServiceConfigsConnectorSpec
     with IntegrationPatience
     with HttpClientV2Support
     with WireMockSupport:
-  import ServiceConfigsConnector.{FrontendRoute, Routes}
+
+  import ServiceConfigsConnector.Route
 
   given HeaderCarrier = HeaderCarrier()
 
@@ -51,60 +52,60 @@ class ServiceConfigsConnectorSpec
     )
 
   "GET getMDTPFrontendRoutes" should:
-    "return FrontendRoutes for service" in:
+    "return frontend routes for service" in:
       stubFor(
-        get(urlEqualTo("/service-configs/frontend-route/foo"))
+        get(urlEqualTo("/service-configs/routes?serviceName=foo&routeType=frontend"))
           .willReturn(
             aResponse()
               .withStatus(200)
               .withBody(
                 """[
-                  {
-                    "environment": "qa",
-                    "routes": [
-                      {
-                        "ruleConfigurationUrl": "https://github.com/hmrc/mdtp-frontend-routes/blob/main/qa/foo.conf#L2505"
-                      }
-                    ]
-                  },
-                  {
-                    "environment": "production",
-                    "routes": [
-                      {
-                        "ruleConfigurationUrl": "https://github.com/hmrc/mdtp-frontend-routes/blob/main/production/foo.conf#L2505"
-                      }
-                    ]
-                  },
-                  {
-                    "environment": "staging",
-                    "routes": [
-                      {
-                        "ruleConfigurationUrl": "https://github.com/hmrc/mdtp-frontend-routes/blob/main/staging/foo.conf#L2505"
-                      }
-                    ]
-                  }
+                    {
+                      "serviceName": "foo",
+                      "path": "/foo-path",
+                      "ruleConfigurationUrl": "https://github.com/hmrc/mdtp-frontend-routes/blob/main/qa/foo.conf#L2505",
+                      "isRegex": false,
+                      "routeType": "frontend",
+                      "environment": "qa"
+                    },
+                    {
+                      "serviceName": "foo",
+                      "path": "/foo-path",
+                      "ruleConfigurationUrl": "https://github.com/hmrc/mdtp-frontend-routes/blob/main/staging/foo.conf#L2505",
+                      "isRegex": false,
+                      "routeType": "frontend",
+                      "environment": "staging"
+                    },
+                    {
+                      "serviceName": "foo",
+                      "path": "/foo-path",
+                      "ruleConfigurationUrl": "https://github.com/hmrc/mdtp-frontend-routes/blob/main/production/foo.conf#L2505",
+                      "isRegex": false,
+                      "routeType": "frontend",
+                      "environment": "production"
+                    }
                 ]"""
               )
           )
       )
 
-      val response: Seq[FrontendRoute] =
+      val response: Seq[Route] =
         serviceConfigsConnector
           .getMDTPFrontendRoutes(ServiceName("foo"))
           .futureValue
 
-      val expectedOutput: Seq[FrontendRoute] =
+      val expectedOutput: Seq[Route] =
         Seq(
-          FrontendRoute(Environment.QA,         Seq(Routes("https://github.com/hmrc/mdtp-frontend-routes/blob/main/qa/foo.conf#L2505"))),
-          FrontendRoute(Environment.Production, Seq(Routes("https://github.com/hmrc/mdtp-frontend-routes/blob/main/production/foo.conf#L2505"))),
-          FrontendRoute(Environment.Staging,    Seq(Routes("https://github.com/hmrc/mdtp-frontend-routes/blob/main/staging/foo.conf#L2505")))
+          Route(Environment.QA        , "https://github.com/hmrc/mdtp-frontend-routes/blob/main/qa/foo.conf#L2505"        ),
+          Route(Environment.Staging   , "https://github.com/hmrc/mdtp-frontend-routes/blob/main/staging/foo.conf#L2505"   ),
+          Route(Environment.Production, "https://github.com/hmrc/mdtp-frontend-routes/blob/main/production/foo.conf#L2505"),
         )
 
       response shouldBe expectedOutput
 
     "return empty Seq when a service has no frontend routes" in:
       stubFor(
-        get(urlEqualTo("/service-configs/frontend-route/foo-non-existing"))
+        get(urlEqualTo("/service-configs/routes?serviceName=foo-non-existing&routeType=frontend"))
           .willReturn(
             aResponse()
               .withStatus(200)
@@ -112,9 +113,80 @@ class ServiceConfigsConnectorSpec
           )
       )
 
-      val response: Seq[FrontendRoute] =
+      val response: Seq[Route] =
         serviceConfigsConnector
           .getMDTPFrontendRoutes(ServiceName("foo-non-existing"))
+          .futureValue
+
+      val expectedOutput = Seq.empty
+
+      response shouldBe expectedOutput
+
+  "GET getAdminFrontendRoutes" should :
+    "return admin frontend routes for service" in :
+      stubFor(
+        get(urlEqualTo("/service-configs/routes?serviceName=foo&routeType=adminfrontend"))
+          .willReturn(
+            aResponse()
+              .withStatus(200)
+              .withBody(
+                """[
+                    {
+                      "serviceName": "foo",
+                      "path": "/foo-path",
+                      "ruleConfigurationUrl": "https://github.com/hmrc/admin-frontend-proxy/blob/HEAD/config/routes.yaml#L2505",
+                      "isRegex": false,
+                      "routeType": "adminfrontend",
+                      "environment": "qa"
+                    },
+                    {
+                      "serviceName": "foo",
+                      "path": "/foo-path",
+                      "ruleConfigurationUrl": "https://github.com/hmrc/admin-frontend-proxy/blob/HEAD/config/routes.yaml#L2505",
+                      "isRegex": false,
+                      "routeType": "adminfrontend",
+                      "environment": "staging"
+                    },
+                    {
+                      "serviceName": "foo",
+                      "path": "/foo-path",
+                      "ruleConfigurationUrl": "https://github.com/hmrc/admin-frontend-proxy/blob/HEAD/config/routes.yaml#L2505",
+                      "isRegex": false,
+                      "routeType": "adminfrontend",
+                      "environment": "production"
+                    }
+                ]"""
+              )
+          )
+      )
+
+      val response: Seq[Route] =
+        serviceConfigsConnector
+          .getAdminFrontendRoutes(ServiceName("foo"))
+          .futureValue
+
+      val expectedOutput: Seq[Route] =
+        Seq(
+          Route(Environment.QA        , "https://github.com/hmrc/admin-frontend-proxy/blob/HEAD/config/routes.yaml#L2505"),
+          Route(Environment.Staging   , "https://github.com/hmrc/admin-frontend-proxy/blob/HEAD/config/routes.yaml#L2505"),
+          Route(Environment.Production, "https://github.com/hmrc/admin-frontend-proxy/blob/HEAD/config/routes.yaml#L2505"),
+        )
+
+      response shouldBe expectedOutput
+
+    "return empty Seq when a service has no admin frontend routes" in :
+      stubFor(
+        get(urlEqualTo("/service-configs/routes?serviceName=foo-non-existing&routeType=adminfrontend"))
+          .willReturn(
+            aResponse()
+              .withStatus(200)
+              .withBody("[]")
+          )
+      )
+
+      val response: Seq[Route] =
+        serviceConfigsConnector
+          .getAdminFrontendRoutes(ServiceName("foo-non-existing"))
           .futureValue
 
       val expectedOutput = Seq.empty

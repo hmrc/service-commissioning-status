@@ -29,24 +29,21 @@ object ServiceConfigsConnector:
   import play.api.libs.functional.syntax._
   import play.api.libs.json._
 
-  case class Routes(ruleConfigurationUrl: String)
 
-  object Routes {
-    val reads: Reads[Routes] =
-      (__ \ "ruleConfigurationUrl").read[String].map(Routes(_))
-  }
+  enum RouteType(val asString: String):
+    case AdminFrontend extends RouteType("adminfrontend")
+    case Frontend      extends RouteType("frontend")
+  
+  case class Route(
+    environment         : Environment
+  , ruleConfigurationUrl: String
+  )
 
-  case class FrontendRoute(environment: Environment, routes: Seq[Routes])
-
-  object FrontendRoute {
-    val reads: Reads[FrontendRoute] = {
-      given Reads[Routes]      = Routes.reads
-      given Reads[Environment] = Environment.format
-      ( (__ \ "environment").read[Environment]
-      ~ (__ \ "routes"     ).read[Seq[Routes]]
-      )(FrontendRoute.apply _)
-    }
-  }
+  object Route:
+    val reads: Reads[Route] =
+      ( (__ \ "environment"         ).read[Environment](Environment.format)
+      ~ (__ \ "ruleConfigurationUrl").read[String]
+      )(Route.apply _)
 
   case class AdminFrontendRoute(
     allow   : Map[Environment, List[String]]
@@ -82,18 +79,18 @@ class ServiceConfigsConnector @Inject()(
   import ServiceConfigsConnector._
 
   private val url: String = servicesConfig.baseUrl("service-configs")
-
-  private given Reads[FrontendRoute] = FrontendRoute.reads
-  def getMDTPFrontendRoutes(serviceName: ServiceName)(using HeaderCarrier): Future[Seq[FrontendRoute]] =
+  
+  private given Reads[Route] = Route.reads
+  
+  def getMDTPFrontendRoutes(serviceName: ServiceName)(using HeaderCarrier): Future[Seq[Route]] =
     httpClientV2
-      .get(url"$url/service-configs/frontend-route/${serviceName.asString}")
-      .execute[Seq[FrontendRoute]]
-
-  private given Reads[AdminFrontendRoute] = AdminFrontendRoute.reads
-  def getAdminFrontendRoutes(serviceName: ServiceName)(using HeaderCarrier): Future[Seq[AdminFrontendRoute]] =
+      .get(url"$url/service-configs/routes?serviceName=${serviceName.asString}&routeType=frontend")
+      .execute[Seq[Route]]
+  
+  def getAdminFrontendRoutes(serviceName: ServiceName)(using HeaderCarrier): Future[Seq[Route]] =
     httpClientV2
-      .get(url"$url/service-configs/admin-frontend-route/${serviceName.asString}")
-      .execute[Seq[AdminFrontendRoute]]
+      .get(url"$url/service-configs/routes?serviceName=${serviceName.asString}&routeType=adminfrontend")
+      .execute[Seq[Route]]
 
   private given Reads[InternalAuthConfig] = InternalAuthConfig.reads
   def getInternalAuthConfig(serviceName: ServiceName)(using HeaderCarrier): Future[Seq[InternalAuthConfig]] =
