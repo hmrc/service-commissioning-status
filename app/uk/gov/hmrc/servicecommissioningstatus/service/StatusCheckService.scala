@@ -25,6 +25,7 @@ import play.api.Configuration
 import scala.concurrent.{ExecutionContext, Future}
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.servicecommissioningstatus.connectors.*
+import uk.gov.hmrc.servicecommissioningstatus.connectors.ServiceConfigsConnector.Route
 import uk.gov.hmrc.servicecommissioningstatus.persistence.LifecycleStatusRepository.Lifecycle
 import uk.gov.hmrc.servicecommissioningstatus.persistence.{CacheRepository, LifecycleStatusRepository}
 import uk.gov.hmrc.servicecommissioningstatus.{Check, Environment, LifecycleStatus, Parser, Result, ServiceName, ServiceType, TeamName, Warning}
@@ -364,17 +365,17 @@ class StatusCheckService @Inject()(
       case Some(repo) if !repo.isArchived && !repo.isDeleted => Result.Present(repo.githubUrl)
       case _                                                 => Result.Missing("/create-repo")
 
-  private def checkFrontendRouteForEnv(frontendRoutes: Seq[ServiceConfigsConnector.FrontendRoute], env: Environment): Result =
+  private def checkFrontendRouteForEnv(frontendRoutes: Seq[ServiceConfigsConnector.Route], env: Environment) =
     frontendRoutes
-      .find(_.environment == env)
-      .flatMap(_.routes.map(_.ruleConfigurationUrl).headOption) match
-        case Some(e) => Result.Present(e)
-        case None    => Result.Missing(s"https://github.com/hmrc/mdtp-frontend-routes/tree/main/${env.asString}")
+      .find(_.environment == env) match
+        case Some(frontendRoute) => Result.Present(frontendRoute.ruleConfigurationUrl)
+        case None                => Result.Missing(s"https://github.com/hmrc/mdtp-frontend-routes/tree/main/${env.asString}")
 
-  private def checkAdminFrontendRouteForEnv(adminFrontendRoutes: Seq[ServiceConfigsConnector.AdminFrontendRoute], env: Environment): Result =
-    adminFrontendRoutes.headOption match
-      case Some(e) if e.allow.contains(env) => Result.Present(e.location)
-      case _                                => Result.Missing(s"https://github.com/hmrc/admin-frontend-proxy")
+  private def checkAdminFrontendRouteForEnv(adminFrontendRoutes: Seq[ServiceConfigsConnector.Route], env: Environment): Result =
+    adminFrontendRoutes
+      .find(_.environment == env) match
+        case Some(adminFrontendRoute) => Result.Present(adminFrontendRoute.ruleConfigurationUrl)
+        case _                        => Result.Missing(s"https://github.com/hmrc/admin-frontend-proxy")
 
   private def checkForInternalAuthEnvironment(configs: Seq[ServiceConfigsConnector.InternalAuthConfig], internalAuthEnv: String, environment: Environment): Result =
     val url = s"https://github.com/hmrc/internal-auth-config/tree/main/$internalAuthEnv"
