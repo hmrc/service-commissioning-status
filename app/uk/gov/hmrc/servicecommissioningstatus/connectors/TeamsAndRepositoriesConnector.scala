@@ -140,3 +140,8 @@ class TeamsAndRepositoriesConnector @Inject()(
     httpClientV2
       .get(url"$url/api/v2/repositories/$repoName/jenkins-jobs")
       .execute[Seq[JenkinsJob]]
+
+  def findAssociatedTestRepos(repoName: String)(using HeaderCarrier): Future[Seq[String]] =
+    httpClientV2
+      .get(url"$url/api/v2/repositories/$repoName/test-repositories")
+      .execute[Seq[String]]

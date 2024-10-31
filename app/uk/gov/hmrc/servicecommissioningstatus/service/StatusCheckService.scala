@@ -26,6 +26,7 @@ import scala.concurrent.{ExecutionContext, Future}
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.servicecommissioningstatus.connectors.*
 import uk.gov.hmrc.servicecommissioningstatus.connectors.ServiceConfigsConnector.Route
+import uk.gov.hmrc.servicecommissioningstatus.connectors.TeamsAndRepositoriesConnector.JenkinsJob
 import uk.gov.hmrc.servicecommissioningstatus.persistence.LifecycleStatusRepository.Lifecycle
 import uk.gov.hmrc.servicecommissioningstatus.persistence.{CacheRepository, LifecycleStatusRepository}
 import uk.gov.hmrc.servicecommissioningstatus.{Check, Environment, LifecycleStatus, Parser, Result, ServiceName, ServiceType, TeamName, Warning}
@@ -52,6 +53,8 @@ class StatusCheckService @Inject()(
     ("Admin Frontend Routes"   -> classOf[Check.EnvCheck   ]) ::
     ("Build Jobs"              -> classOf[Check.SimpleCheck]) ::
     ("Pipeline Jobs"           -> classOf[Check.SimpleCheck]) ::
+    ("Acceptance Tests"        -> classOf[Check.SimpleCheck]) ::
+    ("Performance Tests"       -> classOf[Check.SimpleCheck]) ::
     ("Service Manager Config"  -> classOf[Check.SimpleCheck]) ::
     ("Logging - Kibana"        -> classOf[Check.SimpleCheck]) ::
     ("Metrics - Grafana"       -> classOf[Check.SimpleCheck]) ::
@@ -128,6 +131,11 @@ class StatusCheckService @Inject()(
                               Environment.Production -> checkForInternalAuthEnvironment(configs, "prod", Environment.Production))
                           .map(xs => Option.when(xs.values.exists(_.isPresent))(xs))
       pipelineJob     <- checkPipelineJob(serviceName)
+      testJobs        <- teamsAndReposConnector.findAssociatedTestRepos(serviceName.asString).flatMap { testRepos =>
+                           testRepos.foldLeftM(Map.empty[String, JenkinsJob]) { (acc, testRepo) =>
+                            teamsAndReposConnector.findJenkinsJobs(testRepo).map(jobs => acc ++ jobs.map(job => (testRepo -> job)))
+                            }
+                         }
       deploymentEnv   <- releasesConnector
                           .getReleases(serviceName)
                           .map: releases =>
@@ -206,6 +214,20 @@ class StatusCheckService @Inject()(
                            helpText   = "Configuration to automatically deploy to lower environments when a build completes",
                            linkToDocs = if isDecommission then Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/decommission-a-microservice/remove-ci-cd-jobs-and-pipeline.html")
                                         else                   Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/create-a-ci-cd-pipeline.html#add-the-pipelinejobbuilder")
+                         ) ::
+                         SimpleCheck(
+                           title      = "Acceptance Tests",
+                           result     = checkForAcceptanceTests(testJobs),
+                           helpText   = "In accordance with the MDTP test approach, services should be covered by a suite of acceptance tests. Typically, this will be incorporated as part of the CI/CD pipeline.",
+                           linkToDocs = if isDecommission then Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/decommission-a-microservice/remove-ci-cd-jobs-and-pipeline.html")
+                                        else                   Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/mdtp-test-approach/acceptance-testing/index.html")
+                         ) ::
+                         SimpleCheck(
+                           title      = "Performance Tests",
+                           result     = checkForPerformanceTests(testJobs),
+                           helpText   = "In accordance with the MDTP test approach, services should be covered by a set of performance tests which are configured to simulate expected Production traffic. This is useful for determining the amount of resources that a service requires.",
+                           linkToDocs = if isDecommission then Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/decommission-a-microservice/remove-performance-tests.html")
+                                        else                   Some("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/mdtp-test-approach/performance-testing/index.html")
                          ) ::
                          SimpleCheck(
                            title      = "Service Manager Config",
@@ -384,7 +406,7 @@ class StatusCheckService @Inject()(
     else
       Result.Missing(url)
 
-  private def checkPipelineJob(serviceName: ServiceName)(implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Result] =
+  private def checkPipelineJob(serviceName: ServiceName)(using hc: HeaderCarrier, ec: ExecutionContext): Future[Result] =
     for
       jobs <- teamsAndReposConnector.findJenkinsJobs(serviceName.asString)
       check = jobs.find(_.jobType == TeamsAndRepositoriesConnector.JobType.Pipeline)
@@ -403,6 +425,22 @@ class StatusCheckService @Inject()(
       val db = collections.headOption.fold("")(_.database)
       Result.Present(s"https://grafana.tools.${env.asString}.tax.service.gov.uk/d/platops-mongo-collections?var-replica_set=*&var-database=$db&var-collection=All&orgId=1")
     else Result.Missing("")
+
+  private def checkForAcceptanceTests(testJobs: Map[String, JenkinsJob]): Result =
+    testJobs.find { case (repo, job) =>
+      (repo.contains("acceptance-test") || repo.contains("ui-test") || repo.contains("api-test")) &&
+      job.jenkinsUrl.contains("build.tax")
+    } match
+      case Some((_, job)) => Result.Present(job.jenkinsUrl)
+      case None           => Result.Missing("/create-repo")
+
+  private def checkForPerformanceTests(testJobs: Map[String, JenkinsJob]): Result =
+    testJobs.find { case (repo, job) =>
+      (repo.contains("performance-test") || repo.contains("perf-test")) &&
+      job.jenkinsUrl.contains("performance.tools.staging")
+    } match
+      case Some((_, job)) => Result.Present(job.jenkinsUrl)
+      case None           => Result.Missing("/create-repo")
 
 object StatusCheckService:
 
