@@ -26,10 +26,10 @@ import scala.concurrent.{ExecutionContext, Future}
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.servicecommissioningstatus.connectors.*
 import uk.gov.hmrc.servicecommissioningstatus.connectors.ServiceConfigsConnector.Route
-import uk.gov.hmrc.servicecommissioningstatus.connectors.TeamsAndRepositoriesConnector.JenkinsJob
+import uk.gov.hmrc.servicecommissioningstatus.connectors.TeamsAndRepositoriesConnector.{JenkinsJob, JobType}
 import uk.gov.hmrc.servicecommissioningstatus.persistence.LifecycleStatusRepository.Lifecycle
 import uk.gov.hmrc.servicecommissioningstatus.persistence.{CacheRepository, LifecycleStatusRepository}
-import uk.gov.hmrc.servicecommissioningstatus.{Check, Environment, LifecycleStatus, Parser, Result, ServiceName, ServiceType, TeamName, Warning}
+import uk.gov.hmrc.servicecommissioningstatus.{Check, Environment, LifecycleStatus, Parser, Result, ServiceName, ServiceType, TestType, TeamName, Warning}
 
 @Singleton
 class StatusCheckService @Inject()(
@@ -430,18 +430,14 @@ class StatusCheckService @Inject()(
 
   private def checkForAcceptanceTests(testJobs: Seq[(String, JenkinsJob)]): Result =
     testJobs.find { case (repo, job) =>
-      (repo.contains("acceptance-test") || repo.contains("ui-test") || repo.contains("api-test")) &&
-      !job.jobName.endsWith("pr-builder") &&
-      job.jenkinsUrl.startsWith("https://build.tax.service.gov.uk")
+      job.jobType == JobType.Test && job.testType == TestType.Acceptance
     } match
       case Some((_, job)) => Result.Present(job.jenkinsUrl)
       case None           => Result.Missing("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/create-a-test-repository.html")
 
   private def checkForPerformanceTests(testJobs: Seq[(String, JenkinsJob)]): Result =
     testJobs.find { case (repo, job) =>
-      (repo.contains("performance-test") || repo.contains("perf-test")) &&
-      !job.jobName.endsWith("pr-builder") &&
-      job.jenkinsUrl.startsWith("https://performance.tools.staging.tax.service.gov.uk")
+      job.jobType == JobType.Test && job.testType == TestType.Performance
     } match
       case Some((_, job)) => Result.Present(job.jenkinsUrl)
       case None           => Result.Missing("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/create-a-test-repository.html")
