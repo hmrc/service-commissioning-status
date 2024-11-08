@@ -91,6 +91,7 @@ object TeamsAndRepositoriesConnector:
   case class JenkinsJob(
     repoName   : String,
     jenkinsUrl : String,
+    jobName    : String,
     jobType    : JobType
   )
 
@@ -98,6 +99,7 @@ object TeamsAndRepositoriesConnector:
     given reads: Reads[JenkinsJob] =
       ( (__ \ "repoName"  ).read[String]
       ~ (__ \ "jenkinsURL").read[String]
+      ~ (__ \ "jobName"   ).read[String]
       ~ (__ \ "jobType"   ).read[JobType]
       )(JenkinsJob.apply _)
 

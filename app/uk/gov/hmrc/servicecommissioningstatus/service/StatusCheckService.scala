@@ -132,9 +132,11 @@ class StatusCheckService @Inject()(
                           .map(xs => Option.when(xs.values.exists(_.isPresent))(xs))
       pipelineJob     <- checkPipelineJob(serviceName)
       testJobs        <- teamsAndReposConnector.findAssociatedTestRepos(serviceName.asString).flatMap { testRepos =>
-                           testRepos.foldLeftM(Map.empty[String, JenkinsJob]) { (acc, testRepo) =>
-                            teamsAndReposConnector.findJenkinsJobs(testRepo).map(jobs => acc ++ jobs.map(job => (testRepo -> job)))
-                            }
+                           testRepos.foldLeftM(Seq.empty[(String, JenkinsJob)]) { (acc, testRepo) =>
+                             teamsAndReposConnector.findJenkinsJobs(testRepo).map { jobs =>
+                               acc ++ jobs.map(job => testRepo -> job)
+                             }
+                           }
                          }
       deploymentEnv   <- releasesConnector
                           .getReleases(serviceName)
@@ -426,21 +428,23 @@ class StatusCheckService @Inject()(
       Result.Present(s"https://grafana.tools.${env.asString}.tax.service.gov.uk/d/platops-mongo-collections?var-replica_set=*&var-database=$db&var-collection=All&orgId=1")
     else Result.Missing("")
 
-  private def checkForAcceptanceTests(testJobs: Map[String, JenkinsJob]): Result =
+  private def checkForAcceptanceTests(testJobs: Seq[(String, JenkinsJob)]): Result =
     testJobs.find { case (repo, job) =>
       (repo.contains("acceptance-test") || repo.contains("ui-test") || repo.contains("api-test")) &&
-      job.jenkinsUrl.contains("build.tax")
+      !job.jobName.endsWith("pr-builder") &&
+      job.jenkinsUrl.startsWith("https://build.tax.service.gov.uk")
     } match
       case Some((_, job)) => Result.Present(job.jenkinsUrl)
-      case None           => Result.Missing("/create-repo")
+      case None           => Result.Missing("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/create-a-test-repository.html")
 
-  private def checkForPerformanceTests(testJobs: Map[String, JenkinsJob]): Result =
+  private def checkForPerformanceTests(testJobs: Seq[(String, JenkinsJob)]): Result =
     testJobs.find { case (repo, job) =>
       (repo.contains("performance-test") || repo.contains("perf-test")) &&
-      job.jenkinsUrl.contains("performance.tools.staging")
+      !job.jobName.endsWith("pr-builder") &&
+      job.jenkinsUrl.startsWith("https://performance.tools.staging.tax.service.gov.uk")
     } match
       case Some((_, job)) => Result.Present(job.jenkinsUrl)
-      case None           => Result.Missing("/create-repo")
+      case None           => Result.Missing("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/create-a-test-repository.html")
 
 object StatusCheckService:
 
