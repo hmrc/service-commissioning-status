@@ -69,11 +69,13 @@ class TeamsAndRepositoriesConnectorSpec
                     {
                       "repoName": "service-one",
                       "jenkinsURL": "http.jenkins/service-one",
+                      "jobName": "service-one",
                       "jobType": "job"
                     },
                     {
                       "repoName": "service-one",
                       "jenkinsURL": "http.jenkins/service-one-pipeline",
+                      "jobName": "service-one-pipeline",
                       "jobType": "pipeline"
                     }
                   ]
@@ -89,6 +91,6 @@ class TeamsAndRepositoriesConnectorSpec
           .futureValue
 
       response shouldBe Seq(
-        TeamsAndRepositoriesConnector.JenkinsJob(repoName= "service-one", jenkinsUrl = "http.jenkins/service-one",           jobType = TeamsAndRepositoriesConnector.JobType.Job),
-        TeamsAndRepositoriesConnector.JenkinsJob(repoName= "service-one", jenkinsUrl = "http.jenkins/service-one-pipeline",  jobType = TeamsAndRepositoriesConnector.JobType.Pipeline)
+        TeamsAndRepositoriesConnector.JenkinsJob(repoName= "service-one", jenkinsUrl = "http.jenkins/service-one",          jobName = "service-one",          jobType = TeamsAndRepositoriesConnector.JobType.Job),
+        TeamsAndRepositoriesConnector.JenkinsJob(repoName= "service-one", jenkinsUrl = "http.jenkins/service-one-pipeline", jobName = "service-one-pipeline", jobType = TeamsAndRepositoriesConnector.JobType.Pipeline)
       )

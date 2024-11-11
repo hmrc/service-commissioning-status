@@ -21,7 +21,7 @@ import play.api.libs.json.{Reads, __}
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps}
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
-import uk.gov.hmrc.servicecommissioningstatus.{FromString, Parser, ServiceName, ServiceType, TeamName}
+import uk.gov.hmrc.servicecommissioningstatus.{FromString, Parser, ServiceName, ServiceType, TestType, TeamName}
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
@@ -73,8 +73,9 @@ object TeamsAndRepositoriesConnector:
       ) (apply _)
 
   enum JobType(val asString: String):
-    case Job         extends JobType("job")
-    case Pipeline    extends JobType("pipeline")
+    case Job         extends JobType("job"         )
+    case Test        extends JobType("test"        )
+    case Pipeline    extends JobType("pipeline"    )
     case PullRequest extends JobType("pull-request")
 
   object JobType extends Logging:
@@ -91,14 +92,18 @@ object TeamsAndRepositoriesConnector:
   case class JenkinsJob(
     repoName   : String,
     jenkinsUrl : String,
-    jobType    : JobType
+    jobName    : String,
+    jobType    : JobType,
+    testType   : Option[TestType] = None
   )
 
   object JenkinsJob:
     given reads: Reads[JenkinsJob] =
       ( (__ \ "repoName"  ).read[String]
       ~ (__ \ "jenkinsURL").read[String]
+      ~ (__ \ "jobName"   ).read[String]
       ~ (__ \ "jobType"   ).read[JobType]
+      ~ (__ \ "testType"  ).readNullable[TestType]
       )(JenkinsJob.apply _)
 
 @Singleton
@@ -140,3 +145,8 @@ class TeamsAndRepositoriesConnector @Inject()(
     httpClientV2
       .get(url"$url/api/v2/repositories/$repoName/jenkins-jobs")
       .execute[Seq[JenkinsJob]]
+
+  def findAssociatedTestRepos(repoName: String)(using HeaderCarrier): Future[Seq[String]] =
+    httpClientV2
+      .get(url"$url/api/v2/repositories/$repoName/test-repositories")
+      .execute[Seq[String]]

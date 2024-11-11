@@ -31,10 +31,17 @@ object ServiceName:
 
 enum ServiceType(val asString: String) extends FromString derives PathBindable, QueryStringBindable, Reads:
   case Frontend extends ServiceType("frontend")
-  case Backend  extends ServiceType("backend")
+  case Backend  extends ServiceType("backend" )
 
 object ServiceType:
   given Parser[ServiceType] = Parser.parser(ServiceType.values)
+
+enum TestType(val asString: String) extends FromString derives PathBindable, QueryStringBindable, Reads:
+  case Acceptance  extends TestType("acceptance" )
+  case Performance extends TestType("performance")
+
+object TestType:
+  given Parser[TestType] = Parser.parser(TestType.values)
 
 enum Environment(val asString: String, val displayString: String) extends FromString derives PathBindable, QueryStringBindable, Reads, Writes:
   case Integration  extends Environment(asString = "integration" , displayString = "Integration"   )
