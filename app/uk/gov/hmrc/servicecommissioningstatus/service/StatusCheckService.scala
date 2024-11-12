@@ -430,14 +430,14 @@ class StatusCheckService @Inject()(
 
   private def checkForAcceptanceTests(testJobs: Seq[(String, JenkinsJob)]): Result =
     testJobs.find { case (repo, job) =>
-      job.jobType == JobType.Test && job.testType == TestType.Acceptance
+      job.jobType == JobType.Test && job.testType.contains(TestType.Acceptance)
     } match
       case Some((_, job)) => Result.Present(job.jenkinsUrl)
       case None           => Result.Missing("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/create-a-test-repository.html")
 
   private def checkForPerformanceTests(testJobs: Seq[(String, JenkinsJob)]): Result =
     testJobs.find { case (repo, job) =>
-      job.jobType == JobType.Test && job.testType == TestType.Performance
+      job.jobType == JobType.Test && job.testType.contains(TestType.Performance)
     } match
       case Some((_, job)) => Result.Present(job.jenkinsUrl)
       case None           => Result.Missing("https://docs.tax.service.gov.uk/mdtp-handbook/documentation/create-a-microservice/create-a-test-repository.html")
