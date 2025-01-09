@@ -81,20 +81,22 @@ object ChannelLookup:
     case lookup: ByChannel => Json.toJson(lookup)(ByChannel.writes)
 
 final case class SlackNotificationRequest(
-  channelLookup: ChannelLookup,
-  displayName  : String,
-  emoji        : String,
-  text         : String,
-  blocks       : Seq[JsObject]
+  channelLookup  : ChannelLookup,
+  displayName    : String,
+  emoji          : String,
+  text           : String,
+  blocks         : Seq[JsObject],
+  callbackChannel: Option[String] = None
 )
 
 object SlackNotificationRequest:
   val writes: Writes[SlackNotificationRequest] =
-    ( (__ \ "channelLookup").write[ChannelLookup](ChannelLookup.writes)
-    ~ (__ \ "displayName"  ).write[String]
-    ~ (__ \ "emoji"        ).write[String]
-    ~ (__ \ "text"         ).write[String]
-    ~ (__ \ "blocks"       ).write[Seq[JsObject]]
+    ( (__ \ "channelLookup"  ).write[ChannelLookup](ChannelLookup.writes)
+    ~ (__ \ "displayName"    ).write[String]
+    ~ (__ \ "emoji"          ).write[String]
+    ~ (__ \ "text"           ).write[String]
+    ~ (__ \ "blocks"         ).write[Seq[JsObject]]
+    ~ (__ \ "callbackChannel").writeNullable[String]
     )(s => Tuple.fromProductTyped(s))
 
   def markedForDecommissioning(repositoryName: String, username: String): SlackNotificationRequest =
@@ -109,11 +111,12 @@ object SlackNotificationRequest:
     )
 
     SlackNotificationRequest(
-      channelLookup = ChannelLookup.ByRepo(repositoryName = repositoryName),
-      displayName   = "MDTP Catalogue",
-      emoji         = ":tudor-crown:",
-      text          = s"$repositoryName has been marked for decommissioning.",
-      blocks        = blocks
+      channelLookup   = ChannelLookup.ByRepo(repositoryName = repositoryName),
+      displayName     = "MDTP Catalogue",
+      emoji           = ":tudor-crown:",
+      text            = s"$repositoryName has been marked for decommissioning.",
+      blocks          = blocks,
+      callbackChannel = Some("team-platops-alerts")
     )
 
 final case class SlackNotificationError(
