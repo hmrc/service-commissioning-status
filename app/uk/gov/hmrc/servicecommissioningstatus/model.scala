@@ -39,6 +39,7 @@ object ServiceType:
 enum TestType(val asString: String) extends FromString derives PathBindable, QueryStringBindable, Reads:
   case Acceptance  extends TestType("acceptance" )
   case Performance extends TestType("performance")
+  case Contract    extends TestType("contract")
 
 object TestType:
   given Parser[TestType] = Parser.parser(TestType.values)
