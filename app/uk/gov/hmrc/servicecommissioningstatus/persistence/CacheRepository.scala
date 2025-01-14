@@ -54,14 +54,16 @@ class CacheRepository @Inject()(
       filterById    = entry => Filters.equal("serviceName", entry.serviceName)
     )
 
-  def findAll(serviceNames: Seq[ServiceName], lifecycleStatus: Seq[LifecycleStatus]): Future[Seq[ServiceCheck]] =
+  def findAll(
+    serviceNames   : Option[Seq[ServiceName]]
+  , lifecycleStatus: Option[Seq[LifecycleStatus]]
+  ): Future[Seq[ServiceCheck]] =
     collection
       .find(
-        Seq(
-          Option.when(serviceNames.nonEmpty)(Filters.in("serviceName", serviceNames: _*)),
-          Option.when(lifecycleStatus.nonEmpty)(Filters.in("lifecycleStatus", lifecycleStatus: _*))
-        ).flatten
-         .foldLeft(Filters.empty())(Filters.and(_, _))
+        Filters.and(
+          serviceNames.fold(Filters.empty)(xs => Filters.in("serviceName", xs: _*))
+        , lifecycleStatus.fold(Filters.empty)(xs => Filters.in("lifecycleStatus", xs: _*))
+        )
       ).sort(Sorts.ascending("serviceName"))
       .toFuture()
 
