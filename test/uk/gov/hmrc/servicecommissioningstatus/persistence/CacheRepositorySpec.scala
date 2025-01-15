@@ -66,5 +66,6 @@ class CacheRepositorySpec
     "find matches" in:
       repository.putAll(Seq(serviceCheck1, serviceCheck2, serviceCheck3)).futureValue
 
-      repository.findAll(serviceNames = Seq(ServiceName("service1")), lifecycleStatus = Seq.empty).futureValue shouldBe Seq(serviceCheck1)
-      repository.findAll(serviceNames = Seq.empty, lifecycleStatus = Seq(LifecycleStatus.Archived)).futureValue shouldBe Seq(serviceCheck2)
+      repository.findAll(serviceNames = Some(Seq(ServiceName("service1"))), lifecycleStatus = None                               ).futureValue shouldBe Seq(serviceCheck1)
+      repository.findAll(serviceNames = Some(Seq.empty)                   , lifecycleStatus = Some(Seq(LifecycleStatus.Archived))).futureValue shouldBe Nil
+      repository.findAll(serviceNames = None                              , lifecycleStatus = Some(Seq(LifecycleStatus.Archived))).futureValue shouldBe Seq(serviceCheck2)

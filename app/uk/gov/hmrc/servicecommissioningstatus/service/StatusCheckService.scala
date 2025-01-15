@@ -84,7 +84,7 @@ class StatusCheckService @Inject()(
   def cachedCommissioningStatusChecks(
     teamName       : Option[TeamName],
     serviceType    : Option[ServiceType],
-    lifecycleStatus: List[LifecycleStatus]
+    lifecycleStatus: Option[List[LifecycleStatus]]
   )(using
     HeaderCarrier,
     ExecutionContext
@@ -94,7 +94,8 @@ class StatusCheckService @Inject()(
                    , teamsAndReposConnector.findDeletedServiceRepos(team = teamName, serviceType = serviceType)
                    ).mapN(_ ++ _)
                     .map(_.sortBy(_.name))
-      results   <- cachedRepository.findAll(services.map(repo => ServiceName(repo.name)), lifecycleStatus)
+      oServices =  teamName.map(_ => services.map(repo => ServiceName(repo.name)))
+      results   <- cachedRepository.findAll(oServices, lifecycleStatus)
     yield results
 
   private lazy val environmentsToHideWhenUnconfigured: Set[Environment] =

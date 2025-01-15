@@ -49,7 +49,7 @@ class LifecycleStatusController @Inject()(
   def cachedStatusChecks(
     teamName       : Option[TeamName],
     serviceType    : Option[ServiceType],
-    lifecycleStatus: List[LifecycleStatus]
+    lifecycleStatus: Option[List[LifecycleStatus]]
   ) =
     Action.async { implicit request =>
       given Writes[ServiceCheck] = ServiceCheck.format

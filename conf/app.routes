@@ -1,7 +1,7 @@
 # microservice specific routes
 
 GET       /checks                                 uk.gov.hmrc.servicecommissioningstatus.controllers.LifecycleStatusController.listAllChecks()
-GET       /cached-status                          uk.gov.hmrc.servicecommissioningstatus.controllers.LifecycleStatusController.cachedStatusChecks(teamName: Option[TeamName], serviceType: Option[ServiceType], lifecycleStatus: List[LifecycleStatus] )
+GET       /cached-status                          uk.gov.hmrc.servicecommissioningstatus.controllers.LifecycleStatusController.cachedStatusChecks(teamName: Option[TeamName], serviceType: Option[ServiceType], lifecycleStatus: Option[List[LifecycleStatus]] )
 GET       /status/:serviceName                    uk.gov.hmrc.servicecommissioningstatus.controllers.LifecycleStatusController.statusChecks(serviceName: ServiceName)
 GET       /services/:serviceName/lifecycleStatus  uk.gov.hmrc.servicecommissioningstatus.controllers.LifecycleStatusController.getLifecycleStatus(serviceName: ServiceName)
 POST      /services/:serviceName/lifecycleStatus  uk.gov.hmrc.servicecommissioningstatus.controllers.LifecycleStatusController.setLifecycleStatus(serviceName: ServiceName)
