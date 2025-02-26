@@ -20,7 +20,7 @@ import play.api.Logging
 import play.api.libs.json.{Json, JsString, Reads, Writes, __}
 import play.api.mvc.{Action, AnyContent, ControllerComponents}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
-import uk.gov.hmrc.servicecommissioningstatus.{Check, LifecycleStatus, ServiceName, ServiceType, TeamName}
+import uk.gov.hmrc.servicecommissioningstatus.{Check, DigitalService, LifecycleStatus, ServiceName, ServiceType, TeamName}
 import uk.gov.hmrc.servicecommissioningstatus.persistence.CacheRepository.ServiceCheck
 import uk.gov.hmrc.servicecommissioningstatus.persistence.LifecycleStatusRepository.Lifecycle
 import uk.gov.hmrc.servicecommissioningstatus.service.StatusCheckService
@@ -48,13 +48,14 @@ class LifecycleStatusController @Inject()(
 
   def cachedStatusChecks(
     teamName       : Option[TeamName],
+    digitalService : Option[DigitalService],
     serviceType    : Option[ServiceType],
     lifecycleStatus: Option[List[LifecycleStatus]]
   ) =
     Action.async { implicit request =>
       given Writes[ServiceCheck] = ServiceCheck.format
       statusCheckService
-        .cachedCommissioningStatusChecks(teamName, serviceType, lifecycleStatus)
+        .cachedCommissioningStatusChecks(teamName, digitalService, serviceType, lifecycleStatus)
         .map(results => Ok(Json.toJson(results)))
     }
 

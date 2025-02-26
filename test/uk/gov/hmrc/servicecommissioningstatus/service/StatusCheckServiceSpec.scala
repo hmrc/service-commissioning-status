@@ -484,7 +484,7 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
     given HeaderCarrier = HeaderCarrier()
     given ExecutionContext = scala.concurrent.ExecutionContext.global
 
-    when(teamsAndReposConnector.findServiceRepos(any[Option[ServiceName]], any[Option[TeamName]], any[Option[ServiceType]])(using any[HeaderCarrier]))
+    when(teamsAndReposConnector.findServiceRepos(any[Option[ServiceName]], any[Option[TeamName]], any[Option[DigitalService]], any[Option[ServiceType]])(using any[HeaderCarrier]))
       .thenReturn(Future.successful(Seq(TeamsAndRepositoriesConnector.Repo(
         name         = serviceName.asString,
         githubUrl    = "github.url",
@@ -493,7 +493,7 @@ class StatusCheckServiceSpec extends AnyWordSpec with Matchers with ScalaFutures
         isDeleted    = isDeleted,
       ))))
 
-    when(teamsAndReposConnector.findDeletedServiceRepos(any[Option[ServiceName]], any[Option[TeamName]], any[Option[ServiceType]])(using any[HeaderCarrier]))
+    when(teamsAndReposConnector.findDeletedServiceRepos(any[Option[ServiceName]], any[Option[TeamName]], any[Option[DigitalService]], any[Option[ServiceType]])(using any[HeaderCarrier]))
       .thenReturn(Future.successful(Nil))
 
     when(lifecycleStatusRepository.lastLifecycleStatus(any[ServiceName]))

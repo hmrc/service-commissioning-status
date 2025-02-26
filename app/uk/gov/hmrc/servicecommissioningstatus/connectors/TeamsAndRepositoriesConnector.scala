@@ -21,7 +21,7 @@ import play.api.libs.json.{Reads, __}
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps}
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
-import uk.gov.hmrc.servicecommissioningstatus.{FromString, Parser, ServiceName, ServiceType, TestType, TeamName}
+import uk.gov.hmrc.servicecommissioningstatus.{DigitalService, FromString, Parser, ServiceName, ServiceType, TestType, TeamName}
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
@@ -37,7 +37,7 @@ object TeamsAndRepositoriesConnector:
     case BuiltOffPlatform extends Tag("built-off-platform")
     case Maven            extends Tag("maven"             )
     case Stub             extends Tag("stub"              )
-    
+
   object Tag:
     given Parser[Tag] = Parser.parser(Tag.values)
 
@@ -117,25 +117,27 @@ class TeamsAndRepositoriesConnector @Inject()(
   private val url = servicesConfig.baseUrl("teams-and-repositories")
 
   def findServiceRepos(
-    serviceName: Option[ServiceName] = None
-  , team       : Option[TeamName]    = None
-  , serviceType: Option[ServiceType] = None
+    serviceName   : Option[ServiceName]    = None
+  , team          : Option[TeamName]       = None
+  , digitalService: Option[DigitalService] = None
+  , serviceType   : Option[ServiceType]    = None
   )(using HeaderCarrier): Future[Seq[Repo]] =
     given Reads[Repo] = Repo.readsActive
 
     httpClientV2
-      .get(url"$url/api/v2/repositories?repoType=service&name=${serviceName.map(sn => s"\"${sn.asString}\"")}&team=${team.map(_.asString)}&serviceType=${serviceType.map(_.asString)}")
+      .get(url"$url/api/v2/repositories?repoType=service&name=${serviceName.map(sn => s"\"${sn.asString}\"")}&team=${team.map(_.asString)}&digitalServiceName=${digitalService.map(_.asString)}&serviceType=${serviceType.map(_.asString)}")
       .execute[Seq[Repo]]
 
   def findDeletedServiceRepos(
-    serviceName: Option[ServiceName] = None
-  , team       : Option[TeamName]    = None
-  , serviceType: Option[ServiceType] = None
+    serviceName   : Option[ServiceName]    = None
+  , team          : Option[TeamName]       = None
+  , digitalService: Option[DigitalService] = None
+  , serviceType   : Option[ServiceType]    = None
   )(using HeaderCarrier): Future[Seq[Repo]] =
     given Reads[Repo] = Repo.readsDeleted
 
     httpClientV2
-      .get(url"$url/api/deleted-repositories?repoType=service&name=${serviceName.map(sn => s"\"${sn.asString}\"")}&team=${team.map(_.asString)}&serviceType=${serviceType.map(_.asString)}")
+      .get(url"$url/api/deleted-repositories?repoType=service&name=${serviceName.map(sn => s"\"${sn.asString}\"")}&team=${team.map(_.asString)}&digitalServiceName=${digitalService.map(_.asString)}&serviceType=${serviceType.map(_.asString)}")
       .execute[Seq[Repo]]
 
   def findJenkinsJobs(repoName: String)(using HeaderCarrier): Future[Seq[JenkinsJob]] =
