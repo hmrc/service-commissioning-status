@@ -21,6 +21,12 @@ import play.api.libs.json.*
 import play.api.mvc.{PathBindable, QueryStringBindable}
 import FromStringEnum._
 
+case class DigitalService(asString: String) extends AnyVal
+
+object DigitalService:
+  val format: Format[DigitalService] =
+    Format.of[String].inmap(DigitalService.apply, _.asString)
+
 case class TeamName(asString: String) extends AnyVal
 
 case class ServiceName(asString: String) extends AnyVal

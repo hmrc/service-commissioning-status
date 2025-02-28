@@ -29,7 +29,7 @@ import uk.gov.hmrc.servicecommissioningstatus.connectors.ServiceConfigsConnector
 import uk.gov.hmrc.servicecommissioningstatus.connectors.TeamsAndRepositoriesConnector.{JenkinsJob, JobType}
 import uk.gov.hmrc.servicecommissioningstatus.persistence.LifecycleStatusRepository.Lifecycle
 import uk.gov.hmrc.servicecommissioningstatus.persistence.{CacheRepository, LifecycleStatusRepository}
-import uk.gov.hmrc.servicecommissioningstatus.{Check, Environment, LifecycleStatus, Parser, Result, ServiceName, ServiceType, TestType, TeamName, Warning}
+import uk.gov.hmrc.servicecommissioningstatus.{Check, DigitalService, Environment, LifecycleStatus, Parser, Result, ServiceName, ServiceType, TestType, TeamName, Warning}
 
 @Singleton
 class StatusCheckService @Inject()(
@@ -83,6 +83,7 @@ class StatusCheckService @Inject()(
 
   def cachedCommissioningStatusChecks(
     teamName       : Option[TeamName],
+    digitalService : Option[DigitalService],
     serviceType    : Option[ServiceType],
     lifecycleStatus: Option[List[LifecycleStatus]]
   )(using
@@ -90,8 +91,8 @@ class StatusCheckService @Inject()(
     ExecutionContext
   ): Future[Seq[CacheRepository.ServiceCheck]] =
     for
-      services  <- ( teamsAndReposConnector.findServiceRepos(team = teamName, serviceType = serviceType)
-                   , teamsAndReposConnector.findDeletedServiceRepos(team = teamName, serviceType = serviceType)
+      services  <- ( teamsAndReposConnector.findServiceRepos       (team = teamName, digitalService = digitalService, serviceType = serviceType)
+                   , teamsAndReposConnector.findDeletedServiceRepos(team = teamName, digitalService = digitalService, serviceType = serviceType)
                    ).mapN(_ ++ _)
                     .map(_.sortBy(_.name))
       oServices =  teamName.map(_ => services.map(repo => ServiceName(repo.name)))
