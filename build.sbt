@@ -2,17 +2,15 @@ import play.sbt.routes.RoutesKeys
 import uk.gov.hmrc.DefaultBuildSettings
 
 ThisBuild / majorVersion := 0
-ThisBuild / scalaVersion := "3.3.3"
+ThisBuild / scalaVersion := "3.3.5"
+ThisBuild / scalacOptions += "-Wconf:msg=Flag.*repeatedly:s"
 
 lazy val microservice = Project("service-commissioning-status", file("."))
   .enablePlugins(play.sbt.PlayScala, SbtDistributablesPlugin)
   .settings(
     PlayKeys.playDefaultPort :=  8858,
     libraryDependencies      ++= AppDependencies.compile ++ AppDependencies.test,
-    // https://www.scala-lang.org/2021/01/12/configuring-and-suppressing-warnings.html
-    // suppress warnings in generated routes files
-    // Disabled until implemented in a later Scala version
-//    scalacOptions            += "-Wconf:src=routes/.*:s",
+    scalacOptions            += "-Wconf:src=routes/.*:s",
     RoutesKeys.routesImport ++= Seq(
       "uk.gov.hmrc.servicecommissioningstatus.{DigitalService, LifecycleStatus, ServiceName, ServiceType, TeamName}",
       "uk.gov.hmrc.servicecommissioningstatus.Binders._",

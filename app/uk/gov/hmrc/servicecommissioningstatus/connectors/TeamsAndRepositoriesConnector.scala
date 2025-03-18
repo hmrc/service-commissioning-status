@@ -34,6 +34,7 @@ object TeamsAndRepositoriesConnector:
   enum Tag(val asString: String) extends FromString derives Reads:
     case AdminFrontend    extends Tag("admin"             )
     case Api              extends Tag("api"               )
+    case External         extends Tag("external"          )
     case BuiltOffPlatform extends Tag("built-off-platform")
     case Maven            extends Tag("maven"             )
     case Stub             extends Tag("stub"              )
