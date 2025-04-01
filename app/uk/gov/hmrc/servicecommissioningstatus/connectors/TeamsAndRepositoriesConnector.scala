@@ -126,7 +126,7 @@ class TeamsAndRepositoriesConnector @Inject()(
     given Reads[Repo] = Repo.readsActive
 
     httpClientV2
-      .get(url"$url/api/v2/repositories?repoType=service&name=${serviceName.map(sn => s"\"${sn.asString}\"")}&team=${team.map(_.asString)}&digitalServiceName=${digitalService.map(_.asString)}&serviceType=${serviceType.map(_.asString)}")
+      .get(url"$url/api/v2/repositories?organisation=mdtp&repoType=service&name=${serviceName.map(sn => s"\"${sn.asString}\"")}&team=${team.map(_.asString)}&digitalServiceName=${digitalService.map(_.asString)}&serviceType=${serviceType.map(_.asString)}")
       .execute[Seq[Repo]]
 
   def findDeletedServiceRepos(
@@ -138,7 +138,7 @@ class TeamsAndRepositoriesConnector @Inject()(
     given Reads[Repo] = Repo.readsDeleted
 
     httpClientV2
-      .get(url"$url/api/deleted-repositories?repoType=service&name=${serviceName.map(sn => s"\"${sn.asString}\"")}&team=${team.map(_.asString)}&digitalServiceName=${digitalService.map(_.asString)}&serviceType=${serviceType.map(_.asString)}")
+      .get(url"$url/api/deleted-repositories?organisation=mdtp&repoType=service&name=${serviceName.map(sn => s"\"${sn.asString}\"")}&team=${team.map(_.asString)}&digitalServiceName=${digitalService.map(_.asString)}&serviceType=${serviceType.map(_.asString)}")
       .execute[Seq[Repo]]
 
   def findJenkinsJobs(repoName: String)(using HeaderCarrier): Future[Seq[JenkinsJob]] =
