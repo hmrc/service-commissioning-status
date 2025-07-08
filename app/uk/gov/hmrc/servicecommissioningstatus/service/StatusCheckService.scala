@@ -95,7 +95,7 @@ class StatusCheckService @Inject()(
                    , teamsAndReposConnector.findDeletedServiceRepos(team = teamName, digitalService = digitalService, serviceType = serviceType)
                    ).mapN(_ ++ _)
                     .map(_.sortBy(_.name))
-      oServices =  teamName.map(_ => services.map(repo => ServiceName(repo.name)))
+      oServices =  teamName.orElse(digitalService).map(_ => services.map(repo => ServiceName(repo.name)))
       results   <- cachedRepository.findAll(oServices, lifecycleStatus)
     yield results
 
