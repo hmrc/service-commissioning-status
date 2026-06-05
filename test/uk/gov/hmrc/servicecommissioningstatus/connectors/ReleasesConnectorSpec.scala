@@ -52,7 +52,7 @@ class ReleasesConnectorSpec
   "GET getReleases" should:
     "return WhatsRunningWhereReleases for a service" in:
       stubFor(
-        get(urlEqualTo("/releases-api/whats-running-where/foo"))
+        get(urlEqualTo("/api/whats-running-where/foo"))
           .willReturn(
             aResponse()
               .withStatus(200)
@@ -85,7 +85,7 @@ class ReleasesConnectorSpec
 
     "return WhatsRunningWhereReleases that contains Empty Seq when service Not Found" in:
       stubFor(
-        get(urlEqualTo("/releases-api/whats-running-where/foo-non-existing"))
+        get(urlEqualTo("/api/whats-running-where/foo-non-existing"))
           .willReturn(aResponse().withStatus(404)))
 
       val response: WhatsRunningWhereReleases =
