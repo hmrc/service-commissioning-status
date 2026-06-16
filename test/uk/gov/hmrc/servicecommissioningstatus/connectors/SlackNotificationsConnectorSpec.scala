@@ -53,7 +53,7 @@ class SlackNotificationsConnectorSpec
   "send" should:
     "return a response containing no errors" in:
       stubFor(
-        post(urlEqualTo("/api/v2/notification"))
+        post(urlEqualTo("/slack-notifications/v2/notification"))
           .willReturn(
             aResponse()
               .withStatus(202)
@@ -68,7 +68,7 @@ class SlackNotificationsConnectorSpec
 
     "replace channel lookup with explicit slack channel when switch enabled" in:
       stubFor(
-        post(urlEqualTo("/api/v2/notification"))
+        post(urlEqualTo("/slack-notifications/v2/notification"))
           .willReturn(
             aResponse()
               .withStatus(202)
@@ -90,6 +90,6 @@ class SlackNotificationsConnectorSpec
         """{"by":"slack-channel","slackChannels":["test-alerts-channel"]}"""
 
       verify(
-        postRequestedFor(urlEqualTo("/api/v2/notification"))
+        postRequestedFor(urlEqualTo("/slack-notifications/v2/notification"))
           .withRequestBody(containing(expectedLookup))
       )

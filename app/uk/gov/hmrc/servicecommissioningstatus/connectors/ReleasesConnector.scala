@@ -76,7 +76,7 @@ class ReleasesConnector @Inject()(
   def getReleases(serviceName: ServiceName)(implicit hc: HeaderCarrier): Future[WhatsRunningWhereReleases] =
     implicit val r: Reads[WhatsRunningWhereReleases] = WhatsRunningWhereReleases.reads
     httpClientV2
-      .get(url"$url/api/whats-running-where/${serviceName.asString}")
+      .get(url"$url/releases-api/whats-running-where/${serviceName.asString}")
       .execute[Option[WhatsRunningWhereReleases]]
       .map(_.getOrElse(WhatsRunningWhereReleases(Seq.empty)))
 

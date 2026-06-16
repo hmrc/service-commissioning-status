@@ -50,7 +50,7 @@ class SlackNotificationsConnector @Inject()(
     given Writes[SlackNotificationRequest] = SlackNotificationRequest.writes
     given Reads[SlackNotificationResponse] = SlackNotificationResponse.reads
     httpClientV2
-      .post(url"$baseUrl/api/v2/notification")
+      .post(url"$baseUrl/slack-notifications/v2/notification")
       .withBody(Json.toJson(replaceChannelLookup(request)))
       .setHeader("Authorization" -> token)
       .execute[SlackNotificationResponse]
