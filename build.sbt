@@ -16,7 +16,6 @@ lazy val microservice = Project("service-commissioning-status", file("."))
       "uk.gov.hmrc.servicecommissioningstatus.Binders._",
     )
   )
-  .settings(resolvers += Resolver.jcenterRepo)
   .settings(CodeCoverageSettings.settings: _*)
 
 lazy val it =
